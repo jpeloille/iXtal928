@@ -37,7 +37,7 @@ indent_style = tab
 # ceux-là (CS1717, CS0168, ...) restent traités en erreurs et se neutralisent
 # fichier par fichier avec des #pragma énumérés et commentés.
 # ---------------------------------------------------------------------------
-[**/{Cpu,Memory,Models,Keyboard,Video,PluginApi,Diag,Devices,Sound,Flash,Floppy,Disc,Mouse}/**.cs]
+[**/{Cpu,Memory,Models,Keyboard,Video,PluginApi,Diag,Devices,Sound,Flash,Floppy,Disc,Mouse,Ics}/**.cs]
 
 # Nommage : snake_case de PCem conservé verbatim.
 dotnet_diagnostic.IDE1006.severity = none
@@ -45,12 +45,15 @@ dotnet_diagnostic.CA1707.severity = none
 dotnet_diagnostic.CA1708.severity = none
 
 # CS8981 : « le nom de type ne contient que des minuscules ASCII, il pourrait
-# devenir réservé ». Cela frappe chaque conteneur transcrit — mem, io, pc, ppi,
-# timer, video, pit, pic, dma, nmi, model — puisque leur nom doit être celui du
-# fichier C pour que `using static ... mem;` se lise comme `#include "mem.h"`.
-# Ajouter un suffixe à une douzaine de conteneurs pour un avertissement portant
-# sur d'hypothétiques mots-clés futurs serait de la cérémonie. On suppose le
-# risque, et il est réversible d'un coup de sed.
+# devenir réservé ». Cela frappe chaque conteneur transcrit qui porte le nom de
+# son fichier C — mem, io, pc, ppi, timer, video, nmi, model… — pour que
+# `using static ... mem;` se lise comme `#include "mem.h"`. Ajouter un suffixe à
+# une douzaine de conteneurs pour un avertissement portant sur d'hypothétiques
+# mots-clés futurs serait de la cérémonie. On suppose le risque, et il est
+# réversible d'un coup de sed. G14 range les puces dans Ics/ sous le nom de la
+# puce (Intel8259A…, PLAN-G14.md), que CS8981 ne frappe pas : Ics/ est dans la
+# liste pour le reste de ce pacte (CS0649 : sans lui, le 8237 ne se construit
+# pas ; la mise en forme), puisque son code est transcrit.
 dotnet_diagnostic.CS8981.severity = none
 
 # Mise en forme : réécrire une ligne, c'est perdre la ligne du diff.
@@ -88,7 +91,8 @@ dotnet_diagnostic.IDE0066.severity = none
 dotnet_diagnostic.IDE0044.severity = none
 
 # G13 — le mode matériel : la classe figée `materiel` et ses champs `pb_nn` ont la forme des marqueurs (PB-nn) et de
-# la garde que R2 retire du décompte, `if (materiel.pb_nn)`. G14 et G15 les renommeront avec le reste.
+# la garde que R2 retire du décompte, `if (materiel.pb_nn)`. G14 ne les renomme pas : PLAN.md § G14 ne nomme que les
+# puces. La règle de compte de R2 (TRANSCRIPTION.md) et le recensement dépendent de cette forme.
 [**/Materiel/materiel.cs]
 dotnet_diagnostic.CS8981.severity = none
 dotnet_diagnostic.IDE1006.severity = none

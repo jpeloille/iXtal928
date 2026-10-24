@@ -20,11 +20,12 @@ Les **mesures** (résultats de portes, divergences, injections de panne) vont da
   (c) une ligne de provenance par fonction, `// pcem: src/cpu/808x.c:1271-1301` ;
   (d) `// omitted:`, `// DEVIATION:`, `// pcem bug, reproduced:` / `not reproduced:` (R9) /
   `fixed in hardware mode:` (R10), `// CS0165:` ;
-  (e) dans `Floppy/` et `Disc/` seulement, un bloc `// noms:` en en-tête : une ligne par
-  identifiant, **sans phrase**, 40 lignes au plus. Deux colonnes — l'identifiant, ce
+  (e) dans `Floppy/`, `Disc/` et `Ics/` seulement, un bloc `// noms:` en en-tête : une ligne
+  par identifiant, **sans phrase**, 40 lignes au plus. Deux colonnes — l'identifiant, ce
   qu'il désigne — et **trois dès qu'un nom est modifié** : nom PCem, nom iXtal26, ce
   qu'il désigne. Contrepartie obligatoire du nommage explicite autorisé plus bas — sans
-  elle, plus rien ne relie le fichier à `pcem-dev/`.
+  elle, plus rien ne relie le fichier à `pcem-dev/`. Dans `Ics/`, il donne le fichier C,
+  l'ancien conteneur et ses types, et dit que les fonctions gardent les noms de PCem.
   Le commentaire de 140 lignes qui explique un choix de conception reste hors budget :
   (e) est une table, pas un exposé. Le code mort commenté de PCem n'est pas reproduit.
 - **R2 — parité de lignes.** Le C# vivant d'une région se compare au C vivant
@@ -97,7 +98,7 @@ Les **mesures** (résultats de portes, divergences, injections de panne) vont da
 ### Portée
 
 Le code **transcrit** (`Cpu/`, `Memory/`, `Models/`, `Keyboard/`, `Video/`, `PluginApi/`,
-`Floppy/`, `Disc/`, `io.cs`, `timer.cs`, `pc.cs`, `ppi.cs`) garde les identifiants et commentaires anglais de
+`Floppy/`, `Disc/`, `Ics/`, `io.cs`, `timer.cs`, `pc.cs`, `ppi.cs`) garde les identifiants et commentaires anglais de
 PCem ; `.editorconfig` y neutralise les règles de style qui réécriraient une ligne.
 
 Le code **hôte**, neuf (`Host/`, `Materiel/`, `Program.cs`), suit les conventions C#
@@ -128,8 +129,8 @@ en-tête. Leurs noms disent ce que fait le code, et le pourquoi est dans
 | `uint8_t *p` dans le tampon d'un autre module (`sector_t.data`) | le tampon **et** l'offset : `uint8_t[] data; int data_off;` |
 | `uint8_t`… | alias `global using` (voir `GlobalUsings.cs`) |
 | `goto opcodestart` | `goto opcodestart` |
-| Nommage | `snake_case` de PCem **verbatim** ; `Floppy/` et `Disc/` exceptés, voir ci-dessous |
-| Fichiers | miroir du chemin C : `src/cpu/808x.c` → `Cpu/808x.cs` |
+| Nommage | `snake_case` de PCem **verbatim** ; `Floppy/`, `Disc/`, `Ics/` exceptés, voir ci-dessous |
+| Fichiers | miroir du chemin C : `src/cpu/808x.c` → `Cpu/808x.cs` ; une puce (G14) : `Ics/Intel8259A.cs` |
 
 Trois corollaires non négociables :
 
@@ -150,7 +151,7 @@ Trois corollaires non négociables :
    Corollaire : **ne jamais déplier une affectation composée** — C# insère le cast dans
    `AL += temp` (759 occurrences dans `808x.c`) mais rejette `AL = AL + temp`.
 
-### Nommage explicite — `Floppy/` et `Disc/` seulement
+### Nommage explicite — `Floppy/`, `Disc/` et `Ics/` seulement
 
 Le vocabulaire du 765 (`stat`, `res`, `pnum`, `tc`, `discint`, `paramstogo`) ne se décode
 pas sans la fiche technique, et l'opacité est autant dans les littéraux que dans les noms.
@@ -161,8 +162,16 @@ qui réécrit une expression de PCem et pas seulement une étiquette.
 Trois conditions, toutes vérifiables : le bloc `// noms:` de R1(e) donne la correspondance
 pour **chaque** nom modifié ; le commit ne contient que le renommage ; la batterie
 d'oracles est verte au même commit, aux mêmes chiffres qu'avant. Le renommage est neutre
-pour le comportement — c'est l'oracle qui le prouve, pas la relecture. Hors de ces deux
-répertoires, la règle reste le verbatim : `808x.cs` dit en en-tête pourquoi.
+pour le comportement — c'est l'oracle qui le prouve, pas la relecture.
+
+`Ics/` (G14, `PLAN-G14.md`) range les modules qui modélisent une puce. Une seule déviation :
+le conteneur, son fichier et son espace de noms prennent le nom de la puce (`pic` →
+`Intel8259A`, fabricant puis référence ; `src/models/pic.c` → `Ics/Intel8259A.cs`, espace
+`iXtal26.Ics`) ; les fonctions, les globales et les types d'état gardent ceux de PCem.
+Mêmes conditions, plus une : la table des noms (`tools/noms/`) donne chaque ancien et chaque
+nouveau nom, et l'IL et le code du JIT sont identiques par elle (`tools/ildump`,
+`tools/listings-jit.sh compare --noms`). Hors de ces trois répertoires, la règle reste le
+verbatim : `808x.cs` dit en en-tête pourquoi.
 
 ### Collisions de mots-clés C#
 

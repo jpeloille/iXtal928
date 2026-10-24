@@ -16645,3 +16645,430 @@ trois passes (+9,0 à +14,3 %), code 1, en 9 min 22 s.
   d'Exec jamais rouges : le 0 % y repose sur les listings.
 
 L'émulateur ne change pas : aucune série.
+
+## G14.0c — Les outils de la preuve des noms
+
+Le 24 octobre 2026 (PLAN-G14.md § G14.0c, décisions n° 1, 2, 8 et 10 ; R2-noms.md § 1.3 à 1.7 et § 2, R2-contre.md
+§ 1.3, 1.7, 1.9 et § 3). Feu vert de Julien le 24/10 : « ok, continue avec G14.0c ». L'émulateur ne change pas. Les
+fichiers de l'étape : la table des noms (`tools/noms/`), `tools/listings-jit.sh compare --noms`, `tools/ildump/`, le
+comparateur des séries (`tools/gates/compare-series.py`), l'outil de renommage (`tools/renommage/`), `.editorconfig`
+et `TRANSCRIPTION.md`. Les journaux sont sous `/var/tmp/ixtal-g14/g14-0c/`, les outils jetables qui les ont produits
+sous `outils/` (`sync.sh`, `captures.sh`, `sous-serie.sh`, `diff_inverse.py`, `decouvre_bruit.py`, `longues.py`).
+Les worktrees, détachés à `eea86a8`, `roms/` lié entrée par entrée (`sha256sum -c roms.sha256` : 34 OK), `os/pcdos20`
+et les deux images des scénarios du JIT copiés : `c0c` (l'étape), `rep` (la répétition), et trois jetables, `t14`,
+`rep2` et `rep3`, retirés ensuite par `git worktree remove --force`. Les fichiers du dépôt principal y sont recopiés par
+`sync.sh` ; rien n'est construit dans le dépôt principal.
+
+**La table des noms** (`tools/noms/g14.txt`, 107 lignes). PLAN-G14 et R2 ne disent pas où la ranger ; elle est sous
+`tools/noms/`, avec sa lecture en C# (`TableDesNoms.cs`), parce que trois outils la lisent. Sa forme est celle des
+blocs `// noms:` de `Floppy/` et `Disc/` (ancien, nouveau, ce qu'il désigne), et son en-tête en donne la grammaire,
+que les trois outils appliquent à l'identique :
+- une ligne `// étape X` ouvre une étape ; `--jusqua X` prend les étapes du début jusqu'à X, puisque la référence
+  est le commit R, d'avant tout renommage ;
+- une entrée est une ligne `//   ANCIEN  NOUVEAU  [commentaire]` : deux noms de type qualifiés, ou deux chemins
+  `iXtal26/….cs` ;
+- la table est refusée pour une entrée mal formée, un ancien ou un nouveau en double, un nom inchangé, une chaîne
+  (un nouveau qui est l'ancien d'une autre entrée), une étape inconnue.
+
+Elle porte les treize puces de PLAN-G14 en quatre étapes : 44 types et 19 fichiers (G14.1 : 8 et 6 ; G14.2 : 7 et
+4 ; G14.3 : 25 et 5 ; G14.4 : 4 et 4). Les types sont ceux de premier niveau : le conteneur renommé, et les autres
+types de son fichier (types d'état, délégués), qui gardent leur nom (décision n° 1) mais suivent l'espace de noms du
+fichier, `iXtal26.Ics` (décision n° 2 ; un fichier C# n'a qu'un espace de noms de fichier). Les membres n'y sont
+jamais, et une entrée qui en désigne un est refusée.
+
+La table n'a aucune entrée d'espace de noms, alors que PLAN-G14 § G14.0c dit « pour les types, les namespaces et les
+fichiers ». Aucun espace de noms ne change en entier : `iXtal26.Models`, `.Keyboard`, `.Devices`, `.Sound` et `.Video`
+gardent d'autres types, et `iXtal26.Ics` est neuf. Une entrée `iXtal26.Models → iXtal26.Ics` déplacerait tout le reste,
+et une table qui la poserait en plus des types serait redondante, avec deux façons de dire la même chose. Le changement
+d'espace de noms est donc porté par chaque nom de type qualifié, ancien et nouveau, et l'outil de renommage refuse un
+fichier dont un seul type changerait d'espace sans les autres.
+
+Les trois références de G14.4 que rien ne confirme encore
+(`ChipsCS8221`, `AliM1429`, `HeadlandHT18`) sont marquées « SOUS RÉSERVE » dans la table, comme PLAN-G14 § G14.4 le
+demande : la table de G14.4 se relit avant l'étape. Toutes les entrées de type sont vérifiées contre la DLL de `c0c`
+par `ildump vider --noms tools/noms/g14.txt --jusqua G14.n`, n = 1 à 4 : retour 0 (`table-complete-contre-c0c.log`).
+
+**`tools/listings-jit.sh compare --noms TABLE [--jusqua ETAPE] REF AUTRE`.** Sans `--noms`, rien ne change : même
+usage, même code. Avec, la table est appliquée aux listings de REF avant la comparaison, aux en-têtes comme aux
+corps : chaque nom de type ancien, borné (ni lettre, chiffre, `_` ni `.` devant, ni lettre, chiffre ni `_` derrière),
+devient le nouveau. La table est refusée (retour 2) si une entrée désigne un membre d'un type de REF, si un ancien est
+encore dans AUTRE, si un nouveau est déjà dans REF, ou si un ancien vu dans REF n'a pas son nouveau dans AUTRE (et
+l'inverse). Un type absent des deux côtés est dit, sans refus : les scénarios ne compilent ni `neat` ni `headland`
+(R2-noms.md § 1.5), ni rien qui nomme `PIC` dans un listing. La lecture de la table est la même qu'en C#, en python.
+
+**`tools/ildump/`** (`iXtal26.IlDump`, hors de `iXtal26.sln`, comme `tools/perfbanc`). `ildump.sh vider DLL SORTIE`
+et `ildump.sh comparer REF AUTRE`, avec `--noms` et `--jusqua`. System.Reflection.Metadata et la table des opcodes
+de System.Reflection.Emit sont dans le runtime. Le vidage est fait d'entrées triées par clé, le nom qualifié :
+l'assemblage, chaque type, chaque méthode. L'ordre des TypeDef et des jetons, qui suit l'ordre de compilation, n'y
+entre pas.
+- *Un type* : drapeaux, base, interfaces, disposition, génériques et leurs contraintes, attributs, et les champs dans
+  l'ordre des métadonnées, avec leur signature, leurs drapeaux, leur constante, leur décalage, leur marshalling et le
+  sha256 des données d'un champ à RVA. Puis les propriétés, les événements et les MethodImpl. Chacun avec ses
+  attributs : ceux des interfaces implémentées, des propriétés, des événements, des MethodImpl, des paramètres
+  génériques et de leurs contraintes, ajoutés après la contre-lecture : le vidage d'iXtal26 en compte 23 de plus,
+  20 sur des interfaces implémentées et 3 sur des propriétés (`il-rep-avec/ref.txt`). Toutes les comparaisons d'IL ont
+  été rejouées avec cette version (`outils/il-tout.sh`) : aucun compte ne change.
+- *Une méthode* : drapeaux, signature, paramètres et leurs constantes, P/Invoke, attributs, et le corps : pile,
+  locales, blocs d'exception, l'IL instruction par instruction, chaque jeton résolu en nom.
+- *L'assemblage* : nom, version, références et ressources (avec leurs attributs), attributs, point d'entrée.
+
+Le MVID, l'horodatage, la somme du PE et le répertoire de débogage ne sont pas vidés. Le seul bruit retiré est le
+suffixe `+commit` d'`AssemblyInformationalVersionAttribute`, que le SDK pose d'après le commit de l'arbre ; les deux
+commits sont imprimés en tête de la comparaison. Un attribut se vide par son blob brut, à l'octet. La table s'applique
+à chaque nom de type du vidage de REF. Elle est vérifiée contre les DLL :
+- chaque ancien doit être un type de premier niveau de REF ; chaque nouveau, un type d'AUTRE absent de REF ;
+- l'ancien doit être absent d'AUTRE, et une entrée dont le parent est un type est refusée, parce qu'elle désigne un
+  membre ;
+- un assemblage qui ne fait que référencer les types (iXtal26.Diff) peut ne pas nommer tel type des deux côtés :
+  c'est dit, sans refus.
+
+`ildump.sh` construit le projet puis vérifie que la construction ne tire aucun paquet. Les seules sources de
+restauration sont le répertoire du projet (`RestoreSources`), qui ne contient aucun `.nupkg`, et
+`/usr/lib/dotnet/library-packs`, le répertoire local que le SDK ajoute (`Microsoft.NET.NuGetOfflineCache.targets` ;
+deux `.nupkg` du SDK 10.0.13). `obj/project.assets.json` ne liste aucune bibliothèque (`libraries` : `{}`). Le journal
+de la construction va dans `obj/construction.log`, effacé si elle réussit, gardé et nommé si elle échoue.
+
+Une limite, mesurée : le vidage de `iXtal26.PerfBanc.dll` diffère d'un worktree à l'autre par le chemin du source que
+`BenchmarkAttribute` reçoit de `[CallerFilePath]`. Ce sont 35 entrées changées sur 297, toutes par cet attribut
+(`il-rep-banc-sans.log`). Le chemin n'est pas normalisé, puisque le banc n'est pas ce qu'on renomme ; le vidage
+d'iXtal26 et celui d'iXtal26.Diff n'en ont pas.
+
+**Le comparateur des séries** (`tools/gates/compare-series.py`, python3, bibliothèque standard). Il prend deux `.tsv`
+de par.sh et leurs journaux `SORTIE-PORTE.txt`. Un `.tsv` qui nomme deux fois la même porte est refusé (retour 2).
+Pour chaque porte commune, la ligne du `.tsv` (sans la durée) et le journal entier, normalisés, doivent être
+identiques à l'octet. Une porte d'un seul côté est un écart, sauf sous `--sous-ensemble` pour celles de REF.
+`--normaliser SERIE.tsv PORTE` imprime un journal normalisé. Le bruit retiré est énuméré dans l'en-tête, rien d'autre,
+et chaque règle compte ses remplacements :
+1. la durée, troisième colonne du `.tsv` (`par.sh:112`) ;
+2. le répertoire temporaire de la série, `/var/tmp/ixtal-par/NOM` ou `/tmp/ixtal-par/NOM` (`par.sh:62`), ou celui de
+   `--tmp` : il devient `<TMP>` ;
+3. le PID dans le nom du premier fichier ou répertoire sous `<TMP>` (`nvr-check-3459141`, `isogen-1954847`). Il ne
+   vaut que pour les 42 préfixes que le code écrit avant `Environment.ProcessId` (`NvrCheck.cs:20`,
+   `CdImageCheck.cs:730`, `BootDiff.cs:630` et `:1161`…, relevés par `grep` et listés dans le script), et seulement si
+   les chiffres finissent le mot : `<TMP>/dump-1` reste comparé. La ligne d'isogen n'a pas d'autre bruit : elle est la
+   même dans les 109 lignes de ce genre des journaux de `/tmp/a9/series/`, PID ôté ;
+4. le texte coupé après un chemin temporaire : `MaterielMode.cs:153` coupe une citation à 100 caractères, et le texte
+   visible après `<TMP>` raccourcit d'autant que le chemin et le PID s'allongent. Les deux citations d'une même ligne
+   sont comparées sur leur partie visible commune : la plus longue est coupée au nombre de caractères de l'autre,
+   `<TMP>` et `<PID>` ne comptant pas ; le reste est comparé à l'octet. La première version effaçait tout le texte entre
+   `<TMP>` et « … » : « l'orac… » changé en « l'oraX… » y donnait 0 écart (contre-lecture) ;
+5. le temps de l'hôte du bloc « 7. HÔTE (NON DÉTERMINISTE…) » de timer-check (`TimerCheck.cs:411-414`) : le temps de la
+   fenêtre, la marge, la capacité ;
+6. sous `--racine` et `--work`, le dépôt joué et l'espace des portes disque de chaque côté : les journaux des
+   boot-diffs disque citent `/tmp/a9/g5w-gr1i2/…`, ceux des disquettes `/tmp/a9/wtgr2a/os/…` ;
+7. la longueur d'une séance de banc, « les deux séances sont identiques (N caractères) » (`Banc.cs:95`). La séance
+   cite le répertoire temporaire, et N bouge avec la longueur du nom de la série : N n'est remplacé que si les deux
+   répertoires n'ont pas la même longueur. Cette règle vient du sous-ensemble ci-dessous : `g14c0` et `g14c0b`, le
+   même arbre joué deux fois, différaient de 2 caractères sur `banc-picbanc-xt` et `banc-dmabanc-at`.
+
+La liste vient des écarts de R2 (§ 1.3, R2-contre § 1.7) et d'une relecture de `gr2d1` contre `gr1i2`, journal par
+journal (`outils/decouvre_bruit.py`). Sur ces deux séries entières, de deux commits, le comparateur rend 11 écarts sur
+805 portes communes, et « 22 portes d'AUTRE absentes de REF : écart », les portes que GR.1i2 a ajoutées ; retour 1
+(`compare-series.py --work /tmp/a9/g5w-gr2d1 /tmp/a9/g5w-gr1i2 gr2d1.tsv gr1i2.tsv`, `gr2d1-contre-gr1i2.log`). Les 11
+sont les vrais changements de GR.1i2 et d'isogen : `cdimage-check`, `r9-cue`, la campagne d'isogen dans `r9-atapi`,
+`r9-cdcfg` et quatre `materiel-cas-pb123`/`pb215`, `bd-ami486-aha-banc`, `couverture-materiel`, le compte de
+`recensement`. `materiel-mode`, `materiel-cas-pb03`, `r9-gfxfixe`, `r9-hdccfg`, `r9-aha` et `nvr-check`, qui
+différaient par le bruit, ne sortent plus. Bruit retiré : 1 610 durées, 46 répertoires, 44 PID, 0 texte coupé (la
+règle 4 n'a rien eu à couper, les chemins et les PID ayant la même longueur des deux côtés), 12 temps de l'hôte, 14
+chemins de WORK ; la règle 7 est éteinte, les deux noms ayant cinq lettres.
+
+**L'outil de renommage** (`tools/renommage/`, `renommer.sh ARBRE TABLE [ETAPE]`). C'est le repli de la décision n° 8,
+un renommage sémantique par Roslyn, celui du SDK : `Roslyn/bincore` de `/usr/lib/dotnet/sdk/10.0.113/`, référencé par
+`HintPath`, sans paquet (même garde qu'ildump : `libraries` vide). R2-contre § 1.9 le disait faisable ; il ne
+s'appuie pas sur `Microsoft.CodeAnalysis.Workspaces` (le `Renamer`), seulement sur le modèle sémantique du
+compilateur. Les étapes :
+1. `dotnet msbuild -restore -t:Compile -getItem:Compile -getItem:ReferencePathWithRefAssemblies` donne les entrées
+   de compilation d'iXtal26, d'iXtal26.Diff et d'iXtal26.PerfBanc ;
+2. les trois compilations sont montées en mémoire, les références à iXtal26 remplacées par sa compilation. Elles
+   doivent être sans erreur au départ ;
+3. le parcours des nœuds de syntaxe, jamais des trivia : un nom que le modèle lie à un type de la table, écrit sous
+   l'ancien nom, prend le nouveau. S'il est la droite d'un nom qualifié par un espace de noms (`using static
+   iXtal26.Models.pic;`, `Models.pic.picint`), l'espace est récrit dans la forme écrite (`Ics.Intel8259A`). La
+   déclaration du type, ses parties et ses constructeurs sont renommés, l'espace de noms du fichier récrit ;
+4. une directive `using` est ajoutée là où un nom simple atteignait le type par l'espace englobant, ou là où un
+   fichier déplacé nommait un type resté dans l'ancien espace ;
+5. les trois projets sont recompilés en mémoire. Une erreur, ou un avertissement de plus qu'avant (les projets les
+   traitent en erreurs), et rien n'est écrit ;
+6. les fichiers sont écrits (la marque d'ordre des octets gardée), puis déplacés par `git mv` ;
+7. le journal des sites donne fichier:ligne:colonne, la sorte, le type, l'avant et l'après ;
+8. ajouté après la contre-lecture : chaque ligne que le renommage porte au-delà de 120 caractères (en points de code),
+   ou allonge alors qu'elle y était déjà, est comptée et inscrite au journal, « ligne de plus de 120 caractères
+   allongée », avec ses longueurs avant et après. Elle n'est pas refusée : c'est à G14.1 de la recouper.
+
+L'outil refuse, sans rien écrire :
+- un type de la table absent, ou un nouveau nom qui existe ;
+- un nom ambigu ;
+- un fichier dont une partie seulement des types change d'espace : la table doit lister tous les types d'un fichier
+  déplacé ;
+- un fichier déplacé sans entrée de fichier, un type déclaré hors des fichiers déplacés, une entrée de fichier qui ne
+  déclare rien ;
+- un arbre qui n'est pas la racine d'un worktree lié, renforcé après la contre-lecture : sans `.git` (une copie hors
+  de git), un `.git` qui ne mène à aucun dépôt, un répertoire dont `git rev-parse --show-toplevel` n'est pas lui-même
+  (où `git mv` agirait sur un autre arbre), un arbre dont le répertoire git est le répertoire commun
+  (`--absolute-git-dir` égal à `--git-common-dir`), c'est-à-dire le dépôt principal, sauf si
+  `RENOMMER_DEPOT_PRINCIPAL=1` le demande en clair.
+
+Un défaut, trouvé et corrigé en route. Le premier essai sur la table complète (`t14`) récrivait `var` en nom de type
+(`emu8k_t e = …`), parce que `var` se lie au type inféré ; iXtal26.Diff tombait alors sur CS8600 dans `R9Awe.cs:256`.
+La recompilation en mémoire ne regardait que les erreurs, et l'IL n'aurait rien vu, `var` ne changeant pas le code.
+L'outil ne touche plus qu'un nom écrit sous l'ancien nom : 19 `var` comptés, non touchés, sur la table complète. La
+recompilation compte aussi les avertissements. La répétition (`pic` seul) n'avait aucun site `var` : son journal est
+le même avant et après la correction (`diff renommage-rep-essai1.tsv renommage-rep.tsv` : vide).
+
+**Les règles.**
+- `.editorconfig` :
+  - `Ics` entre au glob du code transcrit (`:40`) ;
+  - le commentaire de CS8981 (`:47-56`) ne nomme plus `pit, pic, dma` parmi les conteneurs en minuscules. Il dit que
+    les puces d'`Ics/` portent le nom de la puce, que CS8981 ne frappe pas, et pourquoi `Ics/` est dans le glob ;
+  - `:93-95` ne dit plus que G14 et G15 renommeraient `materiel` et ses `pb_nn` : PLAN.md § G14 ne nomme que les
+    puces.
+
+  Mesuré, `Ics/` hors du glob fait tomber la construction : sur la table complète, `dma_ps2_t` (`Intel8237.cs:68-69`)
+  sort en CS0649, en erreur. C'était l'hypothèse de R2-noms.md § 1.4, que R2-contre § 1.3 disait non démontrée ;
+  `pic` seul n'en déclenche aucun. Avec le glob, les trois projets se construisent sans avertissement.
+- `TRANSCRIPTION.md` (237 → 246 lignes, plafond 260) :
+  - la Portée (`:99-101`) compte `Ics/` dans le code transcrit ;
+  - R1(e) (`:23-28`) étend le bloc `// noms:` à `Ics/` et dit ce qu'il y donne ;
+  - la ligne « Nommage » (`:132`) excepte `Ics/` ;
+  - la ligne « Fichiers » (`:133`) donne l'exemple d'une puce ;
+  - « Nommage explicite » (`:154-174`) devient « `Floppy/`, `Disc/` et `Ics/` seulement ». Il dit la déviation
+    d'`Ics/` (le conteneur, son fichier et son espace de noms) et ajoute une condition : l'IL et le code du JIT
+    identiques par la table des noms.
+
+**La répétition générale.** Dans `rep`, `pic` devient `Intel8259A`, dans `Ics/`, dans l'espace de noms
+`iXtal26.Ics`, par `renommer.sh rep noms-repetition.txt`. La table de la répétition est faite des quatre lignes du
+8259A de `tools/noms/g14.txt` : `pic`, `PIC` et les deux fichiers. Le bloc `// noms:` d'`Intel8259A.cs` a été écrit
+à la main, sept lignes sur le modèle de `fdc.cs:10-49`.
+- *Le renommage* : 33 fichiers modifiés, 149 sites, et deux `git mv` (`renommage-rep.log`, `renommage-rep.tsv`). Les
+  sites : 2 déclarations, 2 espaces de noms, 13 `using static`, 27 noms qualifiés, 94 noms simples, et 11 `using
+  iXtal26.Ics;` ajoutés. Hors des `using` ajoutés et des espaces, ce sont 136 sites : les 56 d'iXtal26 et les 80
+  d'iXtal26.Diff que R1-puces.md compte pour `pic`. Zéro renvoi `cref`. La recompilation en mémoire est sans erreur ;
+  la construction Release des trois projets est sans avertissement.
+- *Les lignes longues* (refait avec la version finale de l'outil, `renommage-rep3.tsv`) : le renommage porte 5 lignes
+  au-delà de 120 caractères. Quatre étaient en deçà : `808x.cs:768` (110 → 124) et `:4091` (109 → 123),
+  `808x.Materiel.cs:444` (113 → 134) et `:448` (119 → 140). `TimerCheck.cs:576`, déjà à 121, passe à 142 (les numéros
+  sont ceux d'avant la ligne `using` ajoutée). La répétition les laisse telles quelles, dans une copie. Sur la table
+  complète, il y en a 10, dont `pc.cs:1478` (136 → 139) et quatre dans `MaterielCas.cs`.
+- *Le diff, relu.* Par `outils/diff_inverse.py`, indépendant de l'outil, sans Roslyn : 97 morceaux, 128 lignes
+  changées. Chaque ligne ajoutée, les nouveaux noms ramenés aux anciens, redonne la ligne retirée : 0 écart. Chaque
+  caractère changé tombe dans du code, d'après un petit lexeur du C# (commentaires, chaînes, trous d'interpolation) :
+  0 hors du code. Quatre sites sont dans des trous de chaînes interpolées (`TimerCheck.cs`, `MaterielCasLigne.cs`) :
+  du code. Les commentaires qui citent `pic.cs` ou `pic.c`, et les chaînes de PCem, ne sont pas touchés.
+- *Reproductible* : le même renommage refait dans `rep2`, avec la version finale de l'outil, donne le même journal et
+  le même diff, au bloc `// noms:` près.
+- *L'IL* (`ildump comparer`, R = `c0c`, C = `rep`) :
+  - iXtal26.dll avec la table : 5 738 entrées (617 types, 5 120 méthodes, 423 653 instructions), 0 changée, 0
+    disparue, 0 apparue ; 993 noms réécrits dans le vidage de R (`il-rep-avec-table.log`) ;
+  - sans la table : 46 changées, 39 disparues, 39 apparues (`il-rep-sans-table.log`) ;
+  - iXtal26.Diff.dll avec la table : 3 331 entrées, 0 écart, 126 noms réécrits ; sans la table, 17 changées.
+- *Les listings du JIT* (`listings-jit.sh capture`, 30 scénarios, sous Microsoft.NETCore.App 10.0.13 des deux côtés,
+  `runtime.txt`, 15 min chacune) : 1 512 méthodes de chaque côté, les mêmes comptes par scénario.
+  - Avec la table : 0 changée, 0 disparue, 0 apparue, 114 noms réécrits (`jit-avec-table.log`). `PIC` n'est nommé
+    dans aucun listing : la table le dit.
+  - Sans la table : 34 changées, 13 disparues, 13 apparues (`jit-sans-table.log`).
+  - R contre lui-même : 0 (`jit-c0c-contre-lui.log`).
+- *Le banc* (`compare-ref.sh /var/tmp/ixtal-g14/wt /var/tmp/ixtal-g14/rep banc`, les 14 groupes, 65 cas ; R = `wt`,
+  `1edebb4`, la référence de G14.0b, C = `rep`) : **vert, 65 cas sur 65 dès la passe 1**, sans passe 2 ni passe 3, en
+  52,8 min (`banc/rapport.txt`, `banc-synthese.txt`). Aucun refus, aucun rouge exact : les allocations sont les mêmes
+  à l'octet sur les 65 cas, aucune n'est instable, et les états et les empreintes de Machine sont égaux. Les écarts
+  C/R − 1 vont de −0,52 % (Exec286) à +0,93 % (VideoEgaPb99, [−0,70 ; +1,64]), médiane +0,00 % ; l'intervalle le plus
+  large, 5,7 points, est celui d'Exec486 (aucun, sans-prefixe), +0,09 % [−5,32 ; +0,42]. Aucune borne haute n'est sous
+  zéro : C n'est plus rapide nulle part. Les bornes basses les plus hautes sont −0,06 % (Machine ami286, « tout ») et
+  −0,07 % (Machine ami386, « tout »). Par groupe, les médianes vont de −0,27 % (Fetch) à +0,10 % (Exec386) ; Machine
+  reste dans ±0,11 %. La sonde a noté 91 relevés de plus de 0,3 UC sur 56 passages, Rider et la séance, sans refus.
+  Les DLL de `wt` gardent leurs sha256 (`d1a5439a…5599a`, `18aae5d4…8a91`, `3c6abbe5…a0e8`). C'est **la première
+  mesure d'un renommage pur**, le risque de placement que § G14.0b laissait ouvert (« les noms changent la métadonnée,
+  et peuvent changer la disposition des tas du chargeur ») : sur ce renommage, celui d'une classe sur le chemin des
+  IRQ, le banc ne voit rien qui sorte du bruit A/A de G14.0b. Ce n'est qu'une passe, et un renommage sur treize ; le
+  placement n'est pas exclu pour les autres.
+
+**Rider contre le script.** Dans le dépôt principal, `rename_refactoring` en `preview=true` seulement, sur les treize
+conteneurs, vers 10 h 55 (`rider-preview.tsv`). La préversion ne modifie rien : `applied` est faux, `touched` à 0.
+Rien n'a été appliqué, et `move_type_to_namespace` n'a pas été appelé. Rider voit la solution ouverte, `iXtal26`,
+`iXtal26.SoftFloat` et deux entrées sans source (`Miscellaneous Files`, `&`), ni iXtal26.Diff ni perfbanc. Ses comptes,
+pour iXtal26 seul, contre le journal du script sur la table complète (`renommage-t14.tsv` : `simple`, `qualifié` et
+`using` du conteneur, dans `iXtal26/`) :
+
+| Conteneur | Rider : fichiers, sites | Script : fichiers, sites | Script, Diff et banc |
+|---|---|---|---|
+| `pic` | 28, 54 | 28, 54 | 5, 80 |
+| `pit` | 30, 96 | 30, 96 | 3, 11 (dont `MachineBanc.cs`, 2) |
+| `dma` | 10, 9 | 10, 9 | 2, 33 |
+| `keyboard_at` | 5, 3 | 5, 3 | 1, 24 |
+| `nvr` | 7, 9 | 7, 9 | 1, 4 |
+| `serial` | 5, 13 | 5, 13 | 0 |
+| `sound_emu8k` | 4, 6 | 4, 6 | 5, 43 |
+| `vid_tkd8001_ramdac`, `vid_unk_ramdac` | 2, 1 ; 3, 1 | 2, 1 ; 3, 1 | 0 |
+| `opti495`, `neat`, `headland` | 2, 1 chacun | 2, 1 chacun | 0 |
+| `ali1429` | 3, 4 | 3, 4 | 0 |
+
+Les treize comptes sont égaux. Les sites de Rider sont ceux de R1-puces.md moins les déclarations : 56 − 2, 98 − 2,
+11 − 2… ; `sound_emu8k`, 8 − 2, comme R1-contre.md le corrige. Pour `pic`, les 20 fichiers que Rider liste sont parmi
+les 28 du script, et les 8 de plus du script sont autant que son `moreFiles` ; leurs noms ne sont pas donnés par
+Rider. Les comptes des lectures (235 sites dans 69 fichiers d'iXtal26, 193 dans 12 d'iXtal26.Diff, décision n° 8)
+sont ceux des seize classes de R1, `ppi_c`, `rtc` et `rtc_h` compris. Pour les treize, R1 donne 67 fichiers d'iXtal26 ;
+le script en touche 67. Hors d'iXtal26, il touche 195 sites dans 13 fichiers : les 193 sites des 12 fichiers
+d'iXtal26.Diff que R1-contre.md compte, et 2 dans `tools/perfbanc/MachineBanc.cs` (G14.0a), qui lit `pit`. R1 et R2
+disaient « aucun site dans perfbanc » au commit `1d49a7f`, avant G14.0a.
+
+Ce que la préversion ne dit pas :
+- ce que Rider ferait des commentaires et des chaînes. La réponse ne liste que 20 fichiers et des comptes, jamais
+  les sites, et le schéma de l'outil n'a pas de paramètre pour eux ;
+- les conflits : la préversion n'en analyse pas (le schéma de l'outil) ;
+- l'espace de noms et les fichiers : `rename_refactoring` ne renomme qu'un symbole. Le déplacement vers
+  `iXtal26.Ics` passerait par `move_type_to_namespace`, que la consigne excluait même en préversion ; qu'il applique
+  puis annule en préversion est ce que la consigne en disait, non vérifié ici.
+
+Le script, lui, fait l'espace de noms, les `using`, les fichiers, iXtal26.Diff et le banc, et rend la liste des sites
+que la décision n° 8 confronte.
+
+**L'outil de G14.1 : Q38, tranchée par Julien le 24/10 : « Le script ».** L'option retenue : « tools/renommage
+applique dans un worktree. La préversion de Rider sert de contre-compte : les fichiers et les sites doivent être
+égaux. Les juges restent le diff inverse, l'IL et les listings par la table, les séries et le banc. » La question
+venait de la condition de la décision n° 8 (« si la préversion touche une chaîne ou un commentaire de PCem ») : la
+préversion ne le dit jamais, elle ne liste que des fichiers et des comptes, et Rider n'agit que sur la solution ouverte
+dans l'IDE, le dépôt principal. Le renommage de G14.1 se fera dans un worktree. Reporté dans PLAN-G14.md, décision
+n° 8 et Q38.
+
+**Les portes.**
+- `iXtal26.dll` identique au sha256 avant et après l'étape, dans `c0c`, construction Release sans incrément :
+  `133111e8…1029b1`, et `iXtal26.SoftFloat.dll` `e00787c1…8d81` (`sha256-avant.txt`, `sha256-apres.txt`). Les trois
+  projets se construisent sans avertissement dans `c0c` et dans `rep`.
+- `ildump` d'une DLL contre elle-même : 0 écart, 5 738 entrées. Contre la DLL de `wt`, 0 écart aussi : seul le commit
+  diffère, retiré. Le worktree `wt` est détaché à `1edebb4`, mais sa `iXtal26.dll` porte la version de `e350e6c` : elle
+  a été construite en G14.0a, avant le commit de l'étape, et G14.0a n'a pas changé iXtal26 (§ G14.0a, `d1a5439a…`).
+- `listings-jit.sh compare` de la capture de R contre elle-même : 0 écart, 1 512 méthodes.
+- Le sous-ensemble ciblé de la série, puisque `.editorconfig` et des outils partagés changent (`outils/sous-serie.sh`,
+  `sous-series.log`, `sous-series-comparaisons.log`). 29 portes, `PORTES` posé, dans `c0c` avec la `.so` construite
+  là, la DLL de iXtal26.Diff et les portes copiées :
+  - les portes de l'outillage : `abi`, `recensement`, `config-check`, `cpu-config-check`, `nvr-check`, `materiel-mode` ;
+  - celles du bruit : `materiel-cas-pb03` et sa forme `-materiel`, `pb123`, `pb215`, sept `r9-*`, `cdimage-check` ;
+  - sept boot-diffs des machines, `bd-ami486-sb16`, `bd-xt-picbanc`, et les bancs `banc-picbanc-xt` et
+    `banc-dmabanc-at`.
+
+  Jouées trois fois : `g14c0` et `g14c0b` en mode PCem, 1 min 13 s et 1 min 15 s, 29 vertes chacune ; `g14c0-tout`
+  sous `MATERIEL=tout`, 1 min 9 s, 14 vertes, 12 refusées par le mode, 3 « pcem ». Comparées :
+  - `g14c0` contre `g14c0b` : 0 écart, après la règle 7, qui a remplacé 4 longueurs, et la règle 4, qui a coupé 2
+    citations ;
+  - `g14c0` et `g14c0b` contre `gr1i2`, la série entière de GR.1i2 (`11fdbba`, worktree `wtgr2a`), sous
+    `--sous-ensemble` : 0 écart sur les 29 portes ;
+  - `g14c0-tout` contre `gr1i2-tout` : 0 écart.
+
+  Entre `gr1i2` et `eea86a8`, l'émulateur n'a changé que par des commentaires et l'aide (GR.4e) : la DLL n'est pas la
+  même, le comportement l'est.
+- Lignes neuves : 0 de plus de 120 caractères (`outils/longues.py`, en caractères, fichiers neufs en entier, lignes
+  ajoutées des fichiers modifiés). En-têtes SPDX sur les fichiers neufs. `bash -n` sans erreur.
+
+**Les contrôles négatifs.**
+- *La table, contre ildump* (`negatif-ildump-tables.log`), tous refusés, retour 2 :
+  - une méthode inexistante, `iXtal26.Models.pic.picintx`, et une existante, `iXtal26.Models.pic.picint` : « désigne
+    un membre de iXtal26.Models.pic, pas un type » ;
+  - un type inexistant, `iXtal26.Models.picx` : « n'est pas un type de premier niveau » ;
+  - un ancien en double, une chaîne de noms, une entrée tronquée, une étape inconnue (`--jusqua G14.9`) ;
+  - `pit` dans la table alors que la répétition ne le renomme pas : « est encore un type de … rep » ;
+  - la ligne de `PIC` retirée : non refusée, mais 25 changées, 15 disparues et 15 apparues, retour 1.
+- *La table, contre les listings* (`negatif-listings.log`) :
+  - les deux méthodes et `pit` non renommé : refusés, retour 2 ;
+  - la table complète jusqu'à G14.1 contre la répétition : refusée sur `pit`, `PIT`, `set_out_func_t` et `dma` ;
+  - une étape inconnue, et `--jusqua` sans `--noms` : retour 2 ;
+  - le type inexistant n'est pas refusé par les listings, qui ne voient pas les types absents des scénarios (dit,
+    « 2 que les scénarios ne compilent pas ») : c'est ildump qui le refuse.
+- *La table, contre l'outil de renommage* (`negatif-renommage.log`), tous refusés, l'arbre inchangé :
+  - la ligne de `PIC` retirée : « les types PIC n'ont pas d'entrée, et leur fichier change d'espace » ;
+  - le type et la méthode inexistants ;
+  - l'entrée de `pic.Materiel.cs` retirée : « déclare un type de la table et n'a pas d'entrée de fichier » ;
+  - le dépôt principal : « est un dépôt principal (répertoire git …/iXtal928/.git, le répertoire commun) ;
+    refusé » ;
+  - un sous-répertoire du worktree (`rep3/iXtal26`), une copie sans `.git`, un lien vers `rep3/tools` : « n'a pas de
+    .git (une copie hors de git : git mv n'y agirait pas) » ; un `.git` qui ne mène à aucun dépôt : « n'est pas dans
+    un arbre git ». La garde « n'est pas la racine de son arbre git » n'a pas été déclenchée seule : chaque cas
+    essayé tombe avant elle.
+- *Une constante changée dans une copie, avec ou sans la table* (`negatif-constante-dma.log`,
+  `negatif-litteral-8259A.log`, dans `rep`, puis remis : sha256 `a8233b64…` retrouvé) :
+  - `dma.DMA_OVER` de 0x10000 à 0x10001 : avec la table, 6 entrées changées, le champ et les cinq méthodes qui
+    l'inlinent (`ldc.i4 65536` → `65537`) ; sans la table, 52 changées au lieu de 46 ;
+  - `0xF8` → `0xF0` dans `Intel8259A.pic_write`, le type renommé : avec la table, 1 changée,
+    `Intel8259A::pic_write`, `ldc.i4 248` → `240` ; sans la table, l'écart est noyé dans les 39 apparues, retour 1.
+  - Dans les listings, une instruction de `Intel8259A:pic_write` changée dans une copie de la capture de C
+    (`and esi, 224` → `225`) : avec la table, 1 changée ; sans, 34 changées, 13 disparues, 13 apparues.
+- *Les journaux de série* (`negatif-series.log`), sur une copie du sous-ensemble de GR.4e (`gr2d2-g4e`) renommée, contre
+  `gr1i2` :
+  - le témoin : 0 écart ;
+  - un octet utile, un chiffre du compte d'instructions de l'oracle dans `bd-pc1512` : 1 écart, à la ligne 3 ;
+  - du bruit seul changé, un PID de `nvr-check` et la durée d'`abi` : 0 écart ;
+  - le statut d'`abi` mis à `rc=1` dans le `.tsv` : 1 écart ;
+  - un journal effacé : 1 écart ;
+  - sans `--tmp`, le répertoire temporaire que les journaux de la copie citent n'est pas retiré : 3 écarts ;
+  - sans `--sous-ensemble` : les 812 portes absentes, écart ;
+  - la longueur d'une séance changée d'un caractère, deux noms de même longueur (la règle 7 éteinte) : 1 écart.
+- *Les règles 3 à 6 et le doublon* (`outils/neg-regles.sh`, `negatif-regles.log`), ajoutés après la contre-lecture,
+  sur des copies de quatre portes de `gr1i2` (`materiel-mode`, `materiel-cas-pb03`, `nvr-check`,
+  `bd-ami486-aha-temoins`), deux séries de même longueur de nom :
+  - le témoin, WORK récrit dans la copie et `--work` donné : 0 écart ; sans `--work` : 1 écart (règle 6) ;
+  - le nom de l'image après `<WORK>` changé, `win3-3` → `win3-4` : 1 écart (règle 6) ;
+  - un PID de `nvr-check` allongé d'un chiffre : 0 écart ; `<TMP>/dump-1` contre `<TMP>/dump-2` : 1 écart (règle 3) ;
+  - « l'orac… » changé en « l'oraX… » dans une citation coupée : 1 écart ; le PID plus long d'un chiffre et la
+    citation coupée un caractère plus tôt, ce que ferait l'outil : 0 écart ; la même avec un caractère visible commun
+    changé (« l'ora… » → « l'orb… ») : 1 écart (règle 4) ;
+  - le temps hôte de la fenêtre changé : 0 écart ; la ligne suivante, MIPS invité, déterministe, changée : 1 écart
+    (règle 5) ;
+  - une porte en double dans le `.tsv` : refusé, retour 2.
+- *Les comparaisons consignées, rejouées avec le comparateur corrigé* (`comparaisons-rejouees.log`) : aucun verdict ne
+  change. Seul le compteur de la règle 4 bouge, puisqu'il ne compte plus que les citations qu'il coupe : `gr2d1`
+  contre `gr1i2` 12 → 0 ; `g14c0` contre `g14c0b` 12 → 2 ; `g14c0` contre `gr1i2` 12 → 2 ; `g14c0b` contre `gr1i2`
+  12 → 0. Les autres comptes sont les mêmes, et `gr2d1` contre `gr1i2` garde ses 11 écarts et ses 22 portes ajoutées.
+- *Aucun paquet téléchargé* (`negatif-nuget.log`), sur une copie d'ildump :
+  - un `PackageReference` absent du cache : la restauration échoue, NU1101, « no packages exist with this id in
+    source(s): /usr/lib/dotnet/library-packs, … », retour 2. Rien n'est téléchargé ;
+  - un paquet du cache, BenchmarkDotNet 0.15.8 : restauré du cache, puis refusé par `ildump.sh`, « la construction tire
+    des paquets NuGet », retour 2.
+
+**Ce qui est vérifié, ce qui ne l'est pas.**
+- Vérifié : ce qui précède, dans `c0c` et `rep`, à `eea86a8`. Pendant l'étape, une autre séance a commité `622b091`
+  dans le dépôt principal (des profils `ixtal26-486*.cfg` et `g5w-recipe.sh`). Les worktrees de l'étape restent à
+  `eea86a8`, et les fichiers de l'étape n'en dépendent pas.
+- Non vérifié :
+  - le traitement par Rider des commentaires et des chaînes, puisque rien n'a été appliqué ;
+  - `move_type_to_namespace`, et ce qu'il ferait en préversion ;
+  - que la table complète passe le banc et les séries. Elle a passé, dans `t14`, refait avec les versions finales de
+    l'outil et d'ildump, l'IL d'iXtal26 et d'iXtal26.Diff (0 écart, 6 678 et 556 noms réécrits) et la construction
+    sans avertissement ; c'est un essai, pas G14.1 ;
+  - l'avertissement neuf que la recompilation refuse n'a pas été provoqué exprès : le défaut de `var` l'a montré avant
+    la correction, par la construction, pas par l'outil.
+
+**Les risques pour G14.0d et G14.1.**
+- *Le renommage pur au banc.* Une passe, verte, sur un renommage. Les familles de G14.1 à G14.4 touchent d'autres
+  chemins chauds, `pit` (96 sites dans iXtal26) et `dma` en premier. Le placement n'y est pas mesuré.
+- *L'outil de renommage est neuf.* Il a eu un défaut (`var`), trouvé par la construction, pas par l'IL. Ses gardes
+  sont la recompilation en mémoire, erreurs et avertissements, le diff inverse et l'IL par la table. Le diff inverse
+  est un outil jetable (`outils/diff_inverse.py`), qui prend la carte des noms en argument ; il n'est pas commité.
+- *Le Roslyn privé du SDK.* L'outil se lie à `Roslyn/bincore` du SDK 10.0.113, qui n'est pas une API publiée : une
+  mise à jour d'apt, comme celle du 21/10 (10.0.12 → 10.0.13), peut changer ces DLL ou leur chemin, et l'outil ne se
+  construirait plus, ou autrement. `renommer.sh` le reconstruit à chaque lancement ; le chemin suit `MSBuildBinPath`.
+- *Les lignes de plus de 120 caractères.* Le renommage allonge des lignes : 5 pour `pic` seul, quatre portées au-delà de
+  120 (`808x.cs`, `808x.Materiel.cs`) et une qui y était déjà (`TimerCheck.cs`) ; 10 sur la table complète. L'outil
+  les compte et les inscrit au journal (« ligne de plus de 120 caractères allongée »), sans les recouper. La porte de
+  G14.1 les voit de deux façons : ce compte du journal, et `git diff -U0` des lignes ajoutées de plus de 120
+  caractères comptées en caractères (`outils/longues.py`). G14.1 devra les recouper à la main, sans changer l'IL, et le
+  diff inverse devra alors admettre ces recoupes.
+- *La table de G14.3 et G14.4.* Les types d'état de `sound_emu8k.cs` (vingt) changent d'espace de noms avec le
+  conteneur. La table complète passe l'outil, la construction et l'IL dans `t14` ; elle n'a passé ni le banc ni les
+  séries. G14.4 attend ses fiches.
+- *Les listings ne voient pas un type inexistant* : un type absent des deux captures est dit, non refusé. C'est ildump
+  qui juge la table.
+- *Le comparateur des séries* ne retire que le bruit énuméré. Une série jouée ailleurs (un autre `TMPDIR_SERIE`, une
+  autre racine, un autre WORK) demande ses options, faute de quoi le chemin sort en écart, comme le contrôle sans
+  `--tmp` le montre. Il n'a été essayé que sur des séries de G13, de GR et sur ce sous-ensemble ; `g14r` n'existe pas
+  encore.
+- *Le runtime.* Les deux captures sont sous 10.0.13. Une mise à jour d'apt les rend incomparables avec celles de
+  G14.0d.
+
+**Hors de la portée**, trouvé en route :
+- R1 et R2 disent « aucun site dans perfbanc » : depuis G14.0a, `MachineBanc.cs:265-267` lit `pit`. G14.1 touchera
+  donc le banc, que le renommage suit comme iXtal26.Diff.
+- Le vidage d'IL du banc porte le chemin de son source, par `[CallerFilePath]` de BenchmarkDotNet.
+- La Portée de `TRANSCRIPTION.md` (`:99-101`), où `Ics/` est maintenant, ne liste ni `Sound/`, ni `Devices/`, ni
+  `Diag/`, ni `Flash/`, ni `Mouse/`, ni les répertoires transcrits que `.editorconfig:40` omet aussi, `Ide/`, `Mfm/`,
+  `Scsi/`, `Cdrom/`, `Lpt/` et `Joystick/` (R2-contre § 1.3).
+
+L'émulateur ne change pas.

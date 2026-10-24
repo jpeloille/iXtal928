@@ -143,7 +143,7 @@ une empreinte d'instructions qui diffère.
 La plus petite injection vue rouge est la résolution réelle du protocole. Elle est consignée par cas. Là où elle
 est plus grossière que l'écart que le plan exige, c'est dit, et les listings portent la preuve du 0 %.
 
-### G14.0c — Les outils de la preuve des noms
+### G14.0c — Les outils de la preuve des noms  ✅ *fait, VERIFICATION.md § G14.0c*
 
 - **La table des noms.** Le format est celui des blocs `// noms:`, lu par les outils : un ancien nom qualifié, un
   nouveau, pour les types, les namespaces et les fichiers.
@@ -263,13 +263,13 @@ hors débogage, comme en GR.4e. `PLAN.md` dit « G14 est fait » et met [ICI] av
 ## Les décisions
 
 Le principe de G14, sa portée et sa porte sont décidés (`PLAN.md` § G14 et § G15, 03/10). Les décisions ci-dessous
-en découlent ; la règle du 18/10 n'en laisse qu'une question à Julien, Q36, tranchée le 23/10. G14.0b en a
-ouvert une seconde, Q37, tranchée le 24/10.
+en découlent ; la règle du 18/10 n'en laisse qu'une question à Julien, Q36, tranchée le 23/10. G14.0b et G14.0c en
+ont ouvert deux autres, Q37 et Q38, tranchées le 24/10.
 
 1. **La portée : le conteneur seul.** La classe, son fichier, son répertoire et son espace de noms changent ; les
    membres et les types d'état (`pic_`, `pit_`, `PIT`, `PIC`, `dma_t`, `SERIAL`, `keyboard_at_t`) gardent leurs noms.
    *(Le modèle que `PLAN.md` désigne, `Floppy/` et `Disc/` : « les fonctions gardent les noms de PCem »,
-   `fdc.cs:47`. G15 renommera chaque membre en PascalCase, `PLAN.md:566` : les renommer en G14 doublerait le
+   `fdc.cs:47`. G15 renommera chaque membre en PascalCase, `PLAN.md:569-570` : les renommer en G14 doublerait le
    travail et la preuve.)*
 2. **L'espace de noms** est `iXtal26.Ics`. *(Le répertoire et l'espace de noms coïncident dans tout le dépôt, sauf
    `Materiel/`.)*
@@ -283,13 +283,13 @@ ouvert une seconde, Q37, tranchée le 24/10.
    - **Non retenus** : `ppi_c` (19 lignes ; le 8255 n'y est pas modélisé, ses ports sont dans les claviers) ;
      l'OPL (deux puces, trois modules, et une bibliothèque tierce nommée d'après elle) ; les mélangeurs (en ligne
      dans la carte) ; le DSP et le MPU-401 ; les cœurs UC (plusieurs puces chacun) ; le FDC et les cartes vidéo
-     (« des devices », `PLAN.md:549`) ; `rtc` (n° 4 bis) ; le haut-parleur, le port jeu et la NMI (aucune puce).
+     (« des devices », `PLAN.md:552`) ; `rtc` (n° 4 bis) ; le haut-parleur, le port jeu et la NMI (aucune puce).
    - **4 bis.** `rtc` et `rtc_h` restent à la racine sous leur nom : fusionner les deux classes du MC146818
      changerait l'ordre d'initialisation de leurs statiques, et l'IL avec.
 
-   *(« Et ainsi de suite », `PLAN.md:549`, laisse la liste au plan.)*
+   *(« Et ainsi de suite », `PLAN.md:552`, laisse la liste au plan.)*
 5. **`Intel8253` reste le nom**, bien que le code fasse aussi la relecture du 8254. Le bloc `// noms:` le dit.
-   *(Le nom est décidé par Julien, `PLAN.md:548`.)*
+   *(Le nom est décidé par Julien, `PLAN.md:550-551`.)*
 6. **La référence de performance** :
    - les neuf modèles de `models[]` pour « chaque machine », `ibmat` et `ami386` compris ;
    - les deux modes, « aucun » (les portes, l'oracle) et « tout » (l'utilisateur) ;
@@ -300,13 +300,13 @@ ouvert une seconde, Q37, tranchée le 24/10.
 7. **La forme du gel** : le binaire juge, les chiffres alertent. Le worktree R est remesuré côte à côte. Les chiffres
    consignés ne servent qu'à voir l'hôte dériver. Aucun runtime privé n'est installé : les deux côtés tournent
    toujours sur le même runtime, et une passe où il change est refusée. *(« Contre la référence d'origine, jamais
-   contre le commit précédent », `PLAN.md:589` ; aucune installation sans l'accord de Julien.)*
+   contre le commit précédent », `PLAN.md:591-592` ; aucune installation sans l'accord de Julien.)*
 8. **L'outil du renommage** : le refactor de Rider par son serveur MCP (`rename_refactoring`, en préversion d'abord).
    Sa liste des sites touchés est confrontée aux comptes des lectures (iXtal26 : 235 sites dans 69 fichiers ;
    iXtal26.Diff : 193 dans 12, `const` comprises). Les outils hors de la solution passent par une solution provisoire
    hors du dépôt qui les charge. Si la préversion touche une chaîne ou un commentaire de PCem, un script Roslyn
    sémantique prend sa place. Ni `sed` global, ni « rechercher dans les commentaires ». *(« Refactor Rider »,
-   `PLAN.md:552`.)*
+   `PLAN.md:556`.)* Depuis Q38 (24/10) : le script `tools/renommage` applique, et la préversion de Rider compte.
 9. **Le harnais n'est pas touché de G14.0d à G14.4** : la `.so` garde la même empreinte, et c'est la moitié
    « oracle » de la preuve. Ses deux commentaires périmés se corrigent en G14.5.
 10. **L'historique n'est pas récrit.** Les registres vivants suivent ; `VERIFICATION.md` d'avant G14, les plans clos
@@ -318,7 +318,7 @@ ouvert une seconde, Q37, tranchée le 24/10.
     *(La règle du dépôt : la série entière quand l'émulateur change.)*
 12. **Le rouge statistique** suit G14.0b, sans plancher fixe : la règle de Julien, « toute régression statistiquement
     significative », n'admet pas de tolérance. Le A/A vérifie le taux de faux rouges ; il ne fixe pas de seuil.
-    *(`PLAN.md:591-592` ; R0-contre § 3.2.)* La troisième passe vient de Q37 (24/10).
+    *(`PLAN.md:594-595` ; R0-contre § 3.2.)* La troisième passe vient de Q37 (24/10).
 13. **Le commit** : le préfixe `g14:` pour chaque étape, `plan:` pour ce fichier.
 
 **Les questions à Julien** :
@@ -339,6 +339,14 @@ ouvert une seconde, Q37, tranchée le 24/10.
   *Proposé : un rouge confirmé deux fois est rejoué une troisième fois, sa classe seule ; il n'est retenu que si
   cette passe est rouge aussi.*
   *Tranchée par Julien le 24/10 : « Troisième passe ».*
+
+- **Q38 (G14.0c)** — La décision n° 8 passe au script « si la préversion touche une chaîne ou un commentaire de
+  PCem » ; or la préversion de Rider ne le dit jamais (des fichiers et des comptes), Rider ne s'applique qu'à la
+  solution ouverte dans l'IDE (le dépôt principal) et ne voit ni `iXtal26.Diff` ni le banc. À la répétition, le
+  script et la préversion ont compté les mêmes fichiers et les mêmes sites sur les treize conteneurs.
+  *Proposé : `tools/renommage` applique dans un worktree ; la préversion de Rider sert de contre-compte (fichiers et
+  sites égaux) ; les juges restent le diff inverse, l'IL et les listings par la table, les séries et le banc.*
+  *Tranchée par Julien le 24/10 : « Le script ».*
 
 ## Les risques
 

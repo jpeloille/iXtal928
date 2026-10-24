@@ -10,6 +10,8 @@
 #                                                         par scénario dans SORTIE (défaut : tous les scénarios)
 #   tools/listings-jit.sh compare REF AUTRE               compare deux captures méthode par méthode : les méthodes
 #                                                         changées, apparues ou disparues ; retour 1 s'il y en a
+#   tools/listings-jit.sh compare --noms TABLE [--jusqua ETAPE] REF AUTRE
+#                                                         de même, la table des noms appliquée à REF (G14.0c)
 #   tools/listings-jit.sh methode CAPTURE NOM             imprime le listing d'une méthode (le premier scénario qui
 #                                                         la compile), pour lire un écart
 #
@@ -21,6 +23,15 @@
 # sans paliers, chaque méthode une seule fois. Release seulement : en Debug, rien ne se plie. Les scénarios tournent
 # sans randomisation des adresses (setarch -R) : selon l'endroit où tombent ses champs statiques, le JIT les atteint
 # par un adressage relatif ou par une adresse absolue, et deux exécutions du même binaire donnaient deux listings.
+#
+# --noms TABLE (G14.0c, PLAN-G14.md § G14.0c) : la table des noms (tools/noms/g14.txt, dont l'en-tête dit la
+# grammaire ; --jusqua ETAPE en garde les étapes jusqu'à ETAPE comprise) est appliquée aux listings de REF avant la
+# comparaison, aux en-têtes comme aux corps : chaque nom de type ancien, borné (ni lettre, chiffre, « _ » ou « . »
+# devant, ni lettre, chiffre ou « _ » derrière), devient le nouveau ; les membres gardent leur nom. Les entrées de
+# fichiers ne concernent pas les listings. La table est refusée (retour 2) si une entrée désigne un membre d'un type
+# de REF, si un ancien est encore dans AUTRE, si un nouveau est déjà dans REF, ou si un ancien vu dans REF n'a pas
+# son nouveau dans AUTRE (et l'inverse). Un type que les scénarios ne compilent pas (absent des deux côtés) est dit,
+# sans refus : les listings ne prouvent rien pour ce qu'ils ne compilent pas (R2-noms.md § 1.5).
 set -uo pipefail
 REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 
@@ -197,9 +208,88 @@ def lire(d):
         if cur and cur not in m:
             m[cur] = (f, ''.join(buf))
     return m
+def refuser(m):
+    print('  table refusée :', m, file=sys.stderr); sys.exit(2)
+def table_des_noms(chemin, jusqua):
+    # La grammaire de tools/noms/g14.txt, la même que tools/noms/TableDesNoms.cs.
+    etape, etapes, entrees, arret, vue = '', [], [], False, jusqua is None
+    typ = re.compile(r'^iXtal26(\.[A-Za-z_][A-Za-z0-9_]*)+$'); che = re.compile(r'^iXtal26/[A-Za-z0-9_./-]+\.cs$')
+    for n, l in enumerate(open(chemin, encoding='utf-8'), 1):
+        l = l.rstrip()
+        e = re.match(r'^//\s+étape\s+(\S+)', l)
+        if e:
+            if arret:
+                break
+            etape = e.group(1); etapes.append(etape)
+            if etape == jusqua:
+                vue = arret = True
+            continue
+        m = re.match(r'^//   (iXtal26\S*)(?:\s+(\S+))?', l)
+        if not m:
+            continue
+        anc, nou = m.group(1), m.group(2) or ''
+        fichier = bool(che.match(anc) and che.match(nou)); t = bool(typ.match(anc) and typ.match(nou))
+        if not (fichier or t):
+            refuser(f'{chemin}:{n} : entrée invalide (« {anc} » → « {nou} »)')
+        if not etape:
+            refuser(f'{chemin}:{n} : entrée hors de toute étape')
+        if anc == nou:
+            refuser(f'{chemin}:{n} : « {anc} » ne change pas de nom')
+        entrees.append((anc, nou, fichier, n))
+    if not vue:
+        refuser(f'{chemin} : l\'étape « {jusqua} » n\'existe pas (étapes : {", ".join(etapes)})')
+    anciens = [x[0] for x in entrees]; nouveaux = [x[1] for x in entrees]
+    for x in entrees:
+        if anciens.count(x[0]) > 1 or nouveaux.count(x[1]) > 1:
+            refuser(f'{chemin}:{x[3]} : « {x[0]} » ou « {x[1]} » en double')
+        if x[1] in anciens:
+            refuser(f'{chemin}:{x[3]} : chaîne de noms : « {x[1]} » est aussi un ancien')
+    if not entrees:
+        refuser(f'{chemin} : aucune entrée retenue')
+    return [(x[0], x[1], x[3]) for x in entrees if not x[2]], sum(1 for x in entrees if x[2])
+def borne(nom):
+    return re.compile(r'(?<![\w.])' + re.escape(nom) + r'(?!\w)')
+def appliquer(a, b, chemin, jusqua):
+    types, fichiers = table_des_noms(chemin, jusqua)
+    tout_a = '\n'.join(k + '\n' + v[1] for k, v in a.items()); tout_b = '\n'.join(k + '\n' + v[1] for k, v in b.items())
+    refus, absents, retenus = [], [], []
+    for anc, nou, n in types:
+        parent = anc.rsplit('.', 1)[0]
+        if re.search(r'(?<![\w.])' + re.escape(parent) + r'[:+]', tout_a):
+            refus.append(f'ligne {n} : « {anc} » désigne un membre de {parent}, pas un type (décision n° 1)'); continue
+        va, vb = bool(borne(anc).search(tout_a)), bool(borne(nou).search(tout_b))
+        if borne(anc).search(tout_b):
+            refus.append(f'ligne {n} : « {anc} » est encore dans AUTRE : la table renomme ce qu\'AUTRE garde')
+        elif borne(nou).search(tout_a):
+            refus.append(f'ligne {n} : « {nou} » est déjà dans REF')
+        elif va != vb:
+            refus.append(f'ligne {n} : « {anc} » ' + ('vu dans REF, « ' + nou + ' » absent d\'AUTRE' if va
+                         else 'absent de REF, « ' + nou + ' » vu dans AUTRE'))
+        elif not va:
+            absents.append(anc)
+        else:
+            retenus.append((borne(anc), nou))
+    if refus:
+        for r in refus:
+            print('  table refusée :', r, file=sys.stderr)
+        sys.exit(2)
+    compte = [0]
+    def ecrire(t):
+        for motif, nou in retenus:
+            t, k = motif.subn(nou, t); compte[0] += k
+        return t
+    a2 = {}
+    for k, (f, corps) in a.items():
+        a2[ecrire(k)] = (f, ecrire(corps))
+    print(f'  table : {len(types)} types ({len(retenus)} vus, {len(absents)} que les scénarios ne compilent pas'
+          + (' : ' + ', '.join(absents) if absents else '') + f') et {fichiers} fichiers (ignorés) ; '
+          + f'{compte[0]} noms réécrits dans REF')
+    return a2
 mode = sys.argv[1]
 if mode == 'compare':
     a, b = lire(sys.argv[2]), lire(sys.argv[3])
+    if len(sys.argv) > 4:
+        a = appliquer(a, b, sys.argv[4], sys.argv[5] if len(sys.argv) > 5 else None)
     seuls_a = sorted(set(a) - set(b)); seuls_b = sorted(set(b) - set(a))
     change = sorted(k for k in set(a) & set(b) if a[k][1] != b[k][1])
     print(f'  {len(a)} méthodes dans la référence, {len(b)} dans l\'autre ; {len(change)} changées, '
@@ -219,7 +309,19 @@ PY
 
 case "${1:-}" in
 capture) shift; [ $# -ge 2 ] || { echo "usage : listings-jit.sh capture DLL SORTIE [SCÉNARIO…]" >&2; exit 2; }; capture "$@" ;;
-compare) [ $# -eq 3 ] || { echo "usage : listings-jit.sh compare REF AUTRE" >&2; exit 2; }; decoupe compare "$2" "$3" ;;
+compare)
+  shift; noms=(); jusqua=()
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --noms) [ $# -ge 2 ] || break; noms=("$2"); shift 2 ;;
+      --jusqua) [ $# -ge 2 ] || break; jusqua=("$2"); shift 2 ;;
+      *) break ;;
+    esac
+  done
+  if [ $# -ne 2 ] || { [ ${#jusqua[@]} -gt 0 ] && [ ${#noms[@]} -eq 0 ]; }; then
+    echo "usage : listings-jit.sh compare [--noms TABLE [--jusqua ETAPE]] REF AUTRE" >&2; exit 2
+  fi
+  decoupe compare "$1" "$2" "${noms[@]}" "${jusqua[@]}" ;;
 methode) [ $# -eq 3 ] || { echo "usage : listings-jit.sh methode CAPTURE NOM" >&2; exit 2; }; decoupe methode "$2" "$3" ;;
-*) sed -n '5,12p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 2 ;;
+*) sed -n '5,14p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac

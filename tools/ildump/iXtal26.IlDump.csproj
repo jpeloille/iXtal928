@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- SPDX-FileCopyrightText: 2026 Julien Peloille
+         SPDX-License-Identifier: GPL-2.0-only
+
+         Le vidage de l'IL (G14.0c, PLAN-G14.md § G14.0c). Hors de iXtal26.sln, comme tools/perfbanc. Aucun paquet :
+         System.Reflection.Metadata et System.Reflection.Emit (la table des opcodes) sont dans le runtime. Les seules
+         sources de restauration sont ce répertoire, qui ne contient aucun .nupkg, et /usr/lib/dotnet/library-packs,
+         le répertoire local que le SDK ajoute (Microsoft.NET.NuGetOfflineCache.targets ; deux .nupkg du SDK) : un
+         paquet absent du cache ne peut pas être téléchargé, la restauration échoue. ildump.sh vérifie en plus que la
+         restauration n'a tiré aucun paquet. -->
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <InvariantGlobalization>true</InvariantGlobalization>
+        <AssemblyName>iXtal26.IlDump</AssemblyName>
+        <RootNamespace>iXtal26.IlDump</RootNamespace>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+        <RestoreSources>$(MSBuildThisFileDirectory)</RestoreSources>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- La lecture de la table des noms, partagée avec tools/renommage. -->
+        <Compile Include="../noms/TableDesNoms.cs" Link="TableDesNoms.cs"/>
+    </ItemGroup>
+
+</Project>

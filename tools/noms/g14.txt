@@ -1,0 +1,107 @@
+// SPDX-FileCopyrightText: 2026 Julien Peloille
+// SPDX-License-Identifier: GPL-2.0-only
+//
+// noms: G14 — les puces prennent leur nom (PLAN-G14.md, décisions n° 1 à 4). Ancien → nouveau → ce qu'il désigne.
+//   La forme est celle des blocs `// noms:` de Floppy/ et Disc/ (fdc.cs:10-49), lue par les outils de la preuve :
+//   tools/listings-jit.sh compare --noms, tools/ildump (l'IL) et tools/renommage (le renommage). Une seule table.
+//
+// La grammaire, que les trois outils appliquent à l'identique :
+//   - une ligne « // étape X » ouvre l'étape X ; --jusqua X prend les étapes du début jusqu'à X comprise, dans l'ordre
+//     du fichier (la référence est le commit R, d'avant tout renommage : les étapes se cumulent) ;
+//   - une entrée est une ligne « //   ANCIEN  NOUVEAU  [ce qu'il désigne] », trois espaces après « // » : ANCIEN et
+//     NOUVEAU sont deux mots, tous deux un nom de type qualifié (iXtal26.…) ou tous deux un chemin du dépôt
+//     (iXtal26/….cs) ; le reste de la ligne est un commentaire ;
+//   - toute autre ligne est de la prose. Une ligne qui commence par « //   iXtal26 » et n'est pas une entrée valide
+//     fait refuser la table, comme un ANCIEN en double, un NOUVEAU en double, ANCIEN = NOUVEAU, ou une chaîne (un
+//     NOUVEAU qui est l'ANCIEN d'une autre entrée).
+//
+// Ce que la table contient, et pourquoi :
+//   - les types de PREMIER NIVEAU seulement. Les types imbriqués (pic.Etat8259…) suivent leur conteneur : un outil
+//     les déduit du nom du conteneur, jamais d'une entrée ;
+//   - le conteneur renommé (décision n° 1 : la classe, son fichier, son répertoire, son espace de noms) ;
+//   - les autres types déclarés dans le même fichier (les types d'état, les délégués), qui GARDENT leur nom (décision
+//     n° 1) mais suivent l'espace de noms du fichier, iXtal26.Ics (décision n° 2 : le répertoire et l'espace de noms
+//     coïncident ; un fichier C# n'a qu'un espace de noms de fichier). Une entrée manquante pour l'un d'eux fait
+//     refuser le renommage (tools/renommage : un fichier dont une partie des types seulement change d'espace) ;
+//   - les fichiers déplacés par `git mv`, .Materiel.cs compris. Aucun espace de noms n'est renommé en entier :
+//     iXtal26.Models, .Keyboard, .Devices, .Sound et .Video restent, seuls les types listés en sortent.
+//   Les membres (fonctions, champs, constantes) ne sont jamais dans la table : ils gardent les noms de PCem
+//   (décision n° 1, fdc.cs:47). Une entrée qui désigne un membre est refusée.
+//
+// étape G14.1 — le 8259A, le 8253 et le 8237 (PLAN-G14.md § G14.1)
+//   iXtal26.Models.pic                  iXtal26.Ics.Intel8259A        Intel 8259A, le PIC (pic.c)
+//   iXtal26.Models.PIC                  iXtal26.Ics.PIC               l'état d'un 8259A, PIC de ibm.h ; nom gardé
+//   iXtal26.Models.pit                  iXtal26.Ics.Intel8253         Intel 8253-5, le PIT ; le code de PCem fait
+//                                                                     aussi la relecture du 8254 (pit.c:328)
+//   iXtal26.Models.PIT                  iXtal26.Ics.PIT               l'état du 8253, PIT de pit.h ; nom gardé
+//   iXtal26.Models.PIT_nr               iXtal26.Ics.PIT_nr            PIT_nr de pit.h ; nom gardé
+//   iXtal26.Models.set_out_func_t       iXtal26.Ics.set_out_func_t    le rappel de sortie d'un canal ; nom gardé
+//   iXtal26.Models.dma                  iXtal26.Ics.Intel8237         Intel 8237A, le DMA (dma.c)
+//   iXtal26.Models.dma_t                iXtal26.Ics.dma_t             l'état d'un canal, dma_t de dma.c ; nom gardé
+//   iXtal26/Models/pic.cs               iXtal26/Ics/Intel8259A.cs
+//   iXtal26/Models/pic.Materiel.cs      iXtal26/Ics/Intel8259A.Materiel.cs
+//   iXtal26/Models/pit.cs               iXtal26/Ics/Intel8253.cs
+//   iXtal26/Models/pit.Materiel.cs      iXtal26/Ics/Intel8253.Materiel.cs
+//   iXtal26/Models/dma.cs               iXtal26/Ics/Intel8237.cs
+//   iXtal26/Models/dma.Materiel.cs      iXtal26/Ics/Intel8237.Materiel.cs
+//
+// étape G14.2 — le 8042, le MC146818 et l'UART (PLAN-G14.md § G14.2)
+//   iXtal26.Keyboard.keyboard_at        iXtal26.Ics.Intel8042         Intel 8042, le contrôleur du clavier de l'AT
+//   iXtal26.Keyboard.keyboard_at_t      iXtal26.Ics.keyboard_at_t     son état, keyboard_at.c ; nom gardé
+//   iXtal26.Keyboard.mouse_write_fn     iXtal26.Ics.mouse_write_fn    le rappel de la souris PS/2 ; nom gardé
+//   iXtal26.Devices.nvr                 iXtal26.Ics.Motorola146818    Motorola MC146818, la CMOS ; porte aussi
+//                                                                     nvrfopen et loadnvr ; l'horloge reste dans
+//                                                                     rtc.cs (décision n° 4 bis)
+//   iXtal26.Models.serial               iXtal26.Ics.National8250      National 8250 ; le 16450 et le 16550 par
+//                                                                     has_fifo
+//   iXtal26.Models.SERIAL               iXtal26.Ics.SERIAL            l'état d'un UART, SERIAL de serial.h ; gardé
+//   iXtal26.Models.serial_rcr_fn        iXtal26.Ics.serial_rcr_fn     le rappel de réception ; nom gardé
+//   iXtal26/Keyboard/keyboard_at.cs     iXtal26/Ics/Intel8042.cs
+//   iXtal26/Keyboard/keyboard_at.Materiel.cs  iXtal26/Ics/Intel8042.Materiel.cs
+//   iXtal26/Devices/nvr.cs              iXtal26/Ics/Motorola146818.cs
+//   iXtal26/Models/serial.cs            iXtal26/Ics/National8250.cs
+//
+// étape G14.3 — les puces des cartes (PLAN-G14.md § G14.3)
+//   iXtal26.Sound.sound_emu8k           iXtal26.Ics.Emu8000           E-mu EMU8000, le synthétiseur de l'AWE32
+//   iXtal26.Sound.emu8k_t               iXtal26.Ics.emu8k_t           son état, emu8k.h ; les noms suivants gardés
+//   iXtal26.Sound.emu8k_mem_internal_t  iXtal26.Ics.emu8k_mem_internal_t
+//   iXtal26.Sound.emu8k_envelope_t      iXtal26.Ics.emu8k_envelope_t
+//   iXtal26.Sound.emu8k_chorus_eng_t    iXtal26.Ics.emu8k_chorus_eng_t
+//   iXtal26.Sound.emu8k_reverb_combfilter_t  iXtal26.Ics.emu8k_reverb_combfilter_t
+//   iXtal26.Sound.emu8k_reverb_eng_t    iXtal26.Ics.emu8k_reverb_eng_t
+//   iXtal26.Sound.emu8k_slide_t         iXtal26.Ics.emu8k_slide_t
+//   iXtal26.Sound.emu8k_cpf_u           iXtal26.Ics.emu8k_cpf_u
+//   iXtal26.Sound.emu8k_ptrx_u          iXtal26.Ics.emu8k_ptrx_u
+//   iXtal26.Sound.emu8k_cvcf_u          iXtal26.Ics.emu8k_cvcf_u
+//   iXtal26.Sound.emu8k_vtft_u          iXtal26.Ics.emu8k_vtft_u
+//   iXtal26.Sound.emu8k_psst_u          iXtal26.Ics.emu8k_psst_u
+//   iXtal26.Sound.emu8k_csl_u           iXtal26.Ics.emu8k_csl_u
+//   iXtal26.Sound.emu8k_ccca_u          iXtal26.Ics.emu8k_ccca_u
+//   iXtal26.Sound.emu8k_ifatn_u         iXtal26.Ics.emu8k_ifatn_u
+//   iXtal26.Sound.emu8k_pefe_u          iXtal26.Ics.emu8k_pefe_u
+//   iXtal26.Sound.emu8k_fmmod_u         iXtal26.Ics.emu8k_fmmod_u
+//   iXtal26.Sound.emu8k_tremfrq_u       iXtal26.Ics.emu8k_tremfrq_u
+//   iXtal26.Sound.emu8k_fm2frq2_u       iXtal26.Ics.emu8k_fm2frq2_u
+//   iXtal26.Sound.emu8k_voice_t         iXtal26.Ics.emu8k_voice_t
+//   iXtal26.Video.vid_tkd8001_ramdac    iXtal26.Ics.TridentTKD8001    Trident TKD8001, le RAMDAC de la 8900D
+//   iXtal26.Video.tkd8001_ramdac_t      iXtal26.Ics.tkd8001_ramdac_t  son état ; nom gardé
+//   iXtal26.Video.vid_unk_ramdac        iXtal26.Ics.SierraSC1502x     Sierra SC1502x, la famille que PCem nomme
+//   iXtal26.Video.unk_ramdac_t          iXtal26.Ics.unk_ramdac_t      son état ; nom gardé
+//   iXtal26/Sound/sound_emu8k.cs        iXtal26/Ics/Emu8000.cs
+//   iXtal26/Sound/sound_emu8k.Materiel.cs  iXtal26/Ics/Emu8000.Materiel.cs
+//   iXtal26/Video/vid_tkd8001_ramdac.cs  iXtal26/Ics/TridentTKD8001.cs
+//   iXtal26/Video/vid_unk_ramdac.cs     iXtal26/Ics/SierraSC1502x.cs
+//   iXtal26/Video/vid_unk_ramdac.Materiel.cs  iXtal26/Ics/SierraSC1502x.Materiel.cs
+//
+// étape G14.4 — les jeux de puces (PLAN-G14.md § G14.4). Opti82C495 est le nom que PCem imprime (opti495.c:1).
+//   Les trois autres sont SOUS RÉSERVE D'UNE FICHE : une fiche publique, rangée dans sources/ et MANIFEST.tsv, doit
+//   confirmer la référence pour le code transcrit ; sinon l'entrée sort de la table et le module garde le nom de
+//   PCem, et c'est dit. La table de G14.4 se relit donc avant l'étape.
+//   iXtal26.Models.opti495              iXtal26.Ics.Opti82C495        OPTi 82C495, le jeu de puces de l'ami386dx
+//   iXtal26.Models.neat                 iXtal26.Ics.ChipsCS8221       SOUS RÉSERVE : Chips & Technologies CS8221
+//   iXtal26.Models.ali1429              iXtal26.Ics.AliM1429          SOUS RÉSERVE : ALi M1429
+//   iXtal26.Models.headland             iXtal26.Ics.HeadlandHT18      SOUS RÉSERVE : Headland HT18
+//   iXtal26/Models/opti495.cs           iXtal26/Ics/Opti82C495.cs
+//   iXtal26/Models/neat.cs              iXtal26/Ics/ChipsCS8221.cs    SOUS RÉSERVE
+//   iXtal26/Models/ali1429.cs           iXtal26/Ics/AliM1429.cs       SOUS RÉSERVE
+//   iXtal26/Models/headland.cs          iXtal26/Ics/HeadlandHT18.cs   SOUS RÉSERVE
