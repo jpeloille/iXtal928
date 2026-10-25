@@ -6,7 +6,8 @@
 #
 # LE BANC CONTRE LA RÉFÉRENCE FIGÉE (G14.0b ; PLAN-G14.md § G14.0b, décisions n° 6, 7 et 12 ; R0-contre.md § 3).
 #
-#   tools/perfbanc/compare-ref.sh [--construire] [--empreintes-r FICHIER] R_ARBRE C_ARBRE SORTIE [GROUPES]
+#   tools/perfbanc/compare-ref.sh [--construire] [--empreintes-r FICHIER] [--lancees-r FICHIER] R_ARBRE C_ARBRE \
+#       SORTIE [GROUPES]
 #
 # R est l'arbre de référence (le binaire figé), C le candidat ; deux worktrees, chacun construit en Release. GROUPES,
 # facultatif, est une expression régulière (grep -E) sur les noms de groupes de la liste ci-dessous.
@@ -23,7 +24,15 @@
 #
 # --construire : construit les deux arbres (dotnet build -c Release du banc) avant la première mesure ; sinon, les
 # DLL doivent être là. --empreintes-r FICHIER : un `sha256sum` des trois DLL de R (iXtal26, iXtal26.SoftFloat,
-# iXtal26.PerfBanc, chemins relatifs à R) ; un écart refuse la passe (G14.0d : la référence ne bouge plus).
+# iXtal26.PerfBanc, chemins relatifs à R) ; un écart refuse la passe (G14.0d : la référence ne bouge plus). Ce sont
+# les DLL de bin/, et non celles que BenchmarkDotNet reconstruit depuis le source et lance : un source de R modifié
+# sans reconstruction n'y paraît pas. --lancees-r FICHIER (G14.0d) garde donc le binaire lancé : les empreintes
+# normalisées des trois DLL lancées du côté R, celles du gel, une ligne « EMPREINTE  NOM » chacune (`compare_ref.py gel
+# SORTIE` les écrit depuis une passe). Chaque passage de R est vérifié dès sa fin : une empreinte qui diffère, ou une
+# DLL lancée qui n'est pas relevée, refuse la passe, qui s'arrête là. Le comparateur le vérifie aussi, passage par
+# passage, et l'en-tête du rapport le dit. L'option reste facultative : la garde est à la charge de l'appelant (la
+# consigne de G14.1-4 l'impose). L'empreinte normalisée dépend de la longueur du chemin de l'arbre (celle du chemin du
+# PDB déplace les sections) : le gel ne vaut que pour un R dont le chemin a la longueur de /var/tmp/ixtal-g14/ref-R.
 #
 # L'affinité : COEURS (par défaut 4,6,8,10). L'i5-14600KF a six cœurs P (CPU 0-11, deux fils chacun : 0 et 1 sont le
 # même cœur, 2 et 3 aussi…) et huit cœurs E (12-19, moins rapides). 4, 6, 8 et 10 : quatre cœurs P distincts, un fil
@@ -97,16 +106,18 @@ groupe Machine286 4 '' 1 4 '*.Machine.*"ami286", *' '*.Machine.*"ibmat", *'
 groupe Machine386 6 '' 1 4 '*.Machine.*"ami386", *' '*.Machine.*"ami386dx", *' '*.Machine.*"ami486", *'
 
 usage() {
-  sed -n '9,11p' "$0" | sed 's/^# \{0,1\}//' >&2
+  sed -n '9,10p' "$0" | sed 's/^# \{0,1\}//' >&2
   exit 2
 }
 
 CONSTRUIRE=0
 EMPREINTES_R=""
+LANCEES_R=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --construire) CONSTRUIRE=1; shift ;;
-    --empreintes-r) EMPREINTES_R="$2"; shift 2 ;;
+    --empreintes-r) [ $# -ge 2 ] || usage; EMPREINTES_R="$(realpath -e -- "$2")" || usage; shift 2 ;;
+    --lancees-r) [ $# -ge 2 ] || usage; LANCEES_R="$(realpath -e -- "$2")" || usage; shift 2 ;;
     --) shift; break ;;
     -*) usage ;;
     *) break ;;
@@ -124,6 +135,11 @@ fi
 mkdir -p "$SORTIE" && SORTIE="$(cd "$SORTIE" && pwd)"
 BANC=tools/perfbanc/bin/Release/net10.0
 DEBUT=$(date +%s.%N)
+# Le gel des DLL lancées, lu avant toute mesure : un fichier mal formé est une erreur d'usage.
+if [ -n "$LANCEES_R" ] && ! python3 -I "$COMPARATEUR" gel-lire "$LANCEES_R" > /dev/null; then
+  echo "compare-ref : $LANCEES_R n'est pas un gel des DLL lancées (compare_ref.py gel)" >&2
+  exit 2
+fi
 REFUS=()
 
 journal() { printf '%s %s\n' "$(date +%H:%M:%S)" "$*" | tee -a "$SORTIE/deroulement.log" >&2; }
@@ -206,12 +222,12 @@ done
 
 ecrire_contexte() {
   local fin="$1"
-  python3 -I - "$SORTIE" "$R_ARBRE" "$C_ARBRE" "$COEURS_NOYAU" "$DEBUT" "$fin" "${#REFUS[@]}" "${REFUS[@]}" \
-      -- "${CHOISIS[@]}" <<'EOF'
+  python3 -I - "$SORTIE" "$R_ARBRE" "$C_ARBRE" "$COEURS_NOYAU" "$DEBUT" "$fin" "${LANCEES_R:--}" "${#REFUS[@]}" \
+      "${REFUS[@]}" -- "${CHOISIS[@]}" <<'EOF'
 import json, platform, subprocess, sys, time
 from pathlib import Path
-sortie, r, c, coeurs, debut, fin, n = sys.argv[1:8]
-refus = sys.argv[8:8 + int(n)]
+sortie, r, c, coeurs, debut, fin, gel, n = sys.argv[1:9]
+refus = sys.argv[9:9 + int(n)]
 groupes = sys.argv[sys.argv.index("--") + 1:]
 def lire(f):
     p = Path(sortie) / f
@@ -244,6 +260,9 @@ ctx = {
     "debut": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(float(debut))),
     "duree_s": round(float(fin) - float(debut), 1) if fin != "-" else None,
     "refus": refus,
+    "lancees_r_fichier": None if gel == "-" else gel,
+    "lancees_r": None if gel == "-" else {l.split()[1]: l.split()[0] for l in Path(gel).read_text().splitlines()
+                                            if l.strip()},
     "cas_attendus": {g.split("|")[0]: int(g.split("|")[1]) for g in groupes},
     "job": {g.split("|")[0]: "|".join(g.split("|")[2:5]) for g in groupes},
 }
@@ -306,6 +325,15 @@ passage() {
     --runtimes-avant "$dir/runtimes-avant.txt" --runtimes-apres "$dir/runtimes-apres.txt" --generes "$arbre/$BANC"
   rm -rf "$arbre/$BANC"/iXtal26.PerfBanc-*
   journal "  fini en $(awk -v a="$debut" -v b="$fin" 'BEGIN { printf "%.0f", b - a }') s, code $rc"
+  # G14.0d : le binaire que BenchmarkDotNet a lancé du côté R doit être celui du gel ; sinon, la passe s'arrête ici.
+  if [ "$cote" = R ] && [ -n "$LANCEES_R" ]; then
+    local ecart
+    if ! ecart="$(python3 -I "$COMPARATEUR" gel-verifier --passage "$dir/passage.json" --gel "$LANCEES_R")"; then
+      journal "refus : le binaire lancé du côté R n'est pas celui du gel (passe $passe, $nom, $ordre-$cote) : $ecart"
+      REFUS+=("passe $passe, $nom, $ordre-$cote : le binaire lancé du côté R n'est pas celui du gel : $ecart")
+      return 1
+    fi
+  fi
 }
 
 jouer_passe() {

@@ -17072,3 +17072,365 @@ n° 8 et Q38.
   `Scsi/`, `Cdrom/`, `Lpt/` et `Joystick/` (R2-contre § 1.3).
 
 L'émulateur ne change pas.
+
+## G14.0d — Le gel
+
+Du 24 au 25 octobre 2026 (PLAN-G14.md § G14.0d, décisions n° 7, 9 et 12 ; § G14.0b, risque « La garde de R »).
+Feu vert de Julien le 24/10 : « ok, continue avec G14.0d » ; après la coupure de la séance du 24/10 vers 18 h 34,
+« continue G14.0d » le 25/10. L'émulateur ne change pas. Deux fichiers changent dans le dépôt : `compare-ref.sh` et
+`compare_ref.py` (la garde du binaire lancé). Les journaux sont sous `/var/tmp/ixtal-g14/g14-0d/`, les outils jetables
+qui les ont produits sous `outils/` (`prep-g14r.sh`, `captures.sh`, `series-g14r.sh`, `complement-sst.sh`,
+`serie-g14r-tout.sh`, `complement-atapi-tout.sh`, `banc-amorce.sh`, `porte.sh`, `negatifs-gel.py`, `negatifs-banc.sh`,
+`guet-calme.sh`), les essais remplacés sous `essais/`.
+
+**Le commit R : `f15e11f`** (G14.0c), le HEAD du moment.
+- `git diff 1edebb4 f15e11f -- iXtal26/ tools/oracle/ tools/iXtal26.Diff/` : vide (0 ligne ; `diffs.log`). Les
+  sources du banc (`tools/perfbanc/*.cs`, le `.csproj`) et `iXtal26.SoftFloat/` non plus : depuis `1edebb4`, seuls
+  `compare-ref.sh` et `compare_ref.py` sont venus dans `tools/perfbanc/` (ajoutés en `eea86a8`), et ils ne sont pas
+  compilés. L'émulateur de R est celui qu'a mesuré G14.0b (`wt`, dont le worktree est à `1edebb4` mais dont la DLL,
+  construite en G14.0a, porte la version de `e350e6c`) : l'IL d'iXtal26 et de SoftFloat le confirme, 0 écart
+  (ci-dessous).
+- `622b091` (une séance de Julien, le 24/10) change six profils `ixtal26-486*.cfg` (le D: de l'ami486) et
+  `tools/gates/g5w-recipe.sh`. Il touche la série par un seul chemin : la recette dérive `ixtal26-486-porte.cfg` de
+  `ixtal26-486.cfg`, et en retire désormais les quatre clés `hdd_*` ; ses clés restent à l'octet celles d'avant (le
+  message du commit), la recette les vérifie (« D: non retiré » sinon), et `bd-cfg-486-cd` sort identique à celle de
+  `gr1i2` (ci-dessous). Aucune porte ne lit les autres profils `ixtal26-486-*.cfg`.
+- Ce que § G14.0b ne consigne pas, consigné ici (le contexte de chaque passe, `contexte.json`) : l'hôte, un Intel
+  Core i5-14600KF, noyau 7.0.0-38-generic, gouverneur `powersave` ; Microsoft.NETCore.App 10.0.13, SDK 10.0.113 ;
+  BenchmarkDotNet 0.15.8 ; Python 3.14.4. Les moyennes de R, cas par cas, sont celles de la porte (ci-dessous), et
+  § G14.0b les avait pour `wt` dans ses `rapport.tsv` : c'est par elles qu'on verra l'hôte dériver.
+
+**Le worktree de référence : `/var/tmp/ixtal-g14/ref-R`**, détaché à `f15e11f`, `roms/` lié entrée par entrée (163
+liens, les trois noms à espaces compris ; `roms.sha256` gardé du dépôt, 34 OK), construit une fois en Release le 24/10
+à 16 h 02 (`dotnet build -c Release --disable-build-servers tools/perfbanc`, 0 avertissement ;
+`construction-ref-R.log`).
+Rien d'autre n'y a été construit ni copié : ni `os/`, ni l'oracle, ni iXtal26.Diff. Les captures et les séries ont
+tourné ailleurs (ci-dessous).
+
+| DLL (`tools/perfbanc/bin/Release/net10.0/`) | sha256 | empreinte normalisée de bin/ | empreinte du lancé (le gel) |
+|---|---|---|---|
+| `iXtal26.dll` | `3aa61a85…150000` | `82655396…7d8474` | `efb54e43…2e9031` |
+| `iXtal26.SoftFloat.dll` | `97a15acb…829e35` | `03529619…a4c68` | `23d2f857…a6db72c` |
+| `iXtal26.PerfBanc.dll` | `5fc79298…d3aa9` | `d5fbc1c8…d4368` | `c856ed99…767bb2` |
+
+Les fichiers du gel sont hors du worktree, sous `/var/tmp/ixtal-g14/gel-R/` : `empreintes-r.sha256` (le `sha256sum`
+des trois DLL de bin/, chemins relatifs à R) et `lancees-r.txt` (les trois empreintes du lancé). Doublés dans
+`/var/tmp/ixtal-g13/g14-gel-R/`. `iXtal26/bin/Release/net10.0/iXtal26.dll` est le même fichier que celui du banc
+(`3aa61a85…`). Le manifeste de l'arbre après la construction (`ref-R-manifeste-apres-construction.sha256`, 1 894
+fichiers) sert au contrôle de fin (ci-dessous).
+
+*L'empreinte normalisée dépend de la longueur du chemin.* Elle efface l'horodatage, la somme du PE, le répertoire de
+débogage et le MVID ; mais le chemin du PDB, effacé, a sa longueur, qui déplace les sections. Mesuré : à `aaR` (trois
+lettres) au lieu de `ref-R` (cinq), l'empreinte d'iXtal26 n'était pas celle de R (`6af724b2…` contre `82655396…`). Le
+second arbre de la porte est donc `cmp-R`, et celui des séries `ser-R`, cinq lettres chacun : leurs `iXtal26.dll` et
+`iXtal26.SoftFloat.dll` ont la même empreinte que celles de R, à bin/ comme au lancé. Celle d'`iXtal26.PerfBanc.dll`
+diffère encore, par le chemin du source que `[CallerFilePath]` donne à `BenchmarkAttribute` (§ G14.0c) : `137e5fe4…` à
+bin/ et `d092b6ee…` au lancé pour `cmp-R`. Le sha256 brut de bin/ diffère d'un arbre à l'autre (le chemin du PDB) :
+c'est lui qui distingue R de tout autre arbre au même commit.
+
+**La garde du binaire lancé** (la consigne de § G14.0b, point I6 de sa contre-lecture). `--empreintes-r` ne vérifie que
+bin/ ; BenchmarkDotNet reconstruit le banc et iXtal26 depuis le source, dans `iXtal26.PerfBanc-<job>-1`, et c'est
+cette DLL qui tourne. Un source de R modifié sans reconstruction ne se voyait donc que si l'empreinte du lancé changeait
+d'un passage à l'autre. Désormais :
+- `compare-ref.sh --lancees-r FICHIER` : le gel, une ligne « EMPREINTE  NOM » par DLL lancée. Le fichier est lu avant
+  toute mesure (`compare_ref.py gel-lire`) : une ligne illisible, une DLL en double ou manquante, un fichier absent,
+  et l'outil sort en erreur d'usage (code 2) ;
+- après chaque passage du côté R, `compare_ref.py gel-verifier` compare les trois DLL lancées (relevées par
+  `consigner` dans `passage.json`) au gel : une empreinte qui diffère, ou une DLL lancée non relevée, et la passe
+  s'arrête là, refusée (code 3), avec l'écart (« iXtal26.dll lancé 0fb54e43…, le gel efb54e43… ») ;
+- le comparateur le vérifie aussi en analysant, passage par passage (`analyser_groupe`, le gel lu dans
+  `contexte.json`), et l'en-tête du rapport dit si le gel est vérifié, ou « non demandé » ;
+- `compare_ref.py gel SORTIE [--cote R]` écrit le gel depuis une sortie de compare-ref.sh, et refuse (retour 1, la
+  raison sur la sortie d'erreur) si les passages d'un côté ont lancé plus d'une empreinte d'une DLL, ou n'en ont pas
+  relevé une. `gel-lire` rend aussi 1 sur un gel mal formé ; compare-ref.sh traduit cet échec en code 2 ;
+- au passage, `--empreintes-r` et `--lancees-r` prennent un chemin relatif (`realpath -e`) : l'ancien
+  `cd "$R_ARBRE" && sha256sum -c "$EMPREINTES_R"` exigeait un chemin absolu ; et `usage()` imprime les lignes 9 et
+  10 de l'en-tête (`sed -n '9,10p'`, au lieu de `'9,11p'`), l'usage tenant désormais sur deux lignes ;
+- `analyser` refuse une sortie à laquelle manque un groupe attendu (ceux que le filtre GROUPES a retenus, listés dans
+  `contexte.json`) : « le groupe Video, attendu, manque de la passe 1 ». Le comparateur seul rendait VERT une sortie
+  tronquée (ci-dessous, les contrôles négatifs).
+
+`--lancees-r` reste facultatif : la garde est à la charge de l'appelant, et la consigne de G14.1-4 l'impose
+(ci-dessous). L'en-tête de compare-ref.sh dit que le gel ne vaut que pour un R dont le chemin a la longueur de
+`/var/tmp/ixtal-g14/ref-R` (l'empreinte normalisée).
+
+Le job de Machine ne change pas (1 échauffement, 4 itérations, une invocation : la consigne de § G14.0b). Le gel ne
+regarde que R : C est le candidat, ses DLL changent par définition.
+
+Le gel est tiré d'une passe d'amorce (`banc-amorce/`, le groupe Fetch, R = `ref-R`, C = `cmp-R`, `--empreintes-r`) :
+deux passages de R, la même empreinte pour chaque DLL. La passe elle-même a été refusée (un `dotnet test` et
+VBCSCompiler d'une autre séance tournaient), ce qui ne touche pas l'empreinte d'un binaire ; la porte la vérifie
+ensuite sur chaque passage de R.
+
+**Les captures**, au commit R, sous Microsoft.NETCore.App 10.0.13 (`runtime.txt`), le 24/10 de 16 h 10 à 16 h 25 :
+`/var/tmp/ixtal-g14/ref-R-captures/` (290 Mo), doublé dans `/var/tmp/ixtal-g13/g14-ref-R-captures/` (`diff -r` vide).
+- *Les listings du JIT* (`jit/`, 30 scénarios) : la DLL de `ref-R`, jamais reconstruite, jouée par le script et le bac
+  à sable de `cmp-R` (même commit ; `os/pcdos20`, `8088-HDD-C.img` et `vierge-hdd-type06.img` copiés dans `cmp-R/os/`,
+  `os.sha256` OK pour eux). 1 512 méthodes, les mêmes comptes par scénario qu'en G14.0c, 0 mention de MinOpts.
+  - contre `jit-c0c` (G14.0c, `eea86a8`, 10.0.13) : 0 changée, 0 disparue, 0 apparue (`jit-c0c-contre-R.log`) ;
+  - contre elle-même : 0 (`jit-R-contre-lui.log`).
+
+  Entre `eea86a8` et R, aucune différence de code (le `git diff` ci-dessus) ; la capture neuve reste la référence,
+  comme le plan le veut.
+- *Le vidage d'IL* (`il/`, par `tools/ildump`, construit dans `cmp-R`) : `iXtal26.dll` (5 738 entrées, 617 types,
+  5 120 méthodes, 423 653 instructions), `iXtal26.Diff.dll` (3 331 entrées ; la DLL de la série, `ser-R`),
+  `iXtal26.PerfBanc.dll` (297) et `iXtal26.SoftFloat.dll` (90). `ildump comparer` :
+  - R contre lui-même, `c0c` contre R, `wt` contre R, la DLL de la série contre R : 0 écart (`il-*.log`) ;
+  - iXtal26.Diff de `c0c` contre celle de la série : 0 ; SoftFloat de `wt` contre R : 0 ;
+  - le banc de `cmp-R` contre celui de R : 35 entrées changées, toutes par `BenchmarkAttribute` (le chemin du source,
+    § G14.0c), 0 hors de lui.
+
+  Le texte du vidage d'iXtal26 diffère de `g14-0c/il-c0c.txt` par les 23 attributs que la contre-lecture de G14.0c a
+  ajoutés au vidage (les espaces finaux ôtés) : `il-c0c.txt` venait de la version d'avant ; les comparaisons, rejouées
+  par l'outil final, sont à 0.
+
+**Les séries de référence**, au commit R, dans `/var/tmp/ixtal-g14/ser-R` (détaché à `f15e11f`), comme
+`/tmp/a9/serie.sh` et `serie-mat.sh` l'ont fait pour `gr1i2` : `os/` et `roms/` copiés, l'oracle et les deux projets
+construits en Release, la copie figée `S-g14r/` (iXtal26.Diff et la `.so`), les portes copiées (`gates-g14r`,
+`gates-g14r-tout`), `MALLOC_PERTURB_=85`, dix voies, le WORK `g5w-g14r` fait par la recette (« conforme aux
+empreintes » de `g5w.sha256`), le même pour les deux modes ; `TMPDIR_SERIE` par défaut. La DLL d'iXtal26 de la série a
+la même empreinte normalisée que celle de R (`82655396…`), et son IL est celui de R : la série a joué le binaire figé.
+
+| Copie figée (`S-g14r/`) | sha256 |
+|---|---|
+| `iXtal26.dll` | `d4dbe211…5023cf` |
+| `iXtal26.Diff.dll` | `6da165da…819152` |
+| `libixtal26oracle.so` | `fe905731…6bc03ae` |
+
+*Les deux disques que `os.sha256` ne reconnaît plus.* `os/386-HDD-C.img` a été écrite par une séance de Julien le 23/10
+à 19 h 15 (`caa336c3…` ; l'ancre dit `c3d938cc…`), `os/486-HDD-C.img` le 24/10 à 14 h 28 (`6968dbe6…` ; l'ancre
+`fae6974d…`). La seconde n'entre dans aucune porte. La première, si : la recette en tire `c386.img`, et elle aurait
+rendu une image non conforme à `g5w.sha256`, et des boot-diffs disque autres que ceux de `gr1i2`. Le disque que `gr1i2`
+a joué ne passait déjà pas `os.sha256` : c'est celui de `/tmp/a9/wtgr2a/os/386-HDD-C.img` (`9ce09889…`), copié du dépôt
+avant les séries de GR. Les séries de G14.0d ont été jouées sur lui, copié dans `ser-R/os/` (lu, jamais écrit). Son
+identité est prouvée par `c386.img`, au même sha256 `9ce09889…` dans `g5w-gr1i2`, dans `g5w-g14r` et dans
+`g5w.sha256` (la recette : « conforme »). Ni `os/` ni `os.sha256` du dépôt n'ont été touchés.
+
+*Les SST, jouées en complément.* `vectors/` est gitignoré : `ser-R` n'en avait que les `MANIFEST.sha256` suivis par git.
+`gr1i2` les avait jouées dans `wtgr2a`, où chaque entrée des quatre corpus est un lien vers `vectors/` du dépôt (`v2`,
+`v1`, `v1_real_mode`, `v1_ex_real_mode`, `80386.csv`, `revocation_list.txt`), le manifeste copié. La première passe de
+`g14r` (24/10, 16 h 27 à 18 h 27) a rendu 818 vertes et neuf SST rouges : quatre « Aucun vecteur » (rc=2), quatre
+« vectors/… absent » (rc=2) et `sst-rep-temps-materiel` (rc=134) : `essais/g14r-premiere/`, doublé dans
+`/var/tmp/ixtal-g13/series/g14r-premiere-sst-sans-vectors.tsv`. Les corpus ont alors été liés dans `ser-R` entrée
+par entrée, comme dans `wtgr2a` (jamais `vectors/` lui-même ; rien n'y est écrit), et les neuf portes rejouées seules
+(`complement-sst.sh`, `PORTES`, même DLL, même WORK, même `TMPDIR_SERIE` que `g14r`, pour que les journaux citent les
+mêmes chemins). Le premier complément, lancé le 24/10 à 18 h 28, a été coupé par la fin de la séance ; il a été rejoué
+en entier le 25/10, de 10 h 54 à 11 h 07 : les neuf vertes. Leurs neuf lignes et leurs journaux remplacent ceux de la
+première passe dans `g14r.tsv` : 827 portes, toutes vertes. `g14r.notes`, à côté du tsv (et dans
+`/var/tmp/ixtal-g13/series/`), le dit.
+
+*La zlib.* `unattended-upgrade` a passé `zlib1g` (amd64 et i386) de 1.3.1-1ubuntu3.1 à 3.2 le 25/10 à 6 h 34, entre
+`g14r` et le complément. Ni la `.so` de l'oracle ni `libcoreclr`, `libclrjit` ni l'hôte `dotnet` ne la lient (`ldd`,
+`readelf -d`). Une seule bibliothèque de .NET la lie directement, `libSystem.IO.Compression.Native.so` ;
+`libSystem.Security.Cryptography.Native.OpenSsl.so` ne la tire que par `libcrypto` (`readelf -d` : `libcrypto.so.3`,
+`libssl.so.3`, `libc.so.6`). La première sert `GZipStream`, que `SstProbe.cs` et `Moo.cs` emploient pour lire les
+vecteurs `.json.gz` : les SST du complément de `g14r`, et `g14r-tout` entière, ont donc tourné sous la zlib neuve,
+`gr1i2` et `gr1i2-tout` sous l'ancienne. La décompression est exacte par définition ; les journaux sont identiques à
+ceux de `gr1i2` et `gr1i2-tout` (ci-dessous). Le runtime, le JIT et le banc n'en dépendent pas. Les deux autres entrées
+d'apt du 24/10 (10 h 36, une application de bureau, qemu et ses bibliothèques ; 16 h 04, `imagemagick` et
+`libmspub-tools`) n'ont touché ni .NET, ni l'oracle, ni les séries.
+
+*`g14r-tout`.* Lancée le 24/10 à 18 h 27, sans `vectors/`, elle a été arrêtée deux minutes après
+(`essais/g14r-tout-interrompue/`), puis rejouée en entier le 25/10, de 11 h 07 à 12 h 03 : 548 vertes, 267 refusées, 11
+« pcem », et une rouge, `banc-atapibanc` (rc=1). Son journal ne dit que « deux séances, retours 0 et -1 » (2 116 s
+pour la porte, contre 1 727 s dans `gr1i2-tout`). La cause est déduite : seul `Banc.cs:166-169` rend -1, après
+`WaitForExit(1 200 000)`, le délai de 1 200 s d'horloge de l'hôte. D'autres séances chargeaient la machine : `uptime`,
+pris une minute après la fin de la série, au lancement du rejeu, donne 9,7, 15,1 et 15,5 (des `dotnet test` d'un autre
+projet tournaient) ; rien ne désigne l'émulateur. Rejouée
+seule (`complement-atapi-tout.sh`, `PORTES`, même DLL, même WORK, même répertoire temporaire), de 12 h 04 à 12 h 28 :
+verte, « les 89 attendus du mode materiel, deux séances identiques », 1 421 s. Sa ligne et son journal remplacent ceux
+de la série : 549 vertes, 267 refusées, 11 « pcem », aucune rouge, les comptes de `gr1i2-tout`. La série telle qu'elle
+est sortie est gardée (`essais/g14r-tout-premiere/`) et doublée dans
+`/var/tmp/ixtal-g13/series/g14r-tout-premiere-banc-atapibanc-delai.tsv` ; `g14r-tout.notes`, à côté du tsv de référence
+(dans `g14-0d/series/` et dans `/var/tmp/ixtal-g13/series/`), dit le rejeu.
+
+*Les comparaisons* (`compare-series.py --racine /tmp/a9/wtgr2a /var/tmp/ixtal-g14/ser-R --work /tmp/a9/g5w-gr1i2
+…/g5w-g14r`, contre les journaux de `gr1i2` doublés le 24/10 dans `g14-0d/ref-gr1i2/`) :
+- `g14r` contre `gr1i2` : 827 portes communes, **0 écart** (`g14r-contre-gr1i2.log`) ; bruit retiré : 1 654 durées,
+  70 répertoires, 68 PID, 2 textes coupés, 12 temps de l'hôte, 38 racines et WORK, 128 longueurs de séance (la règle 7 :
+  `g14r` et `gr1i2` n'ont pas la même longueur) ;
+- `g14r-tout` contre `gr1i2-tout` : 827 communes, **0 écart** (`g14r-tout-contre-gr1i2-tout.log`) ; 1 654 durées,
+  52 répertoires, 50 PID, 12 temps de l'hôte, 128 longueurs de séance.
+
+Entre `11fdbba` (`gr1i2`) et R, l'émulateur n'a changé que par des commentaires, l'aide et le `Makefile` de `bench`
+(GR.4d, GR.4e) : le comportement est le même à l'unité, SST et fuzzeurs compris. Les tsv sont doublés dans
+`/var/tmp/ixtal-g13/series/` (`g14r.tsv`, `g14r-tout.tsv`) ; les journaux sont dans `g14-0d/series/`, sur le disque.
+
+La `.so` de l'oracle de R est `S-g14r/libixtal26oracle.so`, `fe905731…`. Elle n'est pas celle de `c0c` (`05e2be56…`)
+ni celle de `gr1i2` (`764138cc…`), même dépouillée de ses symboles de débogage : la `.so` porte le chemin de son arbre.
+« La `.so` inchangée » (décision n° 9) se vérifie donc par `git diff f15e11f -- tools/oracle/ pcem-dev/` vide, et en
+jouant les séries de G14.1-4 avec cette `.so`-là, copiée.
+
+**La porte : R remesuré contre lui-même.** `compare-ref.sh --empreintes-r …/empreintes-r.sha256 --lancees-r
+…/lancees-r.txt /var/tmp/ixtal-g14/ref-R /var/tmp/ixtal-g14/cmp-R banc3` (`outils/porte.sh`), les 14 groupes, 65 cas,
+la règle des trois passes ; C = `cmp-R`, un worktree neuf à R plutôt qu'`aa1` (à `1edebb4`, son SoftFloat et son
+iXtal26 portent un autre commit dans leur version, donc une autre empreinte). Le 25/10, de 15 h 22 à 16 h 15 :
+**vert, 65 cas sur 65 dès la passe 1**, sans passe 2 ni passe 3, en 52,8 min (`banc3/rapport.txt`, `rapport.tsv`).
+- Aucun refus. Le gel est vérifié sur les 28 passages de R : les trois DLL lancées sont celles du gel, à chaque
+  groupe (les répertoires de job changent, l'empreinte non). bin/ de R est intact après la porte (`sha256sum -c`).
+- Aucun rouge exact : les allocations égales à l'octet sur les 65 cas, aucune instable ; les états et les empreintes de
+  Machine égaux.
+- Les écarts C/R − 1 vont de −0,45 % (VideoEgaPcem) à +0,62 % (Exec286, « tout », prefixe), médiane +0,01 % ; par
+  groupe, de −0,15 % (Exec386) à +0,16 % (Exec286). La borne basse la plus haute est −0,03 % (Machine pc1512, « tout »),
+  la borne haute la plus basse +0,05 % (Machine ami386, « tout ») : ni rouge, ni C plus rapide. L'intervalle le plus
+  large est celui de SonAweVoix (aucun), 3,65 points ([−2,98 ; +0,67]).
+- La sonde a noté un relevé de plus de 0,3 UC sur 56 passages (Rider, 0,81 UC).
+
+*Les moyennes de R* (`moyennes-R-porte.tsv`, la colonne `R_ns` : la médiane des six moyennes de lancement), contre
+celles de `wt` dans `complet2` de G14.0b, le même émulateur : 65 cas, médiane −0,02 %, de −0,71 % à +0,66 %.
+
+| Groupe | Cas | R de G14.0d / `wt` de G14.0b − 1 (médiane) | Étendue |
+|---|---:|---:|---|
+| Exec286, Exec386, Exec486 | 6, 3, 6 | +0,05, +0,10, +0,31 % | −0,71 à +0,66 % |
+| Exec8088, Fetch | 2, 2 | +0,01, +0,25 % | +0,01 à +0,40 % |
+| MemoireLente, RenduCga, Rendu8bpp, Video | 4, 2, 4, 4 | +0,02, +0,21, −0,11, +0,13 % | −0,34 à +0,43 % |
+| Son, SonOplPro | 12, 2 | −0,08, −0,08 % | −0,20 à +0,24 % |
+| Machine808x, Machine286, Machine386 | 8, 4, 6 | −0,03, −0,09, −0,07 % | −0,15 à +0,19 % |
+
+L'hôte n'a pas dérivé depuis G14.0b, à 0,71 % près (l'écart extrême est −0,709 %, Exec286).
+
+*Les deux essais refusés d'avant*, gardés (`banc/`, `banc2/`), et ce qu'ils disent. Le 25/10 de 12 h 37 à 13 h 43, puis
+de 13 h 58 à 15 h 16, une autre séance construisait et testait un autre projet (`dotnet test`, `dotnet build`,
+VBCSCompiler, MSBuild, et Rider à 6 UC) : la sonde l'a vu à la fin de quatre passages du premier essai (Fetch,
+Machine386), dont le dernier passage de Machine386 n'a ensuite pas pu commencer (« pas revenue au calme en dix
+minutes »), et à la fin de 18 passages du second (huit groupes). Les deux sont refusés en entier, comme ils doivent
+l'être (code 3). Analysés sans les groupes refusés (`banc-12/`, `banc2-propres/`, copies) : 56 verts et un « à
+confirmer » (Rendu8bpp tvga8900d « aucun », +0,18 % [+0,02 ; +0,31]) sur 57 cas, puis 23 verts sur 23 (le même cas à
+−0,22 %). Ce ne sont pas des portes ; la porte est le troisième essai, joué entier, au calme. Le gel a tenu
+sur tous les passages de R des trois essais.
+
+**Les contrôles négatifs.**
+- *Un R qui n'est pas le gel* (`negatifs-outil.log`), les deux gardes données :
+  - R = `wt` (`1edebb4`, le R de G14.0b) : refus avant toute mesure, code 3, « R n'est pas la référence : ses DLL ne
+    sont pas celles de …/empreintes-r.sha256 », les trois DLL `FAILED` ;
+  - R = `cmp-R`, le même commit dans un autre arbre : refusé de même, code 3 (le sha256 de bin/ porte le chemin du PDB).
+- *Un gel mal formé*, avant toute mesure, code 2 : deux lignes sur trois (« il manque iXtal26.PerfBanc.dll ») ; un
+  caractère hors de l'hexadécimal (« ligne illisible ou en double ») ; un fichier absent (`realpath`, l'usage).
+- *Le comparateur* (`outils/negatifs-gel.py`, `negatifs-gel.log`, sur des copies de la porte, `banc3/`, sans
+  rejouer ; une première version, jouée sur `banc-12/`, le premier essai, au témoin « à confirmer », est gardée dans
+  `negatifs-gel-banc12.log`) :
+  - témoin, la copie telle quelle : VERT, code 0, l'en-tête « vérifié à chaque passage de R » ;
+  - l'empreinte de l'`iXtal26.dll` lancé changée d'un chiffre dans un passage de R (Machine286) : refus, code 3,
+    « 1-R : le binaire lancé n'est pas celui du gel : iXtal26.dll lancé 0fb54e43…, le gel efb54e43… », et
+    `gel-verifier` sur ce passage : code 3, le même écart ;
+  - `iXtal26.PerfBanc.dll` retiré des DLL lancées d'un passage de R (Exec286) : refus, « lancé non relevé » ;
+  - le gel du contexte changé (SoftFloat) : refus sur chaque passage de R ;
+  - témoin : C lance ses propres DLL (le banc de `cmp-R`, `d092b6ee…`) : VERT, code 0 ; le gel ne regarde que R ;
+  - le gel retiré du contexte (une passe sans `--lancees-r`) : VERT, code 0, « non demandé (--lancees-r) » ;
+  - *la garde en passe 2*, qui n'a jamais servi sur un vrai banc (la porte n'a pas eu de passe 2) : une passe 2
+    synthétique du groupe Fetch, dans l'ordre C R R C, faite des passages de la passe 1 (1-R → 2-R, 4-R → 3-R,
+    2-C → 1-C, 3-C → 4-C). Témoin : VERT, code 0. Le passage 3-R falsifié (l'`iXtal26.dll` lancé changé d'un
+    chiffre) : refus, code 3, « Fetch (passe 2) : 3-R : le binaire lancé n'est pas celui du gel », et `gel-verifier`
+    sur ce passage : code 3. Dans compare-ref.sh, la vérification après chaque passage de R est la même fonction en
+    passe 1, 2 et 3 (`passage`) ;
+  - *`compare_ref.py gel` lui-même* : la sortie telle quelle, retour 0 et les trois empreintes du gel ; deux empreintes
+    de l'`iXtal26.dll` lancé du côté R (un passage de Video changé) : retour 1, « 2 empreintes lancées du côté R
+    (0000000000000000, efb54e43a416e764) ; il en faut une » ; `iXtal26.SoftFloat.dll` non relevé dans un passage de R
+    (Son, 1-R) : retour 1, « passe 1, Son, 1-R : iXtal26.SoftFloat.dll lancé non relevé » ;
+  - *une sortie tronquée*, `passe1/Video` retiré : refus, code 3, « le groupe Video, attendu, manque de la passe 1 ».
+    Le comparateur de `f15e11f`, sur la même copie : VERT, code 0, 61 cas sur 61 : le défaut que la correction ferme.
+- *La garde du lancé, en vrai* (`outils/negatifs-banc.sh`, `negatifs-banc.log`, le groupe Fetch) : chaque lancement
+  est refusé au premier passage de R, code 3, en moins de 30 s, et la passe s'arrête là.
+  - R = `wt`, `--lancees-r` seul (sans `--empreintes-r`) : « iXtal26.dll lancé d7a2d3e5…, le gel efb54e43… ;
+    iXtal26.SoftFloat.dll lancé 5bdef8f7…, le gel 23d2f857… » ;
+  - R = `ref-R`, un gel dont l'empreinte d'iXtal26 est changée d'un chiffre : « lancé efb54e43…, le gel 0fb54e43… » ;
+  - le cas qui manquait à G14.0b, *un source de R modifié sans reconstruction* : un arbre jetable `ngl-R` au commit R,
+    construit, son propre gel pris par une passe d'amorce (`--empreintes-r` de son bin/ ; verte ; son iXtal26 et son
+    SoftFloat lancés ont les empreintes de `ref-R`, `efb54e43…` et `23d2f857…`, cinq lettres aussi). Puis une chaîne de
+    `UsageText.cs:45` changée (« type de lecteur » → « type du lecteur »), sans reconstruire. bin/ passe
+    `--empreintes-r` : avant, ce n'est qu'impliqué par la passe d'amorce `n3a`, faite sous `--empreintes-r` et sans
+    refus ; après, `sha256sum -c` : OK. Le lancé est refusé : « iXtal26.dll lancé 76c5d560…, le gel efb54e43… ». Le
+    source remis (`git checkout`), l'arbre retiré (`git worktree remove --force`).
+  - `negatifs-banc.log` garde la trace d'erreur du comparateur d'avant la correction ci-dessous ; `n1`, `n2` et `n3b`
+    y sont réanalysés après elle, chacun sur une ligne datée : rc=3, refus, l'écart au gel.
+- *Un défaut de l'analyse, trouvé par ces contrôles et corrigé.* Une passe arrêtée après son premier passage n'a aucun
+  passage du côté C ; `analyser_groupe` tombait alors sur `etats["C"][0]` (IndexError), et le rapport n'était pas
+  écrit. Un cas dont un côté n'a aucun passage est désormais refusé, « un côté n'a aucun passage (la passe s'est
+  arrêtée) », à côté du refus du groupe (« la passe n'a pas deux passages par côté (R 1, C 0) »). Les trois sorties
+  réanalysées : refus, code 3, avec l'écart au gel.
+- *La réanalyse*, après les deux corrections du comparateur (le côté sans passage, le groupe attendu manquant), sur
+  copies (`reanalyse-groupes-attendus.log`) : les 23 sorties de G14.0b (les A/A, le no-op, les injections, la fumée),
+  de G14.0c (la répétition) et la porte (`banc3`) gardent leur verdict d'en-tête et leurs verdicts par cas (VERT,
+  A-REJOUER, ROUGE, REFUS, à l'identique) ; le rapport de `banc3` sort identique à l'octet. Les quatre analyses des
+  essais de la porte ne changent pas.
+
+**La durée.** Le 24/10 : les constructions (8 à 9 s chacune), les captures (15 min), la préparation de `ser-R`
+(2 min), `g14r` (2 h 0 min). Le 25/10 : le complément SST (12 min), `g14r-tout` (56 min), `banc-atapibanc` seule
+(24 min), l'amorce du gel (5 min, refusée par la charge), deux essais de la porte refusés (66 et 78 min), les contrôles
+négatifs du banc (3 min), la porte (53 min). En tout, environ 7 h 15 de machine (435 min), dont près de 2 h 30
+perdues à la charge d'une autre séance ; la porte seule, au calme, prend 53 min, la série entière dans les deux modes
+près de 3 h.
+
+**Les consignes pour G14.1 à G14.4.**
+- *Le banc*, depuis l'arbre de l'étape (son `tools/perfbanc/compare-ref.sh`, qui porte la garde) :
+  ```
+  tools/perfbanc/compare-ref.sh --empreintes-r /var/tmp/ixtal-g14/gel-R/empreintes-r.sha256 \
+      --lancees-r /var/tmp/ixtal-g14/gel-R/lancees-r.txt /var/tmp/ixtal-g14/ref-R C_ARBRE SORTIE
+  ```
+  C_ARBRE est le worktree de l'étape, construit en Release (ou `--construire`, qui reconstruirait aussi R : ne pas
+  l'employer, R est déjà construit et ne doit pas l'être de nouveau). Ce qui refuse : un R autre que `ref-R` ou un bin/
+  de R reconstruit (sha256), un source de R modifié (l'empreinte du lancé, au premier passage de R), un gel absent ou
+  mal formé (code 2), et tous les refus de § G14.0b (runtime, SDK, job, affinité, ASLR, processus lourd…), et une
+  sortie à laquelle manque un groupe. Les deux options sont obligatoires pour G14.1-4 : sans `--lancees-r`, rien ne
+  garde le binaire lancé.
+- *`ref-R` ne bouge plus jusqu'à la fin de G15* : ni `git checkout`, ni `dotnet build`, ni copie d'`os/`. Seul
+  compare-ref.sh y passe ; BenchmarkDotNet y écrit `iXtal26.PerfBanc-<job>-1`, que le script efface. Mesuré après les
+  trois essais de la porte et le contrôle négatif qui joue `ref-R` (le gel changé) : les 1 894 fichiers de l'arbre
+  ont le sha256 du manifeste d'après la construction (`ref-R-manifeste-fin.sha256`), `git status` est vide, aucun
+  répertoire de job ne reste. Ce manifeste se revérifie à chaque étape.
+- *Les séries de G14.1-4* se comparent à `g14r` et `g14r-tout` (`/var/tmp/ixtal-g14/g14-0d/series/`), avec
+  `--racine /var/tmp/ixtal-g14/ser-R ARBRE --work /var/tmp/ixtal-g14/g14-0d/g5w-g14r WORK`. Leur `os/` ne se copie pas
+  du dépôt tant que `os.sha256` ne reconnaît pas `386-HDD-C.img` : il se copie de `ser-R/os/` (le disque de `gr1i2`), ou
+  le WORK `g5w-g14r` se réemploie tel quel ; `vectors/` se lie entrée par entrée, comme dans `ser-R`. La `.so` est celle
+  de `S-g14r/`.
+- *Les listings et l'IL* de G14.1-4 se comparent par la table à `ref-R-captures/jit` et à
+  `ildump comparer /var/tmp/ixtal-g14/ref-R/iXtal26/bin/Release/net10.0/iXtal26.dll …`, sous le runtime 10.0.13.
+
+**Les risques pour G14.1 à G14.4.**
+- *Une modification de l'émulateur faite hors de G14 après R*, par une autre séance, comme `622b091` l'a fait pour
+  des profils `.cfg` de la racine et pour `tools/gates/` : l'arbre d'une étape partirait d'un commit où ce que la série
+  et le banc lisent n'est plus celui de R, et « seuls des noms changent » serait faux sans que la table le voie (l'IL et
+  les séries sortiraient en écart, mais on chercherait l'écart dans le renommage). La vérification, avant chaque étape
+  (`verif-hors-g14.log`) :
+  - le test est cumulatif. Pour G14.1, le parent est R lui-même. Pour G14.2 à G14.4,
+    `git log --no-merges --invert-grep --grep='^g14:' f15e11f..PARENT -- CHEMINS` doit être vide ; PARENT est `HEAD`
+    avant le commit de l'étape, `HEAD^` après ;
+  - CHEMINS couvre ce que la série et le banc lisent : `iXtal26/ iXtal26.SoftFloat/ iXtal26.sln tools/ pcem-dev/
+    roms/roms.sha256 nvr/ vectors/ oracle.tsv PCEM_BUGS.md .editorconfig 'sst*baseline*.tsv' '*.cfg'` (PCEM_BUGS.md :
+    le recensement le lit, `Recensement.cs:36` ; `vectors/` : les manifestes des SST ; `.editorconfig` : les
+    diagnostics, en erreurs dans la construction), moins les outils de G14 et les rapports de la reconnaissance :
+    `':(exclude)tools/noms/' ':(exclude)tools/ildump/' ':(exclude)tools/renommage/'
+    ':(exclude)tools/perfbanc/compare-ref.sh' ':(exclude)tools/perfbanc/compare_ref.py'
+    ':(exclude)tools/gates/compare-series.py' ':(exclude)iXtal26/Docs/G14-reconnaissance/'`. Éprouvé : sur
+    `eea86a8..f15e11f`, `1edebb4..f15e11f` et `1d49a7f..f15e11f`, il sort `622b091`, et lui seul ; sur
+    `f15e11f..f15e11f`, rien ;
+  - `ildump comparer` du parent contre R, avec la table cumulée des étapes déjà faites (`--noms tools/noms/g14.txt
+    --jusqua G14.n`, n l'étape précédente ; sans table pour G14.1) : 0 écart, pour iXtal26 et iXtal26.Diff ;
+  - les modifications non commitées échappent à `git log` et à `git diff` : `git status --porcelain -- CHEMINS` doit
+    être vide dans le worktree de l'étape (hors des fichiers de l'étape en cours) ;
+  - ce que git ne suit pas se vérifie par sha256 : la `.so` de l'oracle copiée de `S-g14r/` (`gel-R/S-g14r.sha256`),
+    `roms/` (`roms.sha256`), `nvr/default/` (`gel-R/nvr-default.sha256`, 7 fichiers), et les disques des portes par la
+    recette (`g5w.sha256`).
+  Si l'un d'eux sort, R est à refaire (un gel neuf) avant l'étape.
+- *Le runtime.* Toujours 10.0.13. Une mise à jour d'apt de .NET rend les captures et le gel incomparables (la passe est
+  refusée, et les listings changent) : tout G14.0d serait à refaire.
+- *La machine partagée.* Le banc refuse une passe dès qu'une autre séance construit ou teste : deux essais sur trois
+  l'ont été le 25/10, près de 2 h 30 perdues. Une passe de G14.1-4 se lance quand aucune autre séance ne construit
+  ni ne teste (la sonde de `compare_ref.py sonde` le dit, comme `outils/guet-calme.sh` l'a relevé), et les séries
+  aussi : sous charge, `banc-atapibanc` a dépassé son délai (ci-dessus).
+- *Les disques d'`os/`*, écrits par les séances de Julien : la recette les juge à chaque série ; tant que l'ancre n'est
+  pas refaite, les séries se jouent sur le disque de `gr1i2` (ci-dessus).
+- *Le délai de `Banc.cs`* (1 200 s d'horloge de l'hôte) : sous charge, `banc-atapibanc` en mode matériel y arrive.
+
+**Hors de la portée**, trouvé en route :
+- `os/386-HDD-C.img` et `os/486-HDD-C.img` ne passent plus `os.sha256` (les séances de Julien du 23/10 et du 24/10) ;
+  la recette des portes le voit pour la première.
+- Le délai de 1 200 s de `Banc.cs:166` est une horloge de l'hôte dans une porte déterministe : sous charge, une porte
+  verte peut sortir rouge.
+- La consigne de G14.0b, `compare-ref.sh --empreintes-r` avec un chemin relatif, échouait (le `cd` dans R) : corrigé
+  avec la garde.
+
+Contre-lecture : trois relectures (la garde, les chiffres, les séries et l'environnement), chaque erreur
+vérifiée par une seconde lecture contradictoire ; cinq erreurs et quinze imprécisions reprises, aucun verdict changé.
+
+L'émulateur ne change pas.

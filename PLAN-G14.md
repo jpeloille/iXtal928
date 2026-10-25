@@ -8,8 +8,9 @@
 
 ## Où on en est
 
-G14 commence. Rien n'est renommé. La référence de performance figée, que `PLAN.md` § G15 place « avant G14 »,
-n'existe pas encore.
+G14.0a à G14.0d sont faites : la référence est gelée au commit R = `f15e11f` (`/var/tmp/ixtal-g14/ref-R`, séries
+`g14r` et `g14r-tout`, VERIFICATION.md § G14.0d), les outils de la preuve sont en place. Rien n'est encore renommé ;
+G14.1 attend son feu vert.
 
 ### Ce que les lectures ont trouvé
 
@@ -174,7 +175,7 @@ est plus grossière que l'écart que le plan exige, c'est dit, et les listings p
   changement ;
 - un journal de série modifié d'un octet utile sort en écart.
 
-### G14.0d — Le gel
+### G14.0d — Le gel  ✅ *fait, VERIFICATION.md § G14.0d*
 
 - **Le commit R.** Les bancs, les outils, les règles, et la table A/A dans `VERIFICATION.md` (hôte, processeur,
   runtime, moyennes, résolution).
@@ -257,7 +258,10 @@ hors débogage, comme en GR.4e. `PLAN.md` dit « G14 est fait » et met [ICI] av
 - **L'IL et le code machine** : identiques, à la table des noms près, à chaque commit de G14.1 à G14.4.
 - **Les séries** : entières, dans les deux modes, identiques à l'unité à celles du commit R après normalisation ;
   l'émulateur change à chaque renommage, la règle du dépôt les demande donc entières.
-- **Le banc** : contre le binaire figé R, jamais contre le commit précédent, selon le protocole de G14.0b.
+- **Le banc** : contre le binaire figé R, jamais contre le commit précédent, selon le protocole de G14.0b ;
+  `compare-ref.sh --empreintes-r` et `--lancees-r` avec le gel de `/var/tmp/ixtal-g14/gel-R/` (G14.0d).
+- **Rien d'autre ne change** : avant chaque étape, aucun commit hors `g14:` depuis R sur ce que la série et le banc
+  lisent, et rien de non commité (la vérification de VERIFICATION.md § G14.0d).
 - **L'oracle** : sa `.so` inchangée de G14.0d à G14.4.
 
 ## Les décisions

@@ -6,7 +6,7 @@
 #
 # LE COMPARATEUR DE compare-ref.sh (G14.0b ; PLAN-G14.md § G14.0b, décisions n° 6, 7 et 12 ; R0-contre.md § 3.1-3.2).
 #
-# Python 3 de la machine, bibliothèque standard seule. Quatre commandes :
+# Python 3 de la machine, bibliothèque standard seule. Sept commandes :
 #   sonde      les processus lourds à côté (motifs connus, ou plus d'une demi-UC sur une seconde), hors de l'arbre
 #              de processus de compare-ref.sh ; imprime un JSON.
 #   consigner  écrit le passage.json d'un passage : son côté, son code de sortie, ses durées, les sondes et la liste des
@@ -15,6 +15,13 @@
 #   analyser   lit une sortie de compare-ref.sh (contexte.json, passeN/<groupe>/<ordre>-<côté>/) et rend le verdict :
 #              le rapport texte et le TSV, et un code de sortie (0 vert, 1 rouge, 3 refus, 4 rouges à confirmer).
 #   empreinte  l'empreinte normalisée d'une DLL, seule (pour les contrôles).
+#   gel        (G14.0d) le gel des DLL lancées du côté R, lu dans une sortie de compare-ref.sh : une ligne
+#              « EMPREINTE  NOM » par DLL ; refusé (retour 1, la raison sur la sortie d'erreur) si les passages de R
+#              ont lancé plus d'une empreinte d'une DLL, ou n'en ont pas relevé une.
+#   gel-lire   vérifie qu'un fichier est un gel bien formé (les trois DLL, une fois chacune) et l'imprime ; retour 1
+#              sinon, que compare-ref.sh traduit en code 2 (une erreur d'usage, avant toute mesure).
+#   gel-verifier  compare les DLL lancées d'un passage (passage.json) au gel : retour 0 si elles sont celles du gel,
+#              3 sinon, l'écart imprimé. compare-ref.sh l'appelle après chaque passage de R sous --lancees-r.
 #
 # LE VERDICT, cas par cas :
 # - REFUS (ni vert ni rouge) : le runtime, le SDK, la version de BenchmarkDotNet, le système, le processeur, le job
@@ -25,7 +32,8 @@
 #   BenchmarkDotNet sort avec un code non nul ; un journal manque ; un passage n'a pas ses trois moyennes de
 #   lancement ; un cas manque des deux côtés, ou du côté R ; son état imprimé change d'un passage à l'autre du même
 #   côté, ou manque des deux côtés (tous les cas de la référence l'impriment) ; la passe de confirmation refuse le cas
-#   ou ne l'a pas.
+#   ou ne l'a pas ; sous --lancees-r (G14.0d), une DLL lancée du côté R qui n'est pas celle du gel, ou qui n'est pas
+#   relevée.
 # - ROUGE EXACT : l'allocation par opération diffère (stable des deux côtés : à l'octet ; instable d'un côté : les
 #   intervalles [min, max] des deux côtés sont disjoints ; le nombre de cas instables est dans l'en-tête) ; une ligne
 #   d'état « // Banc (…) : … » diffère ; l'empreinte de MachineBanc diffère ; le cas manque du côté C seul.
@@ -211,6 +219,81 @@ def cmd_empreinte(args):
         print(empreinte_dll(f), f)
 
 
+# ------------------------------------------------------------------------- le gel des DLL lancées (G14.0d)
+
+DLL_BANC = ("iXtal26.dll", "iXtal26.SoftFloat.dll", "iXtal26.PerfBanc.dll")
+
+
+def lire_gel(f):
+    """Le gel : une ligne « EMPREINTE  NOM » par DLL lancée, les trois DLL du banc une fois chacune ; rien d'autre."""
+    gel = {}
+    for ligne in Path(f).read_text().splitlines():
+        if not ligne.strip():
+            continue
+        m = re.fullmatch(r"([0-9a-f]{64})  (\S+)", ligne)
+        if not m or m.group(2) not in DLL_BANC or m.group(2) in gel:
+            raise ValueError(f"{f} : ligne illisible ou en double : {ligne!r}")
+        gel[m.group(2)] = m.group(1)
+    if set(gel) != set(DLL_BANC):
+        raise ValueError(f"{f} : il manque {', '.join(sorted(set(DLL_BANC) - set(gel)))}")
+    return gel
+
+
+def ecarts_gel(passage, gel):
+    """Ce qui sépare les DLL lancées d'un passage (son passage.json) du gel : une liste vide si ce sont les siennes."""
+    ecarts = []
+    lancees = (passage or {}).get("dll_lancees") or {}
+    for nom in DLL_BANC:
+        vues = sorted({e["empreinte"] for e in lancees.get(nom, [])})
+        if not vues:
+            ecarts.append(f"{nom} lancé non relevé")
+        elif vues != [gel[nom]]:
+            ecarts.append(f"{nom} lancé {', '.join(v[:16] for v in vues)}…, le gel {gel[nom][:16]}…")
+    return ecarts
+
+
+def cmd_gel(args):
+    vues = {}
+    for passe in (1, 2, 3):
+        for groupe, passages in charger_passe(args.sortie, passe).items():
+            for o, c, p, _, _ in passages:
+                if c != args.cote:
+                    continue
+                if not p:
+                    sys.exit(f"compare_ref gel : passe {passe}, {groupe}, {o}-{c} : passage.json absent")
+                for nom in DLL_BANC:
+                    e = {x["empreinte"] for x in (p.get("dll_lancees") or {}).get(nom, [])}
+                    if not e:
+                        sys.exit(f"compare_ref gel : passe {passe}, {groupe}, {o}-{c} : {nom} lancé non relevé")
+                    vues.setdefault(nom, set()).update(e)
+    for nom in DLL_BANC:
+        if len(vues.get(nom, ())) != 1:
+            sys.exit(f"compare_ref gel : {nom} : {len(vues.get(nom, ()))} empreintes lancées du côté {args.cote} "
+                     f"({', '.join(sorted(v[:16] for v in vues.get(nom, ())))}) ; il en faut une")
+    sys.stdout.write("".join(f"{next(iter(vues[nom]))}  {nom}\n" for nom in DLL_BANC))
+
+
+def cmd_gel_lire(args):
+    try:
+        gel = lire_gel(args.fichier)
+    except (OSError, ValueError) as e:
+        sys.exit(f"compare_ref gel-lire : {e}")
+    sys.stdout.write("".join(f"{gel[nom]}  {nom}\n" for nom in DLL_BANC))
+
+
+def cmd_gel_verifier(args):
+    try:
+        gel = lire_gel(args.gel)
+    except (OSError, ValueError) as e:
+        print(f"le gel est illisible : {e}")
+        return 3
+    ecarts = ecarts_gel(_lire_json(args.passage), gel)
+    if ecarts:
+        print(" ; ".join(ecarts))
+        return 3
+    return 0
+
+
 # ----------------------------------------------------------------------------------------------------- consigner
 
 def _lire_json(f, defaut=None):
@@ -355,9 +438,9 @@ def mediane(v):
     return (s[(len(s) - 1) // 2] + s[len(s) // 2]) / 2 if s else float("nan")
 
 
-def analyser_groupe(passages, cas_attendus):
+def analyser_groupe(passages, cas_attendus, gel=None):
     """Une passe ABBA d'un groupe : passages = [(ordre, côté, contexte, cas, hôtes)]. Rend les refus du groupe et,
-    par cas, le verdict de la passe."""
+    par cas, le verdict de la passe. gel : les empreintes des DLL lancées que le côté R doit avoir (G14.0d), ou None."""
     refus, verdicts = [], {}
     cotes = {"R": [x for x in passages if x[1] == "R"], "C": [x for x in passages if x[1] == "C"]}
     if len(cotes["R"]) != 2 or len(cotes["C"]) != 2:
@@ -419,6 +502,11 @@ def analyser_groupe(passages, cas_attendus):
                              f"{', '.join(sorted(v[:12] for v in vues))})")
             if not vues and ps:
                 refus.append(f"côté {cote} : le {nom} lancé n'a pas été relevé")
+    # G14.0d : le binaire lancé du côté R est celui du gel, passage par passage.
+    if gel:
+        for o, _, p, _, _ in cotes["R"]:
+            for e in ecarts_gel(p, gel):
+                refus.append(f"{o}-R : le binaire lancé n'est pas celui du gel : {e}")
     # Les cas.
     tous = set()
     for _, _, _, cas, _ in passages:
@@ -429,6 +517,11 @@ def analyser_groupe(passages, cas_attendus):
         v = {"cas": nom, "raisons": []}
         verdicts[nom] = v
         par = {s: [(o, cas.get(nom)) for o, cc, _, cas, _ in passages if cc == s] for s in ("R", "C")}
+        if not par["R"] or not par["C"]:
+            # Une passe arrêtée après son premier passage (G14.0d : le binaire lancé n'est pas celui du gel) n'a pas de
+            # passage de l'autre côté : rien à comparer, le refus du groupe le dit.
+            v["verdict"], v["raisons"] = "refus", ["un côté n'a aucun passage (la passe s'est arrêtée)"]
+            continue
         manque = {s: [o for o, x in par[s] if not x or not x["moyennes"]] for s in par}
         if manque["R"] and manque["C"]:
             v["verdict"], v["raisons"] = "refus", ["le cas manque ou a échoué des deux côtés"]
@@ -576,8 +669,13 @@ def analyser(args):
                     for x in ((p or {}).get(moment) or {}).get("actifs", []):
                         notes.append(f"passe {passe}, {groupe}, {o}-{c} ({moment[6:]}) : {x['uc']} UC, "
                                      f"{x['cmd'].split(' ')[0][-40:]}")
-            refus, verdicts = analyser_groupe(passages, attendus.get(groupe))
+            refus, verdicts = analyser_groupe(passages, attendus.get(groupe), ctx.get("lancees_r"))
             resultats.setdefault(groupe, {})[passe] = (refus, verdicts)
+    # G14.0d : chaque groupe attendu (ceux que le filtre GROUPES a retenus, contexte.json) doit être dans la passe 1 ;
+    # un groupe qui manque, c'est une sortie tronquée ou abandonnée, et rien ne dit qu'il serait vert.
+    for groupe in sorted(attendus):
+        if 1 not in resultats.get(groupe, {}):
+            refus_globaux.append(f"le groupe {groupe}, attendu, manque de la passe 1")
     lignes_tsv = ["groupe\tcas\tR_ns\tC_ns\tecart\tic_bas\tic_haut\tdisp_R\tdisp_C\talloc_R\talloc_C\tpasse2_ecart\t"
                   "passe2_ic_bas\tpasse2_ic_haut\tpasse3_ecart\tpasse3_ic_bas\tpasse3_ic_haut\tverdict\traison"]
     rapport, compte = [], {"vert": 0, "rouge": 0, "refus": 0, "a-confirmer": 0, "a-rejouer": 0}
@@ -691,6 +789,11 @@ def analyser(args):
     for cote in ("R", "C"):
         for nom, sha in sorted((ctx.get("dll_arbre", {}).get(cote) or {}).items()):
             tete.append(f"  {cote} {nom} {sha}")
+    if ctx.get("lancees_r"):
+        tete.append(f"  gel des DLL lancées de R ({ctx.get('lancees_r_fichier')}) : vérifié à chaque passage de R")
+        tete += [f"    {nom} {ctx['lancees_r'].get(nom)}" for nom in DLL_BANC]
+    else:
+        tete.append("  gel des DLL lancées de R : non demandé (--lancees-r)")
     tete += [f"  hôte : {ctx.get('processeur', '?')} ; gouverneur {ctx.get('gouverneur', '?')} ; noyau "
              f"{ctx.get('noyau', '?')}",
              f"  runtimes : {' | '.join((ctx.get('runtimes_debut') or '?').splitlines())}",
@@ -744,6 +847,14 @@ def main():
     a.add_argument("--silencieux", action="store_true")
     e = sp.add_parser("empreinte")
     e.add_argument("dll", nargs="+")
+    g = sp.add_parser("gel")
+    g.add_argument("sortie")
+    g.add_argument("--cote", default="R", choices=("R", "C"))
+    gl = sp.add_parser("gel-lire")
+    gl.add_argument("fichier")
+    gv = sp.add_parser("gel-verifier")
+    gv.add_argument("--passage", required=True)
+    gv.add_argument("--gel", required=True)
     args = ap.parse_args()
     if args.commande == "sonde":
         sonde(args)
@@ -751,6 +862,12 @@ def main():
         consigner(args)
     elif args.commande == "empreinte":
         cmd_empreinte(args)
+    elif args.commande == "gel":
+        cmd_gel(args)
+    elif args.commande == "gel-lire":
+        cmd_gel_lire(args)
+    elif args.commande == "gel-verifier":
+        sys.exit(cmd_gel_verifier(args))
     else:
         sys.exit(analyser(args))
 
