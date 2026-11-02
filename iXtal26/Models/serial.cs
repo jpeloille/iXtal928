@@ -7,6 +7,8 @@
 //         serial_receive_callback, serial1_init/_set/_set_has_fifo/_remove et leurs
 //         pendants serial2.
 
+using iXtal26.Ics;
+
 namespace iXtal26.Models;
 
 // pcem: serial.h:15
@@ -100,9 +102,9 @@ internal static partial class serial
         }
 
         if (stat != 0 && ((serial.mctrl & 8) != 0 || PCJR != 0))
-                pic.picintlevel((uint16_t)(1 << serial.irq));
+                Intel8259A.picintlevel((uint16_t)(1 << serial.irq));
         else
-                pic.picintc((uint16_t)(1 << serial.irq));
+                Intel8259A.picintc((uint16_t)(1 << serial.irq));
     }
 
     // pcem: serial.c:50-59

@@ -25,7 +25,7 @@ using iXtal26.Memory;
 using iXtal26.PluginApi;
 using static iXtal26.io;
 using static iXtal26.Memory.mem;
-using static iXtal26.Models.pic;
+using static iXtal26.Ics.Intel8259A;
 using static iXtal26.PluginApi.device;
 using static iXtal26.Scsi.scsi;
 using static iXtal26.timer;

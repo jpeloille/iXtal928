@@ -11,13 +11,14 @@
 
 using iXtal26.Models;
 using iXtal26.Sound;
+using iXtal26.Ics;
 
 namespace iXtal26.Diff;
 
 internal static partial class MaterielCas
 {
     /// <summary>Le bit de l'IRQ <paramref name="irq"/> au registre IRR du 8259 maître.</summary>
-    private static string Irr(int irq = 7) => $"IRR{irq}={(pic.pic_.pend >> irq) & 1}";
+    private static string Irr(int irq = 7) => $"IRR{irq}={(Intel8259A.pic_.pend >> irq) & 1}";
 
     private static string Etat82() => MelLit(0x224, 0x82);
 

@@ -28,6 +28,7 @@ using static iXtal26.Video.vid_svga_render;
 using static iXtal26.io;
 using static iXtal26.pc;
 using static iXtal26.timer;
+using iXtal26.Ics;
 
 namespace iXtal26.Video;
 
@@ -599,7 +600,7 @@ internal static partial class vid_svga
 
         svga.rowoffset = svga.crtc[0x13];
 
-        svga.clock = (svga.vidclock != 0) ? pit.VGACONST2 : pit.VGACONST1;
+        svga.clock = (svga.vidclock != 0) ? Intel8253.VGACONST2 : Intel8253.VGACONST1;
 
         svga.lowres = svga.attrregs[0x10] & 0x40;
 

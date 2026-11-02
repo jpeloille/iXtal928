@@ -16,7 +16,7 @@
 // `sb_commands`, statique et partagé, n'est jamais écrit ici.
 
 using System.Runtime.CompilerServices;
-using static iXtal26.Models.dma;
+using static iXtal26.Ics.Intel8237;
 using static iXtal26.Sound.sound_mpu401_uart;
 using static iXtal26.timer;
 
@@ -93,7 +93,7 @@ internal static partial class sound_sb_dsp
         dsp.record_pos_read = 0;
         dsp.record_pos_write = SB_DSP_REC_SAFEFTY_MARGIN;
 
-        Models.pic.picintc((uint16_t)(1 << dsp.sb_irqnum));
+        Ics.Intel8259A.picintc((uint16_t)(1 << dsp.sb_irqnum));
 
         dsp.asp_data_len = 0;
     }
@@ -1214,7 +1214,7 @@ internal static partial class sound_sb_dsp
         ModeMateriel.Sonde[238]++;
         dsp.sb_irq8 = 0;
         if (!ligne_tenue_materiel(dsp))
-            Models.pic.picintc((uint16_t)(1 << dsp.sb_irqnum));
+            Ics.Intel8259A.picintc((uint16_t)(1 << dsp.sb_irqnum));
         if (IS_AZTECH(dsp))
             return (uint8_t)((dsp.sb_read_rp == dsp.sb_read_wp) ? 0x00 : 0x80);
         return (uint8_t)((dsp.sb_read_rp == dsp.sb_read_wp) ? 0x7F : 0xFF);
@@ -1228,7 +1228,7 @@ internal static partial class sound_sb_dsp
         ModeMateriel.Sonde[238]++;
         dsp.sb_irq16 = 0;
         if (!ligne_tenue_materiel(dsp))
-            Models.pic.picintc((uint16_t)(1 << dsp.sb_irqnum));
+            Ics.Intel8259A.picintc((uint16_t)(1 << dsp.sb_irqnum));
         return 0xff;
     }
 
@@ -1262,7 +1262,7 @@ internal static partial class sound_sb_dsp
         if (tenue)
             return;
         e.ligne = dsp.sb_irqnum;
-        Models.pic.picint((uint16_t)(1 << dsp.sb_irqnum));
+        Ics.Intel8259A.picint((uint16_t)(1 << dsp.sb_irqnum));
     }
 
     /// <summary>PB-154 : la lecture de 330h efface l'IRQ du MPU (guide, p. 5-9 et 2-5) ; la ligne retombe si aucune
@@ -1277,7 +1277,7 @@ internal static partial class sound_sb_dsp
             return;
         e.mpu = false;
         if (!ligne_tenue_materiel(dsp))
-            Models.pic.picintc((uint16_t)(1 << dsp.sb_irqnum));
+            Ics.Intel8259A.picintc((uint16_t)(1 << dsp.sb_irqnum));
     }
 
     /// <summary>PB-154 : l'IRQ du MPU pendante, pour 82h.</summary>

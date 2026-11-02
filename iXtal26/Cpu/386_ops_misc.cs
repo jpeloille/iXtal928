@@ -33,6 +33,7 @@ using iXtal26.Models;
 using static iXtal26.Cpu._386_common;
 using static iXtal26.Cpu.x86;
 using static iXtal26.Cpu.x86_flags;
+using iXtal26.Ics;
 
 namespace iXtal26.Cpu;
 
@@ -130,7 +131,7 @@ internal static partial class _386
                 x86seg_c.x86gpf("", 0);
                 return 1;
         }
-        if (!((cpu_state.flags & I_FLAG) != 0 && pic.pic_intpending != 0))
+        if (!((cpu_state.flags & I_FLAG) != 0 && Intel8259A.pic_intpending != 0))
         {
                 CLOCK_CYCLES_ALWAYS(100);
                 cpu_state.pc--;

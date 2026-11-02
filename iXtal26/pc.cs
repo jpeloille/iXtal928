@@ -1445,9 +1445,9 @@ internal static partial class pc
         // pcem: pc.c:179 — G12.1. Omis depuis M1.4 (« hors périmètre 5150 minimal »), des deux côtés : les canaux 4
         //   à 7 gardaient size = 0 (dma.c:53), et le DMA 16 bits de la SB 16 transférait des octets (SB16BANC, ses
         //   contrôles négatifs verts ; VERIFICATION.md § G12.1). nvr_recalc() n'existe pas en v18.
-        Models.dma.dma_reset();
+        Ics.Intel8237.dma_reset();
         Floppy.fdc_c.fdc_reset();
-        Models.pic.pic_reset();
+        Ics.Intel8259A.pic_reset();
         // pcem: pc.c:182 — M21.
         Models.serial.serial_reset();
 
@@ -1476,9 +1476,10 @@ internal static partial class pc
         // rafraîchissement mémoire reste sous le 0xF600 que le BIOS exige, et le POST
         // s'arrête sur un HLT en F000:05C4 après cent millions d'instructions.
         if (AT != 0)
-                Models.pit.setpitclock(Models.model_c.models[Models.model_c.model].cpu[cpu_c.cpu_manufacturer].cpus![cpu_c.cpu].rspeed);
+                Ics.Intel8253.setpitclock(
+                    Models.model_c.models[Models.model_c.model].cpu[cpu_c.cpu_manufacturer].cpus![cpu_c.cpu].rspeed);
         else
-                Models.pit.setpitclock(14318184.0f);
+                Ics.Intel8253.setpitclock(14318184.0f);
 
         // pcem: pc.c:191 — G6.3. Sur TOUTE machine, comme le C : les registres de l'ALi 1429
         // à 0xFF ; ses ports ne sont posés que sur l'ami486 (ali1429_init).

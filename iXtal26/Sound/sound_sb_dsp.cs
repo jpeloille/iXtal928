@@ -23,8 +23,8 @@
 
 using iXtal26.Models;
 using static iXtal26.io;
-using static iXtal26.Models.dma;
-using static iXtal26.Models.pic;
+using static iXtal26.Ics.Intel8237;
+using static iXtal26.Ics.Intel8259A;
 using static iXtal26.Sound.sound;
 using static iXtal26.timer;
 

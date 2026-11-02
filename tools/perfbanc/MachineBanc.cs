@@ -44,7 +44,7 @@
 // (20h-21h, A0h-A1h), du PIT (40h-43h) et du DMA (00h-0Fh, 80h-8Fh, C0h-DFh) ; les fronts des trois sorties du PIT (la
 // sortie 0 est l'IRQ 0, la sortie 1 le rafraîchissement, par le canal 0 du DMA sur le PC et l'XT) ; les appels de
 // timer_process ; les IRQ levées (picint) et servies (picinterrupt, l'acquittement par le processeur), que le PIC
-// compte lui-même (Diag/Counters.cs, pic.cs:399 et :472) ; les corrections que la sonde du mode matériel a vues
+// compte lui-même (Diag/Counters.cs, Intel8259A.cs:408 et :481) ; les corrections que la sonde du mode matériel a vues
 // servir, aucune en mode PCem. L'empreinte de cette fenêtre est celle des autres : les compteurs ne changent rien à la
 // machine.
 //
@@ -58,6 +58,7 @@ using iXtal26.Cpu;
 using iXtal26.Diag;
 using iXtal26.Memory;
 using iXtal26.Models;
+using iXtal26.Ics;
 
 namespace iXtal26.PerfBanc;
 
@@ -262,9 +263,9 @@ internal static class MachineBanc
         var fronts = new long[3];
         for (var t = 0; t < 3; t++)
         {
-            var (f, canal) = (pit.pit_.set_out_funcs[t], t);
+            var (f, canal) = (Intel8253.pit_.set_out_funcs[t], t);
             if (f != null)
-                pit.pit_.set_out_funcs[t] = (n, o) => { fronts[canal]++; f(n, o); };
+                Intel8253.pit_.set_out_funcs[t] = (n, o) => { fronts[canal]++; f(n, o); };
         }
         Array.Clear(ModeMateriel.Sonde);
         var tp = Counters.n_timer_process;

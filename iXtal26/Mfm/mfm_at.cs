@@ -35,7 +35,7 @@
 using iXtal26.Disc;
 using iXtal26.PluginApi;
 using static iXtal26.PluginApi.device;
-using static iXtal26.Models.pic;
+using static iXtal26.Ics.Intel8259A;
 using static iXtal26.io;
 using static iXtal26.pc;
 using static iXtal26.timer;
@@ -152,7 +152,7 @@ internal static partial class mfm_at
     // pcem: mfm_at.c:96-99 — LIT LE PIC ESCLAVE DIRECTEMENT. 0x40 est le bit 6 de
     // pic2, soit l'IRQ 14 ; le test veut dire « l'esclave ne porte ni une demande ni un
     // service en cours sur cette ligne ». C'est le seul lecteur de pic2.pend et
-    // pic2.ins hors de pic.cs lui-même.
+    // pic2.ins hors d'Intel8259A.cs lui-même.
     internal static void mfm_irq_update(mfm_t mfm)
     {
         if (mfm.irqstat != 0 && ((pic2.pend | pic2.ins) & 0x40) == 0 && (mfm.fdisk & 2) == 0)

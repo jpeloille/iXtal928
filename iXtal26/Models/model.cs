@@ -20,6 +20,7 @@
 // réglage.
 
 using iXtal26.Memory;
+using iXtal26.Ics;
 
 namespace iXtal26.Models;
 
@@ -170,11 +171,11 @@ internal static partial class model_c
         Cpu.x86.AT = 1;
         common_init();
         mem.mem_add_bios();
-        pit.pit_set_out_func(pit.pit_, 1, pit.pit_refresh_timer_at);
-        dma.dma16_init();
+        Intel8253.pit_set_out_func(Intel8253.pit_, 1, Intel8253.pit_refresh_timer_at);
+        Intel8237.dma16_init();
         Keyboard.keyboard_at.keyboard_at_init();
         PluginApi.device.device_add(Devices.nvr.nvr_device);
-        pic.pic2_init();
+        Intel8259A.pic2_init();
         // pcem: model.c:344 — G10.0 : le port jeu, sur tous les AT.
         if (!lpt_jeu_hors_service)
                 PluginApi.device.device_add(Joystick.gameport.gameport_device);
@@ -431,13 +432,13 @@ internal static partial class model_c
     // pcem: model.c:192-200
     internal static void common_init()
     {
-        dma.dma_init();
+        Intel8237.dma_init();
         Floppy.fdc_c.fdc_add();
         // pcem: model.c:195 — G10.0 : LPT1 (378h) et LPT2 (278h), sur toutes les machines.
         if (!lpt_jeu_hors_service)
                 Lpt.lpt.lpt_init();
-        pic.pic_init();
-        pit.pit_init();
+        Intel8259A.pic_init();
+        Intel8253.pit_init();
         serial.serial1_init(0x3f8, 4, 1);
         serial.serial2_init(0x2f8, 3, 1);
         // DEVIATION: (G13.13b) les cartes de COM et de LPT que serial1, serial2, parallel1 et parallel2 retirent, dans
@@ -450,7 +451,7 @@ internal static partial class model_c
     {
         common_init();
         mem.mem_add_bios();
-        pit.pit_set_out_func(pit.pit_, 1, pit.pit_refresh_timer_xt);
+        Intel8253.pit_set_out_func(Intel8253.pit_, 1, Intel8253.pit_refresh_timer_xt);
         Keyboard.keyboard_xt.keyboard_xt_init();
         nmi.nmi_init();
         // pcem: model.c:208 — G10.0 : le port jeu, sur tous les XT.

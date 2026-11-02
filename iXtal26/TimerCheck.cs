@@ -19,7 +19,7 @@
 //
 // DEUX DOMAINES DE TSC, et c'est ce qui rend l'outil valable sur les deux cœurs.
 // Le tsc compte TOUJOURS dans l'unité de l'horloge que setpitclock() a reçue
-// (pit.cpuclock) : TIMER_USEC, PITCONST et RTCCONST en dérivent tous.
+// (Intel8253.cpuclock) : TIMER_USEC, PITCONST et RTCCONST en dérivent tous.
 //   - 808x : setpitclock(14 318 184), l'oscillateur maître ; clockhardware()
 //     convertit un cycle CPU en xt_cpu_multi / 2^32 tsc — exactement 3 à 4,77 MHz.
 //   - 286  : setpitclock(vitesse du CPU) ; exec386 ajoute les cycles bruts au tsc
@@ -50,6 +50,7 @@ using System.Diagnostics;
 using iXtal26.Cpu;
 using iXtal26.Memory;
 using iXtal26.Models;
+using iXtal26.Ics;
 
 namespace iXtal26;
 
@@ -143,7 +144,7 @@ internal static class TimerCheck
 
         _speed = cpu_c.cpu_get_speed();
         _cyclesPerSlice = _speed / 100;
-        _clock = pit.cpuclock;
+        _clock = Intel8253.cpuclock;
         _tscPerCycle = x86.AT != 0 ? 1.0 : _808x.xt_cpu_multi / TwoPow32;
 
         var machine = model_c.models[model_c.model];
@@ -154,10 +155,10 @@ internal static class TimerCheck
 
         Console.WriteLine($"--- domaine d'horloge (posé par setpitclock({_clock:F0}), pc.c:184-187) ---");
         Console.WriteLine($"  cœur          = {(x86.AT != 0 ? "286 (exec386) : 1 tsc par cycle CPU" : "808x (execx86) : xt_cpu_multi tsc par cycle CPU")}");
-        Console.WriteLine($"  PITCONST      = {pit.PITCONST,20}  = {pit.PITCONST / TwoPow32:F12} x 2^32");
+        Console.WriteLine($"  PITCONST      = {Intel8253.PITCONST,20}  = {Intel8253.PITCONST / TwoPow32:F12} x 2^32");
         Console.WriteLine($"  xt_cpu_multi  = {_808x.xt_cpu_multi,20}  = {_808x.xt_cpu_multi / TwoPow32:F12} x 2^32");
         Console.WriteLine($"  TIMER_USEC    = {timer.TIMER_USEC,20}  = {timer.TIMER_USEC / TwoPow32:F12} x 2^32");
-        Console.WriteLine($"  CGACONST      = {pit.CGACONST,20}");
+        Console.WriteLine($"  CGACONST      = {Intel8253.CGACONST,20}");
         Console.WriteLine($"  tsc par cycle = {_tscPerCycle:F12}");
         Console.WriteLine($"  budget de cycles par tranche (pc.c:473) = {_cyclesPerSlice} " +
                           $"(= {_speed} / 100, division ENTIÈRE ; 100 tranches = {100L * _cyclesPerSlice} cycles)");
@@ -571,13 +572,14 @@ internal static class TimerCheck
         var flags = _386_common.cpu_state.flags;
         Console.WriteLine("--- état du matériel au moment de la mesure ---");
         Console.WriteLine($"  drapeaux CPU = {flags:X4} ; IF (0x0200) = {((flags & x86.I_FLAG) != 0 ? "1 — interruptions AUTORISÉES" : "0 — interruptions INHIBÉES")}");
-        Console.WriteLine($"  PIC maître : mask = {pic.pic_.mask:X2} (bit 0 = IRQ 0 : " +
-                          $"{((pic.pic_.mask & 1) != 0 ? "MASQUÉE" : "démasquée")}), " +
-                          $"pend = {pic.pic_.pend:X2}, ins = {pic.pic_.ins:X2}, vecteur de base = {pic.pic_.vector:X2}");
-        Console.WriteLine($"  PIT canal 0 : mode m[0] = {pit.pit_.m[0]}, diviseur l[0] = {pit.pit_.l[0]} " +
-                          $"(0 écrit ⟹ 65536), ctrl = {pit.pit_.ctrl:X2}, " +
-                          $"enabled = {pit.pit_.enabled[0]}, gate = {pit.pit_.gate[0]}, " +
-                          $"using_timer = {pit.pit_.using_timer[0]}, out = {pit.pit_.@out[0]}");
+        Console.WriteLine($"  PIC maître : mask = {Intel8259A.pic_.mask:X2} (bit 0 = IRQ 0 : " +
+                          $"{((Intel8259A.pic_.mask & 1) != 0 ? "MASQUÉE" : "démasquée")}), " +
+                          $"pend = {Intel8259A.pic_.pend:X2}, ins = {Intel8259A.pic_.ins:X2}" +
+                          $", vecteur de base = {Intel8259A.pic_.vector:X2}");
+        Console.WriteLine($"  PIT canal 0 : mode m[0] = {Intel8253.pit_.m[0]}, diviseur l[0] = {Intel8253.pit_.l[0]} " +
+                          $"(0 écrit ⟹ 65536), ctrl = {Intel8253.pit_.ctrl:X2}, " +
+                          $"enabled = {Intel8253.pit_.enabled[0]}, gate = {Intel8253.pit_.gate[0]}, " +
+                          $"using_timer = {Intel8253.pit_.using_timer[0]}, out = {Intel8253.pit_.@out[0]}");
         Console.WriteLine($"  vecteur INT 8 (0000:0020) = {mem.readmemwl(0x22):X4}:{mem.readmemwl(0x20):X4}");
         Console.WriteLine();
     }

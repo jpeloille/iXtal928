@@ -22,6 +22,7 @@ using static iXtal26.Video.vid_svga;
 using static iXtal26.Video.vid_svga_render;
 using static iXtal26.Video.vid_tkd8001_ramdac;
 using static iXtal26.io;
+using iXtal26.Ics;
 
 namespace iXtal26.Video;
 
@@ -306,46 +307,46 @@ internal static partial class vid_tvga
         switch (clksel)
         {
         case 0x2:
-                svga.clock = (pit.cpuclock * (double)(1UL << 32)) / 44900000.0;
+                svga.clock = (Intel8253.cpuclock * (double)(1UL << 32)) / 44900000.0;
                 break;
         case 0x3:
-                svga.clock = (pit.cpuclock * (double)(1UL << 32)) / 36000000.0;
+                svga.clock = (Intel8253.cpuclock * (double)(1UL << 32)) / 36000000.0;
                 break;
         case 0x4:
-                svga.clock = (pit.cpuclock * (double)(1UL << 32)) / 57272000.0;
+                svga.clock = (Intel8253.cpuclock * (double)(1UL << 32)) / 57272000.0;
                 break;
         case 0x5:
-                svga.clock = (pit.cpuclock * (double)(1UL << 32)) / 65000000.0;
+                svga.clock = (Intel8253.cpuclock * (double)(1UL << 32)) / 65000000.0;
                 break;
         case 0x6:
-                svga.clock = (pit.cpuclock * (double)(1UL << 32)) / 50350000.0;
+                svga.clock = (Intel8253.cpuclock * (double)(1UL << 32)) / 50350000.0;
                 break;
         case 0x7:
-                svga.clock = (pit.cpuclock * (double)(1UL << 32)) / 40000000.0;
+                svga.clock = (Intel8253.cpuclock * (double)(1UL << 32)) / 40000000.0;
                 break;
         case 0x8:
-                svga.clock = (pit.cpuclock * (double)(1UL << 32)) / 88000000.0;
+                svga.clock = (Intel8253.cpuclock * (double)(1UL << 32)) / 88000000.0;
                 break;
         case 0x9:
-                svga.clock = (pit.cpuclock * (double)(1UL << 32)) / 98000000.0;
+                svga.clock = (Intel8253.cpuclock * (double)(1UL << 32)) / 98000000.0;
                 break;
         case 0xa:
-                svga.clock = (pit.cpuclock * (double)(1UL << 32)) / 118800000.0;
+                svga.clock = (Intel8253.cpuclock * (double)(1UL << 32)) / 118800000.0;
                 break;
         case 0xb:
-                svga.clock = (pit.cpuclock * (double)(1UL << 32)) / 108000000.0;
+                svga.clock = (Intel8253.cpuclock * (double)(1UL << 32)) / 108000000.0;
                 break;
         case 0xc:
-                svga.clock = (pit.cpuclock * (double)(1UL << 32)) / 72000000.0;
+                svga.clock = (Intel8253.cpuclock * (double)(1UL << 32)) / 72000000.0;
                 break;
         case 0xd:
-                svga.clock = (pit.cpuclock * (double)(1UL << 32)) / 77000000.0;
+                svga.clock = (Intel8253.cpuclock * (double)(1UL << 32)) / 77000000.0;
                 break;
         case 0xe:
-                svga.clock = (pit.cpuclock * (double)(1UL << 32)) / 80000000.0;
+                svga.clock = (Intel8253.cpuclock * (double)(1UL << 32)) / 80000000.0;
                 break;
         case 0xf:
-                svga.clock = (pit.cpuclock * (double)(1UL << 32)) / 75000000.0;
+                svga.clock = (Intel8253.cpuclock * (double)(1UL << 32)) / 75000000.0;
                 break;
         }
 

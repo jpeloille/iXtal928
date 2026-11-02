@@ -4,13 +4,13 @@
 // ORACLE: (aucun) — le code propre au mode matériel du 8253/8254 (G13 ; R10 de TRANSCRIPTION.md).
 // STATUS: materiel
 //
-// Les corrections des défauts de PCem dans pit.c, appelées par les gardes de pit.cs (`if (materiel.pb_nn)`), seules
-// sur leur ligne. La source, le cas qui discrimine et la panne qui le rougit sont dans l'entrée PB de PCEM_BUGS.md ;
-// la fiche est celle du 8254 d'Intel (231164-005).
+// Les corrections des défauts de PCem dans pit.c, appelées par les gardes d'Intel8253.cs (`if (materiel.pb_nn)`),
+// seules sur leur ligne. La source, le cas qui discrimine et la panne qui le rougit sont dans l'entrée PB de
+// PCEM_BUGS.md ; la fiche est celle du 8254 d'Intel (231164-005).
 
-namespace iXtal26.Models;
+namespace iXtal26.Ics;
 
-internal static partial class pit
+internal static partial class Intel8253
 {
     // pcem bug, fixed in hardware mode: PB-21 — speakval, le rapport des comptes des canaux 2 et 0 (pit.c:418), lit le
     //   compte 0 comme 0 ; le 8254 le compte 2^16 (PDF p. 17 : « The largest possible initial count is 0; this is

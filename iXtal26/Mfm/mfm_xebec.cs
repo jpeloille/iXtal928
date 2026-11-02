@@ -17,7 +17,7 @@
 // configuration ; le DTC est transcrit parce qu'il est là, pas parce qu'il sert.
 
 // CS8600 : `(xebec_t)p` part du `void *p` que timer.cs déclare `object?`
-// (mfm_xebec.c:289) — même situation que `(PIT_nr *)p` dans pit.cs.
+// (mfm_xebec.c:289) — même situation que `(PIT_nr *)p` dans Intel8253.cs.
 // CS8602 : `priv` est le void* que device_priv range et que io.cs rend en
 // `object` ; le cast est celui du C (mfm_xebec.c:112, :162).
 #pragma warning disable CS8600, CS8602
@@ -26,8 +26,8 @@ using iXtal26.Diag;
 using iXtal26.Disc;
 using iXtal26.Flash;
 using iXtal26.PluginApi;
-using static iXtal26.Models.dma;
-using static iXtal26.Models.pic;
+using static iXtal26.Ics.Intel8237;
+using static iXtal26.Ics.Intel8259A;
 using static iXtal26.io;
 using static iXtal26.pc;
 using static iXtal26.timer;

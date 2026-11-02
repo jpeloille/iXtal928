@@ -17434,3 +17434,468 @@ Contre-lecture : trois relectures (la garde, les chiffres, les séries et l'envi
 vérifiée par une seconde lecture contradictoire ; cinq erreurs et quinze imprécisions reprises, aucun verdict changé.
 
 L'émulateur ne change pas.
+
+## G14.1 — Le 8259A, le 8253 et le 8237
+
+Le 2 novembre 2026 (PLAN-G14.md § G14.1, décisions n° 1 à 3, 5, 7 à 11 et 13 ; Q37, Q38). Feu vert de Julien le
+02/11 : « feu vert pour G14.1 ». `pic` → `Intel8259A`, `pit` → `Intel8253`, `dma` → `Intel8237`, avec leurs
+`.Materiel.cs`, dans `Ics/` et l'espace de noms `iXtal26.Ics`. Le worktree de l'étape est `/var/tmp/ixtal-g14/g141`,
+sur la branche locale `g14-1`, parti de `651d5f7` ; les journaux sont sous `/var/tmp/ixtal-g14/g14-1/`, les outils
+jetables qui les ont produits sous `outils/` (`capture-R-10014.sh`, `capture-C.sh`, `recoupes.py`, `documents.py`,
+`reflue.py`, `longues.py`, `renvois.py`, `diff_inverse.py` et son lexeur, `delta_main.py`, `attendre-calme.sh`,
+`sonde-lourds.py`, `banc-reancrage.sh`, `bancs.sh`, `synthese.py`, `series-g141.sh`, `complement-atapi-vide.sh`,
+`complement-atapi-vide-tout.sh`), les essais remplacés sous `essais/`. Rien n'a été construit ni modifié dans le dépôt
+principal ; la préversion de Rider seule y a lu.
+
+**Le commit : `e7be0e6`**, « g14: G14.1, le 8259A, le 8253 et le 8237 — … », auteur Julien Peloille, sur la branche
+`g14-1` du worktree `g141`, parent `651d5f7`. Non poussé ; `master` reste à `651d5f7`. L'arbre commité est celui que
+les portes ont jugé : aucun fichier suivi n'a changé après la construction finale (20 h 18), `git status` vide après
+le commit.
+
+| Ancien chemin | Nouveau chemin | Conteneur |
+|---|---|---|
+| `iXtal26/Models/pic.cs` | `iXtal26/Ics/Intel8259A.cs` | `iXtal26.Models.pic` → `iXtal26.Ics.Intel8259A` |
+| `iXtal26/Models/pic.Materiel.cs` | `iXtal26/Ics/Intel8259A.Materiel.cs` | (le même, partiel) |
+| `iXtal26/Models/pit.cs` | `iXtal26/Ics/Intel8253.cs` | `iXtal26.Models.pit` → `iXtal26.Ics.Intel8253` |
+| `iXtal26/Models/pit.Materiel.cs` | `iXtal26/Ics/Intel8253.Materiel.cs` | (le même, partiel) |
+| `iXtal26/Models/dma.cs` | `iXtal26/Ics/Intel8237.cs` | `iXtal26.Models.dma` → `iXtal26.Ics.Intel8237` |
+| `iXtal26/Models/dma.Materiel.cs` | `iXtal26/Ics/Intel8237.Materiel.cs` | (le même, partiel) |
+
+Les types d'état gardent leur nom et passent dans `iXtal26.Ics` avec leur fichier (décisions n° 1 et 2) : `PIC`,
+`PIT`, `PIT_nr`, `set_out_func_t`, `dma_t` (la table, `tools/noms/g14.txt`, étape G14.1 : 8 types, 6 fichiers). Les
+membres, globales comprises (`pic_`, `pic2`, `pit_`, `dma_`…), ne changent pas.
+
+### Le réancrage sous 10.0.14 (G14.1.0)
+
+`unattended-upgrade` a passé .NET de 10.0.13 à 10.0.14 et le SDK de 10.0.113 à 10.0.114 le 31/10 à 6 h 55
+(`/var/log/apt/history.log.1.gz`, `Start-Date: 2026-10-31  06:55:52` : `dotnet-runtime-10.0`, `dotnet-sdk-10.0`,
+`aspnetcore-runtime-10.0`, `dotnet-hostfxr-10.0`, `dotnet-host-10.0`, les paquets de ciblage et d'AOT). Le gel de
+G14.0d s'est fait sous 10.0.13. `dotnet --list-runtimes` ne donne plus que 10.0.14, `--list-sdks` que 10.0.114. La
+seule autre entrée d'apt depuis est `hunspell-fr` (le 01/11, à la main), qui ne touche ni .NET ni l'oracle. La
+machine a redémarré le 02/11 vers 19 h 21 : `/tmp` est vidé, `/tmp/a9/wtgr2a` et `/tmp/a9/g5w-gr1i2` n'existent plus
+(la référence des séries est `g14r`, sous `/var/tmp`, que rien n'a touché).
+
+**ref-R n'a pas bougé** (`reancrage-ref-R.log`, le 02/11 à 19 h 26) : HEAD `f15e11f`, `git status --porcelain` vide,
+les trois DLL de bin/ conformes à `gel-R/empreintes-r.sha256`, les 1 894 fichiers du manifeste de fin
+(`g14-0d/ref-R-manifeste-fin.sha256`, lui-même égal au manifeste d'après la construction) conformes, plus les 163
+liens de `roms/` ; aucun répertoire de job. Rien n'y a été construit depuis.
+
+**Le vidage d'IL ne dépend pas du runtime** (`il-reancrage.log`). `ildump vider` lit les métadonnées des DLL déjà
+construites, par `System.Reflection.Metadata` : les DLL de bin/ de R, revidées sous 10.0.14, donnent le texte des
+vidages de G14.0d (`ref-R-captures/il/`, 10.0.13) à l'octet, pour iXtal26 (458 630 lignes), SoftFloat (5 924) et le
+banc (8 430) ; iXtal26.Diff de `S-g14r` de même. Le vidage de R fait sous 10.0.13 reste la référence de l'IL.
+
+**Les listings du JIT de R, recapturés sous 10.0.14** (`outils/capture-R-10014.sh`, `capture-R-10014.log`), comme en
+G14.0d : la DLL de `ref-R`, jamais reconstruite, jouée par le script et le bac à sable de `cmp-R` (même commit ;
+`os/pcdos20` et les deux images des scénarios y étaient déjà copiés). Rien n'est construit dans `ref-R` ; son
+manifeste et son `git status` sont revérifiés à la fin de la capture : conformes, vide. Le 02/11 de 19 h 28 à 19 h 43,
+`/var/tmp/ixtal-g14/ref-R-captures-10.0.14/jit/` (263 Mo), doublé dans `/var/tmp/ixtal-g13/g14-ref-R-captures-10.0.14/`
+(`diff -r` vide). `runtime.txt` : Microsoft.NETCore.App 10.0.14, `dll 3aa61a85eb9a7d1d`. 30 scénarios, 1 512 méthodes,
+les mêmes comptes par scénario qu'en G14.0d, 0 mention de MinOpts.
+- *La donnée* : 10.0.13 contre 10.0.14, `listings-jit.sh compare ref-R-captures/jit ref-R-captures-10.0.14/jit` :
+  **0 changée, 0 disparue, 0 apparue** (`jit-R-10013-contre-10014.log`). Le JIT de 10.0.14 rend, sur ces 1 512
+  méthodes, le code de 10.0.13 à l'octet (après `JitDisasmDiffable`). Ce n'est pas une porte ; la capture de 10.0.14
+  est celle à laquelle C se compare.
+- La capture de 10.0.14 contre elle-même : 0.
+
+**L'outil de renommage sous le SDK 10.0.114** (`renommage-rp1.log`). `tools/renommage` prend le Roslyn du SDK par
+`$(MSBuildBinPath)/Roslyn/bincore` (`iXtal26.Renommage.csproj:23`) : celui de 10.0.114 est
+`Microsoft.CodeAnalysis.dll` 5.0.26.52326 (`strings`). L'outil se construit, sans paquet (`renommer.sh` le vérifie).
+La répétition de G14.0c (`pic` seul, `g14-0c/noms-repetition.txt`), refaite dans un worktree jetable `rp1` détaché à
+`651d5f7` (l'émulateur y est celui d'`eea86a8` : `git diff eea86a8 651d5f7 -- iXtal26/ tools/iXtal26.Diff/
+tools/perfbanc/*.cs` ne touche aucun source compilé), rend **le même journal** que `g14-0c/renommage-rep3.tsv` (`diff`
+vide : 33 fichiers, 149 sites, 11 `using`, 5 lignes longues), et le même diff que `rep2-code.diff`, aux en-têtes de
+déplacement près (`rep2-code.diff` avait été pris après le déplacement ; `rp1.diff`). `rp1` retiré
+(`git worktree remove --force`).
+
+**Le gel du lancé sous 10.0.14** (`outils/banc-reancrage.sh`, `essais/banc-reancrage-1-porte-refusee.log`, puis
+`outils/bancs.sh`, `bancs.log`). BenchmarkDotNet reconstruit le
+banc depuis le source avec le SDK du jour : l'empreinte des DLL lancées de R pouvait changer.
+
+- *L'amorce* (le groupe Fetch, R = `ref-R`, C = `cmp-R`, `--empreintes-r` seul, comme `g14-0d/banc-amorce.sh` ;
+  `banc-amorce/`, le 02/11 à 20 h 04) : `compare_ref.py gel` tire des deux passages de R une empreinte par DLL lancée,
+  écrite dans `/var/tmp/ixtal-g14/gel-R-10.0.14/lancees-r.txt` (l'ancien gel n'est pas touché ; `empreintes-r.sha256`
+  y est recopié, bin/ n'ayant pas changé). **Le gel de 10.0.14 est celui de 10.0.13, à l'octet** (`cmp` :
+  `efb54e43…2e9031`, `23d2f857…a6db72c`, `c856ed99…767bb2`) : le SDK 10.0.114 reconstruit dans le job les mêmes DLL,
+  à la normalisation près. L'amorce elle-même a été refusée (un MSBuild d'une autre séance à la fin de son dernier
+  passage de R), ce qui ne touche pas l'empreinte d'un binaire, comme en G14.0d. Doublé dans
+  `/var/tmp/ixtal-g13/g14-gel-R-10.0.14/`.
+- *La porte du réancrage* : `compare-ref.sh --empreintes-r …/gel-R-10.0.14/empreintes-r.sha256 --lancees-r
+  …/gel-R-10.0.14/lancees-r.txt /var/tmp/ixtal-g14/ref-R /var/tmp/ixtal-g14/cmp-R porte-R` (`outils/bancs.sh`, le
+  `compare-ref.sh` de `g141`, inchangé depuis `651d5f7`), les 14 groupes, 65 cas, la règle des trois passes. Le 02/11
+  de 21 h 39 à 22 h 32 : **vert, 65 cas sur 65 dès la passe 1**, sans passe 2 ni passe 3, en 52,7 min
+  (`porte-R/rapport.txt`, `rapport.tsv`, `porte-R-synthese.txt`).
+  - Aucun refus. Le gel est vérifié sur les 28 passages de R ; bin/ de R intact après (`sha256sum -c`), le manifeste
+    de fin conforme, `git status` vide, aucun répertoire de job.
+  - Aucun rouge exact : les allocations égales à l'octet sur les 65 cas, aucune instable ; les états et les
+    empreintes de Machine égaux.
+  - C/R − 1 va de −0,56 % (Exec386MemoirePcem) à +0,66 % (VideoEgaPb99, 16 lectures), médiane +0,00 % ; par groupe,
+    de −0,06 % (RenduCga) à +0,17 % (MemoireLente). La borne basse la plus haute est −0,05 % (Machine ibmat, « tout »),
+    la borne haute la plus basse +0,03 % (Machine ibmpc, « aucun »). L'intervalle le plus large, 2,89 points,
+    VideoEgaPb99 [−0,99 ; +1,90].
+  - La sonde a noté 7 relevés de plus de 0,3 UC sur 56 passages (l'indexeur `localsearch-3`, 0,68 à 0,75 UC ; Rider).
+  - *La dérive de l'hôte* : R de cette porte contre R de la porte de G14.0d (`g14-0d/banc3/rapport.tsv`, 10.0.13) :
+    65 cas, médiane −0,02 %, de −0,44 % (Exec486) à +0,73 % (Exec286). Le runtime neuf ne déplace pas R.
+- *Les deux essais refusés d'avant*, gardés sous `essais/` :
+  - le premier (20 h 06 à 20 h 18, `porte-R-1-refusee/`) : refusé au passage 3-C de Fetch, « la machine n'est pas
+    revenue au calme en dix minutes » (les `dotnet test` de uPub) ; le gel a tenu sur le passage de R joué ;
+  - le deuxième (20 h 40 à 21 h 33, `porte-R-2-refusee-personnalite/`) : les 56 passages joués, 60 verts, 1 « à
+    confirmer » (Exec8088 « tout », +0,47 % [+0,10 ; +0,84], un faux rouge d'A/A, dans le taux de Q37), et les 4 cas
+    de Video refusés : « la personnalité d'un processus du banc est illisible ('') », au passage 2-C. Le journal dit
+    `/proc/174484/personality: Permission denied` (`compare-ref.sh:309`) : un processus que `pgrep -f
+    'iXtal26\.PerfBanc'` a vu, dont l'argument 1 nomme une DLL du banc, mais que le shell du banc ne peut pas lire
+    (`ptrace_scope = 1` : il n'en est pas l'ancêtre) ; ce n'était plus lui, ou ce n'était pas lui, l'outil refuse par
+    prudence. Cause non établie ; rien de ce que la séance faisait alors ne lançait le banc. Le gel a tenu sur les 28
+    passages de R.
+  Le troisième, joué entier au calme (cinq minutes calmes de suite d'abord : `attendre-calme.sh`), est la porte.
+
+**Les séries de référence** `g14r` et `g14r-tout` ont été jouées sous 10.0.13. Les séries de C, sous 10.0.14, s'y
+comparent d'abord (la consigne : un écart se départage en rejouant la portion de R sous 10.0.14, dans `ser-R` avec
+`S-g14r` ; jamais un « écart du runtime » sans ce rejeu). Les deux séries de C sont identiques à `g14r` et
+`g14r-tout` (ci-dessous, les portes) : le rejeu n'a pas eu lieu d'être.
+
+### La vérification « hors G14 », avant l'étape
+
+`verif-hors-g14.log`, le 02/11 à 19 h 27, sur le pathspec de § G14.0d :
+- `git log --no-merges --invert-grep --grep='^g14:' f15e11f..HEAD -- CHEMINS` : **vide** (le seul commit,
+  `651d5f7`, est un `g14:`, et il ne change que `compare-ref.sh`, `compare_ref.py`, PLAN-G14.md et VERIFICATION.md,
+  dont les deux premiers sont exclus du pathspec et les deux autres hors de lui). Le témoin, la même commande sur
+  `1d49a7f..f15e11f`, sort `622b091`, comme en G14.0d ;
+- `git diff --stat f15e11f HEAD -- CHEMINS` : vide ; `git diff f15e11f HEAD -- tools/oracle/ pcem-dev/` : 0 ligne ;
+- dans `g141`, avant le renommage : `git status --porcelain` vide (`worktree-g141.log`) ;
+- `ildump comparer`, sans table (G14.1), du parent construit (`g141` avant le renommage, SDK 10.0.114) contre R
+  (`il-reancrage.log`) : iXtal26 5 738 entrées, iXtal26.Diff 3 331 (contre `S-g14r`), SoftFloat 90 : **0 écart**
+  partout. Le compilateur du SDK 10.0.114 rend l'IL de celui de 10.0.113 sur ces trois assemblages ;
+- ce que git ne suit pas : `nvr/default/` conforme à `gel-R/nvr-default.sha256` (7 fichiers), `roms.sha256` : 34 OK,
+  la `.so` copiée de `S-g14r` conforme à `gel-R/S-g14r.sha256`, le WORK des séries conforme à `g5w.sha256`
+  (ci-dessous).
+
+Le dépôt principal a des fichiers non commités (`PLAN.md`, `tools/fetch-sources.sh`,
+`iXtal26/Docs/arbre-classes-cpu.html`, des `__pycache__/`) ; ils n'entrent pas dans le worktree, parti du commit.
+
+### Le renommage
+
+**Le worktree.** `git worktree add -b g14-1 /var/tmp/ixtal-g14/g141 651d5f7` ; `roms/` lié entrée par entrée (163
+liens, `roms.sha256` : 34 OK ; `worktree-g141.log`). Construit en Release avant le renommage (`construction-avant.log`).
+
+**Le contre-compte de Rider** (`rider-preview.tsv`, `rider-contre-script.txt`). Dans le dépôt principal,
+`rename_refactoring` en `preview=true` seulement, sur `pic`, `pit` et `dma`, le 02/11 vers 19 h 31 : `applied` faux,
+`touched` à 0, aucun conflit ; `git status` du dépôt principal inchangé après
+(`depot-principal-status-apres-rider.txt`).
+
+| Conteneur | Rider : fichiers, sites | Script, dans `iXtal26/` | Hors d'`iXtal26/` |
+|---|---|---|---|
+| `pic` → `Intel8259A` | 28, 54 | 28, 54 | 5 fichiers, 80 sites (`MaterielCas*.cs`) |
+| `pit` → `Intel8253` | 30, 96 | 30, 96 | 3, 11 (`BootDiff.cs`, `CpuFingerprint.cs`, `MachineBanc.cs`) |
+| `dma` → `Intel8237` | 10, 9 | 10, 9 | 2, 33 (`BootDiff.cs`, `MaterielCas.cs`) |
+
+Les fichiers comptent ceux des déclarations, les sites non. Les trois comptes sont égaux, et ceux de G14.0c. Les
+fichiers que Rider nomme (20, 20 et 10, le reste en `moreFiles`) sont tous parmi ceux du script.
+Rider ne voit ni iXtal26.Diff ni le banc.
+
+**L'outil** (`renommer.sh g141 tools/noms/g14.txt G14.1`, `renommage-g141.log`, `renommage-g141.tsv`, 336 lignes) :
+3 projets, 342 fichiers, la compilation de départ sans erreur ; **59 fichiers modifiés, 326 sites** : 6 déclarations
+(deux par conteneur, ses deux parties), 6 espaces de noms de fichier, 21 `using static`, 36 noms qualifiés, 226 noms
+simples, 31 `using iXtal26.Ics;` ajoutés ; 2 `var` inférés en `dma_t`, non touchés ; 0 renvoi `cref`. La recompilation
+en mémoire est sans erreur ni avertissement de plus. Six `git mv`. Par conteneur : `pic` 2 déclarations, 13 `using
+static`, 27 qualifiés, 94 simples (les 136 de G14.0c) ; `pit` 2, 4, 6, 97 ; `dma` 2, 4, 3, 35.
+
+*Reproductible* : le même renommage, refait par l'outil seul dans un worktree jetable `rp2` (détaché à `651d5f7`),
+rend le même journal (`diff` vide, `renommage-rp2.log`). `rp2` sert ensuite à séparer ce que l'outil a fait de ce
+qui a été fait à la main (ci-dessous).
+
+**Les lignes longues.** Le journal en compte 10 que le renommage porte au-delà de 120 caractères ou allonge
+alors qu'elles y étaient (les 5 de `pic` que G14.0c avait vues, et 5 de `pit` et `dma`) :
+
+| Ligne (après l'outil) | Avant → après l'outil | Recoupe |
+|---|---|---|
+| `Cpu/808x.Materiel.cs:445`, `:449` | 113 → 134, 119 → 140 | deux lignes chacune, après `&&` |
+| `Cpu/808x.cs:769`, `:4092` | 110 → 124, 109 → 123 | de même |
+| `TimerCheck.cs:577` | 121 → 142 | la chaîne interpolée coupée en deux, à la fin d'un trou (`…ins:X2}" +`) |
+| `pc.cs:1479` | 136 → 139 | l'argument de `setpitclock(` à la ligne |
+| `tools/iXtal26.Diff/MaterielCas.cs:3531` | 117 → 129 | le corps de `DmaLu` après `=>` |
+| `MaterielCas.cs:3589`, `:3595`, `:3683` | 115 → 121, 115 → 121, 121 → 127 | la fin de l'appel à la ligne |
+
+Recoupées à la main (`outils/recoupes.py`, `recoupes.log`), dans le style du code voisin (l'opérateur en fin de ligne,
+comme `TimerCheck.cs:516` ou `HddImage.cs:124`). Un premier essai de `pc.cs` sortait à 121 (le retrait de 24) : repris
+à 20, et l'outil corrigé pour contrôler la longueur avant d'écrire. L'IL, recompilé juste après, est identique par la
+table, la chaîne interpolée comprise : le compilateur rend `$"…{x}" + $", …{y}"` comme une seule chaîne interpolée,
+avec les mêmes `AppendLiteral` et `AppendFormatted`.
+
+**Les blocs `// noms:`.** Un par fichier transcrit, sur le modèle de `fdc.cs:10-49` : `Intel8259A.cs:10-17`,
+`Intel8253.cs:14-26`, `Intel8237.cs:13-22` (`fdc.Materiel.cs` n'en a pas, les `.Materiel.cs` d'`Ics/` non plus). Chacun
+donne le fichier C et le fichier C# (avant G14 : `Models/…`), le `.Materiel.cs`, le conteneur et son ancien nom, les
+types d'état (« = », leur ligne d'`ibm.h`, l'espace `iXtal26.Ics`), la globale suffixée (`pic` → `pic_`, `pit` →
+`pit_`, `dma[]` → `dma_[]` : « `_` : `pic` était le nom du conteneur (CS0542) »), et que les fonctions et les autres
+globales gardent les noms de PCem. Celui d'`Intel8253` dit, sur la ligne du conteneur : « Intel 8253-5 ; le code est
+celui de PCem, qui fait aussi la relecture du 8254 sur toutes les machines (pit.c:328) » (`pit.c:328`, vérifié : `if
+((val & 0xC0) == 0xC0)`, dans le `case 3` de `pit_write`, sans garde de machine). Celui d'`Intel8237` ajoute que les
+étiquettes de la sonde (`"dma[{c}]…"`, `BootDiff.cs`) sont des chaînes qui gardent les noms du C, comme `fdc.cs:48`.
+
+**Les commentaires du code** qui désignent ces classes ou ces fichiers C# (`documents.py`, `documents.log`) :
+- les en-têtes des trois `.Materiel.cs` (« les gardes de pic.cs » → « d'Intel8259A.cs », etc.), reflués à 120 ;
+  `Intel8259A.Materiel.cs:20-25` (« un champ initialisé de plus dans pic » → « dans Intel8259A », le paragraphe
+  reflué ; ses lignes `:21-22` faisaient déjà 122 et 121) ; `Intel8237.Materiel.cs:20` (« dans `dma` » →
+  « dans `Intel8237` ») ;
+- `Intel8253.cs:93-95`, le CS0542 de `pit_` : « ne pouvait pas porter le nom de sa classe conteneur, `pit` avant
+  G14 ; le nom reste (PLAN-G14.md, décision n° 1). Même renommage que `PIC pic_` (Intel8259A.cs:44) » (était
+  `pic.cs:35`) ;
+- `keyboard_xt.cs:55` (« comme pic_ (Intel8259A.cs) et pit_ (Intel8253.cs) ») ; `mfm_at.cs:155` (« hors
+  d'Intel8259A.cs ») ; `mfm_xebec.cs:20` (« dans Intel8253.cs ») ; `SdlHost.cs:1263` et `TimerCheck.cs:22`
+  (`pit.cpuclock` → `Intel8253.cpuclock`, le membre C#) ; `tools/iXtal26.Diff/Oracle.cs:345` (`Ics/Intel8237.cs
+  ProbeState`) ; `tools/perfbanc/MachineBanc.cs:47` (`Intel8259A.cs:408 et :481`, les deux compteurs ; étaient
+  `pic.cs:399 et :472`, décalés par le bloc `// noms:`).
+
+Les commentaires qui citent le C ne changent pas : `pic.mask2` de `Intel8259A.cs:81` et `pic.pend` de `:513` (les
+globales de `pic.c`), le code commenté de PCem dans `sound_sb_dsp.cs` (`pic.mask`, `dma.ac[1]`), tout `pic.c:N`,
+`pit.c:N`, `dma.c:N`. Aucun `.cfg` ne cite ces fichiers ni ces classes (`git grep`).
+
+**Les documents vivants** (`documents.log`) :
+- `oracle.tsv` : les six `csharp_path` (`pic.cs`, `pic.Materiel.cs`, `pit.cs`, `dma.cs` deux fois — le transcrit et
+  la sonde `harness_dma.c` —, `dma.Materiel.cs`) ; `pit.Materiel.cs` n'y a pas de ligne ;
+- `PCEM_BUGS.md` : 31 chemins (`Models/pic.cs` 8, `Models/pic.Materiel.cs` 4, `Models/pit.cs` 1,
+  `Models/pit.Materiel.cs` 1, `Models/dma.cs` 8, `Models/dma.Materiel.cs` 8, `pic.Materiel.cs` 1) ;
+- `Docs/ibm5150/` : `README.md:66` (l'exemple de renvoi), `:116-118` (l'index des 42 fichiers),
+  `01-8088-architecture.md:186` (deux) et `:219-220` ;
+- `TRANSCRIPTION.md` (246 → 248 lignes, plafond 260) : deux lignes aux « Collisions conteneur/membre » (`:195-196`) :
+  `pic.c`, `pit.c` et `dma.c` avaient suffixé la globale (`pic_`, `pit_`, `dma_`) ; depuis G14 leurs conteneurs portent
+  le nom de la puce, les globales gardent leur nom. Le reste de `TRANSCRIPTION.md` disait déjà `Ics/` (G14.0c).
+
+`VERIFICATION.md`, les plans et les rapports de reconnaissance (`Docs/G13-reconnaissance/`, `G14-reconnaissance/`,
+`GR-reconnaissance/`) sont des journaux datés : non touchés (décision n° 10). Le harnais ne l'est pas non plus
+(décision n° 9) : ses trois commentaires qui nomment `Models.pit.Probe()` et `Models.dma.ProbeState`
+(`harness.c:2757`, `harness.h:458`, `harness_dma.c:24`) restent pour G14.5.
+
+Les lignes que ces éditions portaient au-delà de 120 ont été recoupées : `PCEM_BUGS.md` en avait une neuve (`:5853`,
+118 → 122) et trois déjà au-delà qui s'allongeaient (`:5872`, `:6071`, `:6120`), coupées à un espace ; cinq
+paragraphes d'une ligne de G13 (`:214`, `:5836`, `:5874`, `:6031`, `:6074`, de 446 à 1 328 caractères), reflués à
+120 aux espaces hors des spans de code (`outils/reflue.py`, qui vérifie que le texte, les blancs près, ne change
+pas) ; `Docs/ibm5150/README.md:66` (121 → 124), coupée. Aucune ligne neuve ne commence par un marqueur que
+`Recensement.cs:204-219` lit (`*Reproduit*`, `*G13*`, `*Corrigé en mode matériel*`…) : les paragraphes gardent leur
+première ligne.
+
+**Ce que l'outil a fait, ce que la main a fait.** Deux juges indépendants de l'outil, sans Roslyn.
+- *Le diff inverse de G14.0c* (`outils/diff_inverse.py`, recopié de `g14-0c/outils/`, inchangé), sur `rp2`, la sortie
+  de l'outil seul, avec la carte `Models.pic=>Ics.Intel8259A` … `pic=>Intel8259A` (`outils/carte-inverse.txt`) :
+  215 morceaux, 268 lignes changées, 31 `using` ajoutés ; **0 écart** (chaque ligne ajoutée, les nouveaux noms ramenés,
+  redonne la retirée) et **0 caractère hors du code** (`diff-inverse-rp2.log`). Un premier essai, la carte écrite à
+  l'envers (« nouveau=>ancien »), sortait 184 écarts : c'est la carte, pas le diff.
+- *L'écart de la main*, `rp2` → `g141` (`outils/delta_main.py`, le lexeur du même outil, `delta-main.log`) : 22
+  fichiers (17 `.cs` et 5 documents), 26 morceaux dans les `.cs`, 0 fichier d'un seul côté (les lignes citées
+  ici sont celles d'après la main ; le tableau des lignes longues donne celles de l'outil seul, une plus haut).
+  **16 ne touchent que des commentaires** (les blocs `// noms:`, les en-têtes et les commentaires ci-dessus) ;
+  **10 sont les recoupes**, dont 7 ne changent que des blancs du code, 2 (`MaterielCas.cs:3590`, `:3596`) le code
+  identique une fois les blancs ôtés, et 1 (`TimerCheck.cs:577`) la chaîne interpolée coupée en deux à la frontière
+  d'un trou (`" + $"`), l'IL identique ; **0 autre**. Les blancs du code (espaces, fins de ligne, sans effet en C#)
+  sont comptés à part : une première version les classait « code », et rangeait les commentaires sur plusieurs
+  lignes parmi les « autres ».
+- *Les documents* (`diff-inverse-documents.log`) : `oracle.tsv` et `01-8088-architecture.md`, les chemins ramenés,
+  redonnent HEAD à l'octet ; `PCEM_BUGS.md` et `Docs/ibm5150/README.md`, aux blancs près (les reflux) ;
+  `TRANSCRIPTION.md`, ses deux lignes ajoutées ôtées, à l'octet. Un premier passage lui appliquait aussi la carte et
+  sortait en écart : le fichier citait déjà `Ics/Intel8259A.cs` depuis G14.0c ; rejoué sans la carte, identique.
+- *Aucune chaîne ni aucun commentaire de PCem* : 339 lignes retirées dans tout le diff, aucune ne porte `// pcem:` ;
+  une seule porte « pcem bug », le marqueur de PB-248 d'`Intel8259A.Materiel.cs:20`, reflué, son marqueur et son
+  `PB-248` gardés sur la première ligne (`Recensement.cs:68` et `:79` les lisent sur la même ligne). Les chaînes : la
+  seule touchée est celle de `TimerCheck.cs:577` (ci-dessus) ; les 654 littéraux de `BootDiff.cs` sont ceux de HEAD.
+
+**L'étape, en tout** : 65 fichiers, 450 lignes ajoutées et 339 retirées (`git diff -M --stat HEAD`), 6 déplacements
+(similarité de 78 à 96 %), 59 modifiés : 54 `.cs` et 5 documents.
+
+### Les portes
+
+- **La construction** (`construction-finale.log`, `--no-incremental`, SDK 10.0.114, le 02/11 à 20 h 18) :
+  `iXtal26.csproj`, `tools/perfbanc` et `tools/iXtal26.Diff`, **0 avertissement, 0 erreur** chacun (les projets
+  traitent les avertissements en erreurs). `iXtal26.dll` de C : `4301ff2c…96b4fe0b` ; `iXtal26.Diff.dll` :
+  `e1610f3a…f26263e` ; `iXtal26.SoftFloat.dll` : `d820f818…df6ab`, celui du parent. *Une construction de trop* : une
+  première, à 19 h 42 (`construction-apres.log`, `0570040b…`), précédait la dernière édition d'un commentaire (la ligne
+  du conteneur dans le bloc `// noms:` d'`Intel8253.cs`, où « 8253-5 » était dit deux fois). L'IL, la capture de C et
+  la copie figée des séries, faits sur elle, ont été refaits sur la construction finale : l'IL rend les mêmes rapports
+  à l'octet, hors l'en-tête (`il-portes-final.log`), et la capture finale est identique à celle de 19 h 42, 0 écart
+  (`jit-portes.log`) ; la première est gardée (`essais/jit-C-construction-1942/`). Les chiffres ci-dessous sont ceux de
+  la construction finale.
+- **`check-oracle.sh`** (`check-oracle-doc.log`) : « 217 transcrit(s) verifie(s), 41 fichier(s) hote ignore(s), 0
+  derive(s), 0 absent(s), arbre vendore OK » ; retour 0, les comptes de R (`cmp-R` : les mêmes).
+- **`check-doc5150.sh`** : « 4 fichiers, renvois justes », retour 0 ; `--couverture` sort les 31 fichiers non cités de
+  R (`cmp-R` : 31), rien de plus.
+- **L'IL par la table** (`il-portes-final.log`, `il-final/`, `ildump comparer --noms tools/noms/g14.txt --jusqua
+  G14.1`, R = les DLL de bin/ de `ref-R`, iXtal26.Diff de `S-g14r`) :
+  - iXtal26 : 5 738 entrées (617 types, 5 120 méthodes, 423 653 instructions), **0 changée, 0 disparue, 0 apparue** ;
+    2 543 noms réécrits dans le vidage de R ;
+  - iXtal26.Diff : 3 331 entrées, **0** ; 159 noms réécrits ;
+  - SoftFloat : 90 entrées, 0, avec ou sans la table (il ne nomme aucun type de la table) ;
+  - le banc : 297 entrées, 35 changées, 0 disparue, 0 apparue. Les 35 sont des `BenchmarkAttribute` : 34 ne diffèrent
+    que par le chemin de l'arbre que `[CallerFilePath]` leur donne (`ref-R` → `g141`), la 35ᵉ, `Machine::Fenetre`, par
+    ce chemin et par son `[CallerLineNumber]`, 84 → 85 (le `using iXtal26.Ics;` ajouté en tête de `MachineBanc.cs`) ;
+    aucun corps de méthode ne change (`il/banc-attributs.log`, sur la construction de 19 h 42 ; le rapport final est le
+    même). C'est la limite de § G14.0c, plus la ligne.
+- **Les listings du JIT par la table** (`jit-portes.log`) : la capture de C (`outils/capture-C.sh`, le 02/11 de
+  20 h 19 à 20 h 34, par le script et le bac à sable de `g141`, `os/pcdos20` et les deux images copiés de `cmp-R/os/`,
+  `os.sha256` OK ; `runtime.txt` : 10.0.14, `dll 4301ff2caeb4555a`) : 30 scénarios, 1 512 méthodes, les comptes par
+  scénario de R, 0 mention de MinOpts. Contre `ref-R-captures-10.0.14/jit`, `compare --noms tools/noms/g14.txt --jusqua
+  G14.1` : **0 changée, 0 disparue, 0 apparue**, 289 noms réécrits ; « 8 types (5 vus, 3 que les scénarios ne
+  compilent pas : `PIC`, `PIT_nr`, `dma_t`) ». Contre la capture de 10.0.13, la même : 0 aussi (la donnée du
+  réancrage).
+
+- **Le banc contre R** : `compare-ref.sh --empreintes-r /var/tmp/ixtal-g14/gel-R-10.0.14/empreintes-r.sha256
+  --lancees-r /var/tmp/ixtal-g14/gel-R-10.0.14/lancees-r.txt /var/tmp/ixtal-g14/ref-R /var/tmp/ixtal-g14/g141 banc-C`
+  (`outils/bancs.sh`, le `compare-ref.sh` de `g141`), C construit en Release (la construction finale), les 14 groupes,
+  65 cas, la règle des trois passes, après cinq minutes calmes de suite. Le 02/11 de 22 h 37 à 23 h 42 : **vert, 65 cas
+  sur 65**, en 65,2 min (`banc-C/rapport.txt`, `rapport.tsv`, `banc-C-synthese.txt`).
+  - Un seul cas sort « à confirmer » de la passe 1 : Machine ami386dx, « tout », +0,13 % [+0,05 ; +0,25]. La passe 2
+    de Machine386 (C R R C, quatre passages) ne le confirme pas : +0,10 % [−0,02 ; +0,20]. Il est vert, sans passe 3.
+    Le même ordre de grandeur que les faux rouges d'A/A de G14.0b et que celui du deuxième essai de la porte
+    ci-dessus (Exec8088, +0,47 %).
+  - Les rapports nomment C « `g141` (651d5f7010cc) » : le banc a mesuré l'arbre renommé avant son commit ; l'arbre
+    commité est celui-là (`git status` vide après le commit, la construction finale de 20 h 18).
+  - Deux « `/proc/…/cmdline: No such file` » de `compare-ref.sh:306` (`bancs.log:35`, `:82`) : un processus du banc
+    fini entre la lecture de son `status` et celle de sa `cmdline`, le relevé de ce tour passé ; sans effet sur le
+    verdict (noté, hors de l'étape).
+  - Aucun refus. Le gel est vérifié sur les 30 passages de R (28 en passe 1, 2 en passe 2) ; bin/ de R intact après,
+    le manifeste de fin conforme, `git status` vide, aucun répertoire de job, ni dans `ref-R` ni dans `g141`.
+  - Aucun rouge exact : les allocations égales à l'octet sur les 65 cas, aucune instable ; les états et les
+    empreintes de Machine égaux (le renommage ne change rien de ce que la machine fait).
+  - C/R − 1 va de −0,46 % (VideoEgaPcem, 16 lectures) à +0,40 % (Exec286, « tout », prefixe), médiane −0,02 % ; par
+    groupe, de −0,21 % (Exec486) à +0,20 % (Exec386). La borne basse la plus haute est celle du cas confirmé non rouge,
+    +0,05 % en passe 1 ; la borne haute la plus basse, −0,03 % (Machine ibmxt, « aucun »), C un peu plus rapide.
+    L'intervalle le plus large, 4,71 points, VideoEgaPb99 [−2,95 ; +1,76].
+  - La sonde a noté 5 relevés de plus de 0,3 UC sur 60 passages (`localsearch-3`, Rider).
+  - R de ce banc contre R de la porte (`porte-R`) : médiane −0,00 %, de −0,57 % (RenduCga) à +0,90 % (Video).
+  C'est le deuxième renommage pur mesuré (le premier, `pic` seul, en G14.0c), le premier sur `pit` et `dma` : le banc
+  ne voit rien qui sorte du bruit A/A de G14.0b. Les chemins d'IRQ (`picinterrupt`, `picint`), du PIT (`pit_over`,
+  les rappels de sortie) et du DMA (`dma_channel_read`) passent par Machine, sur les neuf modèles.
+
+- **Les séries entières dans les deux modes** (`outils/series-g141.sh`, `series-g141.log`), jouées comme `g14r` :
+  la copie figée `S-g141` (la construction finale : `iXtal26.dll` `4301ff2c…`, `iXtal26.Diff.dll` `e1610f3a…`, et la
+  `.so` de `S-g14r`, `fe905731…`, `S-g141.sha256`), les portes copiées de `g141` (`gates-g141`, `gates-g141-tout` ;
+  `tools/gates/` de `g141` est celui de `ser-R` à l'octet, `diff -r` vide), `MALLOC_PERTURB_=85`, dix voies, l'ordre
+  tiré des durées de `g14r`, `TMPDIR_SERIE` par défaut (`/var/tmp/ixtal-par/g141`, un nom de la longueur de `g14r`).
+  `REPO` = `g141`, préparé comme `ser-R` (`prep-g141.log`) : `os/` copié de `ser-R/os/` fichier par fichier (161
+  fichiers, le disque 386 de `gr1i2`, `9ce09889…`, compris ; jamais de lien), `vectors/` lié entrée par entrée (les
+  mêmes entrées que `ser-R` : `v2`, `v1`, `v1_real_mode`, `v1_ex_real_mode`, `80386.csv`, les deux
+  `revocation_list.txt`), `roms/` lié entrée par entrée. Le WORK est neuf, fait par la recette de `g141`
+  (`recette-g141.log`) : `/var/tmp/ixtal-g14/g14-1/g5w-g14-1`, conforme à `g5w.sha256` (30 empreintes) avant et après
+  les deux séries, au chemin de la longueur de `g14-0d/g5w-g14r` (34 caractères), pour que rien de ce qu'une séance
+  cite ne change de longueur ; un premier WORK, `g5w-g141` (33), a été retiré avant toute série. Avant chaque série,
+  cinq minutes calmes de suite (`calme.log`).
+  - `g141`, le 02/11 de 23 h 47 au 03/11 à 1 h 38 (1 h 51) : 826 vertes et une rouge, `banc-atapibanc-vide` (rc=1,
+    « deux séances, retours -1 et 0 », « délai dépassé (1 200 s) », 1 830 s ; `g14r` : 1 807 s). C'est le délai
+    d'horloge de l'hôte de `Banc.cs:166-169` que § G14.0d a vu frapper `banc-atapibanc` de `g14r-tout` : la seule
+    charge était celle de la série elle-même (le guet relevait 0,26 à 0,30 UC d'autres processus avant et après).
+    Rejouée seule (`outils/complement-atapi-vide.sh`, `PORTES`, même DLL figée, même WORK, même `TMPDIR_SERIE`), le
+    03/11 de 2 h 36 à 2 h 56 : verte, « les 89 attendus du mode pcem, deux séances identiques », 1 128 s. Sa ligne et
+    son journal remplacent ceux de la série ; la série telle qu'elle est sortie est gardée (`essais/g141-premiere/`,
+    et `/var/tmp/ixtal-g13/series/g141-premiere-banc-atapibanc-vide-delai.tsv`) ; `g141.notes` le dit, à côté du tsv.
+  - `g141-tout`, sous `MATERIEL=tout`, le 03/11 de 1 h 43 à 2 h 31 (48 min) : 548 vertes, 267 refusées par le mode,
+    11 « pcem », et la même porte rouge, `banc-atapibanc-vide` (« retours 0 et -1 », 2 340 s ; `g14r-tout` : 2 244 s,
+    déjà au bord du délai). `Banc.cs:87` n'imprime que la fin de la première séance, celle qui a fini ; seul
+    `Banc.cs:166-169` rend -1 (un code de sortie de processus ne vaut jamais -1 sous Linux) : le même délai. Rejouée
+    seule (`outils/complement-atapi-vide-tout.sh`, `MATERIEL=tout`), le 03/11 de 3 h 01 à 3 h 25 : verte, « les 89
+    attendus du mode materiel, deux séances identiques », 1 425 s ; remplacée de même (`essais/g141-tout-premiere/`,
+    `g141-tout.notes`). Ensuite : 549 vertes, 267 refusées, 11 « pcem », aucune rouge, les comptes de `g14r-tout`.
+  - *Les comparaisons* (`compare-series.py --racine /var/tmp/ixtal-g14/ser-R /var/tmp/ixtal-g14/g141 --work
+    /var/tmp/ixtal-g14/g14-0d/g5w-g14r /var/tmp/ixtal-g14/g14-1/g5w-g14-1`) :
+    - `g141` contre `g14r` : 827 portes communes, **0 écart** (`g141-contre-g14r.log`) ; bruit retiré : 1 654 durées,
+      70 répertoires, 68 PID, 2 textes coupés, 12 temps de l'hôte, 38 racines et WORK, 0 longueur de séance (la règle
+      7 éteinte : les deux répertoires temporaires ont la même longueur, et aucune séance n'a changé de longueur).
+      Avant le rejeu, la même comparaison donnait 826 identiques et la seule porte au délai en écart
+      (`g141-contre-g14r-premiere.log`) ;
+    - `g141-tout` contre `g14r-tout` : 827 communes, **0 écart** (`g141-tout-contre-g14r-tout.log`) ; 1 654 durées,
+      52 répertoires, 50 PID, 12 temps de l'hôte, 0 longueur de séance. Avant le rejeu : la seule porte au délai en
+      écart (`g141-tout-contre-g14r-tout-premiere.log`, recopié de la sortie de 2 h 33 : le fichier de la
+      comparaison avait été réécrit par celle d'après le rejeu).
+    Les tsv sont doublés dans `/var/tmp/ixtal-g13/series/` (`g141.tsv`, `g141-tout.tsv`, leurs `.notes`, et les deux
+    séries telles qu'elles sont sorties) ; les journaux sont dans `g14-1/series/`.
+  - *Runtime ou renommage ?* `g14r` et `g14r-tout` ont été jouées sous 10.0.13, `g141` et `g141-tout` sous 10.0.14.
+    Aucune porte n'est en écart : il n'y a rien à départager, et la portion de R n'a pas été rejouée sous 10.0.14.
+
+- **La `.so` de l'oracle** : `git diff HEAD -- tools/oracle/ pcem-dev/` vide dans `g141`, et `git diff f15e11f HEAD`
+  aussi ; les séries jouent la `.so` de `S-g14r`, copiée dans `S-g141`, conforme à `gel-R/S-g14r.sha256`
+  (`fe905731…6bc03ae`).
+- **Les anciens noms** (`grep-anciens.log`), dans le code compilé (`iXtal26/`, `tools/iXtal26.Diff/`,
+  `tools/perfbanc/`, `*.cs`) : `iXtal26.Models.(pic|pit|dma|PIC|PIT|PIT_nr|set_out_func_t|dma_t)` : **0** ;
+  `Models.(…)` : **0** ; `using static iXtal26.Models.(pic|pit|dma)` : **0** ; `class (pic|pit|dma)` : 0 ; aucun
+  fichier `pic.*`, `pit.*`, `dma.*` sous `Models/` ; les 11 fichiers restés dans `Models/` gardent `namespace
+  iXtal26.Models`. Hors du code compilé, les anciens noms ne restent que là où ils doivent : les blocs `// noms:`
+  (« avant G14, Models/pic.cs »), la table, les trois commentaires du harnais (G14.5), l'exemple de
+  `tools/renommage/Program.cs:18` (ce que l'outil récrit), et les journaux datés.
+- **Les lignes neuves** (`outils/longues.py`, `git diff -M -U0 HEAD`, en caractères, fichiers neufs en entier) : 450
+  lignes ajoutées, aucune de plus de 120 caractères dans les `.cs` ni dans la prose. Six restent au-delà, qui
+  l'étaient déjà à HEAD et ne se coupent pas : cinq enregistrements d'`oracle.tsv` (`:55`, `:96`, `:116`, `:153`,
+  `:154`, de 124 à 298 caractères ; un tsv n'a qu'une ligne par fichier, 221 de ses 273 lignes dépassent 120 à HEAD)
+  et une ligne de tableau de `01-8088-architecture.md:186` (444 ; 10 lignes du fichier dépassent à HEAD).
+- **Aucun champ statique neuf** : l'IL d'iXtal26 est celui de R par la table, champs, constantes et constructeurs
+  statiques compris.
+
+### Les contrôles négatifs
+
+- *Sans la table, les trois classes sortent disparues et apparues.*
+  - `ildump comparer` sans `--noms` (`il/iXtal26-sans.txt`) : iXtal26, 91 changées, **106 disparues, 106 apparues** ;
+    les 106 de chaque côté sont des trois conteneurs, de leurs types imbriqués (`Etat8259`, `Etat8237`, `dma_ps2_t`,
+    les `<>O` du compilateur) et des cinq types d'état : `iXtal26.Models.pic`, `.pit`, `.dma`, `PIC`, `PIT`, `PIT_nr`,
+    `set_out_func_t`, `dma_t` disparus, leurs pendants `iXtal26.Ics.*` apparus ; aucune autre. iXtal26.Diff, 31
+    changées ; le banc, 38 (35 avec la table).
+  - `listings-jit.sh compare` sans `--noms` (`jit-sans-table.txt`) : **39 changées, 43 disparues, 43 apparues** (R0
+    l'estimait à 39, 42 et 42 ; la 43ᵉ est `PIT:.ctor()`) : `Models.pic` 13, `Models.pit` 17, `Models.dma` 12,
+    `Models.PIT` 1 disparues, leurs pendants `Ics.*` apparus.
+- *`oracle.tsv` laissé à l'ancien chemin* (`negatif-oracle.log`, le fichier de HEAD remis dans l'arbre renommé, puis
+  rendu, sha256 `68166419…` retrouvé) : six « ABSENT C# » (`Models/dma.Materiel.cs`, `pic.Materiel.cs`, `pic.cs`,
+  `dma.cs`, `pit.cs`, `dma.cs`), « 213 transcrit(s) … 6 absent(s) », retour 1.
+- *`check-doc5150.sh` avant l'édition des documents* : retour 1, huit « Models/….cs introuvable » (`README.md:66`,
+  `:116-118`, `01-8088-architecture.md:186` deux fois, `:219`, `:220`) ; après : retour 0. Le premier passage n'avait
+  pas de journal : rejoué sur le commit le 03/11 à 3 h 35, `Docs/ibm5150/` de `651d5f7` remis puis rendu
+  (`negatif-doc5150.log`), les mêmes huit, retour 1 ; rendu, retour 0, l'arbre propre.
+- *Les étiquettes de boot-diff* (`negatif-bootdiff.log`) : `git diff -U0 HEAD -- tools/iXtal26.Diff/BootDiff.cs` change
+  8 lignes, 4 sites, tous des noms qualifiés (`Models.dma.ProbeState` → `Ics.Intel8237.ProbeState`, trois
+  `iXtal26.Models.pit.Probe` → `iXtal26.Ics.Intel8253.Probe`) ; chaque ligne ajoutée, ramenée, redonne la retirée
+  (un premier essai, la carte sans la forme `iXtal26.Ics.Intel8253`, sortait « False » : c'est la carte) ;
+  aucune ne contient de chaîne. L'étiquette `"dma[{c}]…"` (`BootDiff.cs:1898`) est la même ligne qu'à HEAD, et les
+  654 littéraux de chaîne du fichier sont ceux de HEAD, dans le même ordre.
+
+### La durée
+
+Le 02/11 de 19 h 26 au 03/11 à 3 h 25, environ 8 h, dont environ 7 h 15 de machine : les trois captures du JIT (15 min
+chacune), la recette deux fois (2 min), la porte du réancrage en trois essais (12, 53 et 53 min, plus l'amorce), le
+banc de C (65 min), `g141` (1 h 51), `g141-tout` (48 min), les deux rejeux (20 et 24 min), et les guets du calme
+(cinq minutes chacun). Les tests de uPub, puis l'indexeur, tournaient à côté : le premier essai de la porte a été
+refusé pour un processus lourd, et chaque mesure a attendu cinq relevés calmes de suite (`calme.log`).
+
+Contre-lecture en deux relectures, le code et la preuve : aucune erreur dans le code ; quatre erreurs (la durée de
+machine, une phrase du guet sans journal, le journal du contrôle négatif de `check-doc5150.sh`, deux numéros de ligne)
+et huit imprécisions reprises.
+
+### Les risques
+
+- *Le runtime, encore.* Une mise à jour d'apt de .NET pendant une passe la fait refuser ; entre deux étapes, elle
+  demande le réancrage de ce § : ref-R revérifié, le gel du lancé refait par une porte R contre R, les listings de R
+  recapturés. Sous 10.0.14 le gel et les listings sont ceux de 10.0.13 à l'octet : la mise à jour du 31/10 n'a changé
+  ni le code que le JIT rend pour ces 1 512 méthodes, ni le binaire que BenchmarkDotNet construit et lance, ni l'IL
+  que le compilateur rend. Rien ne garantit qu'il en ira de même à la suivante.
+- *Les renvois de ligne décalés* (ci-dessous, « Hors de la portée ») : les `using iXtal26.Ics;` ajoutés (31 fichiers),
+  les recoupes et les blocs `// noms:` décalent d'une ou deux lignes 197 renvois `fichier.cs:N` vers 60 fichiers.
+  Ils ne désignent pas les classes renommées ; ils se liront justes à une ligne près. G14.2 à G14.4 en décaleront
+  d'autres.
+- *Le placement* : le banc a vu ce renommage dans le bruit A/A (ci-dessus) ; G14.2 à G14.4 touchent d'autres chemins.
+- *La machine partagée* : une autre séance construisait et testait pendant toute l'étape (uPub, Rider) ; le guet
+  attend le calme, et le banc refuse une passe dès qu'un processus lourd paraît.
+- *L'outil de renommage* lie le Roslyn privé du SDK : 5.0.26.52326 sous 10.0.114 ; la répétition de G14.0c sort à
+  l'identique, mais une mise à jour du SDK peut le changer.
+
+### Hors de la portée
+
+Trouvé en route, non corrigé :
+- **197 renvois de ligne décalés** (`outils/renvois.py`, `renvois-decales.log` : 345 renvois `fichier.cs:N` vers les
+  60 fichiers `.cs` que l'étape modifie, recalés par une carte des lignes ancien → nouveau, `difflib` sur HEAD et
+  l'arbre ; 197 tombent sur une ligne qui a bougé, 1 sur une ligne dont le contenu a changé, `PCEM_BUGS.md:7953`,
+  `vid_olivetti_m24.cs:156`). Par sorte : 154 dans des rapports clos (`Docs/*-reconnaissance/`, l'audit du 26/09,
+  `plan-affichage.md`, `ligne-de-commande.md`), 17 dans `PCEM_BUGS.md`, 15 dans des commentaires du code et des outils
+  (`SdlAudio.cs`, `SdlHost.cs`, `fdc.cs`, `config.cs`, `timer.cs`, `compare-series.py`…), 7 dans le harnais (intouchable
+  jusqu'à G14.5), 2 dans `TRANSCRIPTION.md`, 2 dans `ixtal26-286.cfg` (`model.cs:206`, `:208`). La consigne de l'étape
+  vise les renvois qui désignent les classes ou les fichiers renommés (ceux-là sont recalés, ci-dessus) ; recaler les
+  autres est un chantier à part, que `Docs/ibm5150/` a évité en ne citant jamais de numéro de ligne (`README.md:66-67`).
+- `tools/noms/g14.txt:40` dit « `dma_t` de dma.c » : la struct est dans `ibm.h:117-131` (`dma.c:11` n'en déclare que
+  le tableau). Un commentaire de la table, qu'aucun outil ne lit ; le bloc `// noms:` d'`Intel8237.cs` dit `ibm.h`.
+- Les trois commentaires du harnais qui nomment les classes C# par leur ancien nom (`harness.c:2757`, `harness.h:458`,
+  `harness_dma.c:24`) s'ajoutent aux deux de G14.5 (`harness.c:2092`, `harness_stubs.c:172`).
+- Le guet du calme de G14.0d (`guet-calme.sh`) et celui de cette étape lisent la sonde de `compare_ref.py` ; une
+  première version du second (`attendre-calme.sh`) ne savait pas lire sa sortie et n'aurait jamais conclu : arrêtée
+  après deux relevés, corrigée (`sonde-lourds.py`) ; l'essai est gardé (`calme-essai-guet-defectueux.log`).

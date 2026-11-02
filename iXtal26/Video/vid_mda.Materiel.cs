@@ -17,6 +17,7 @@ using System.Runtime.CompilerServices;
 using iXtal26.Models;
 using static iXtal26.Video.video;
 using static iXtal26.timer;
+using iXtal26.Ics;
 
 namespace iXtal26.Video;
 
@@ -70,7 +71,7 @@ internal static partial class vid_mda
     private static void temps_materiel(mda_t mda)
     {
         ModeMateriel.Sonde[102]++;
-        double caractere = pit.MDACONST * (9.0 / 8.0);
+        double caractere = Intel8253.MDACONST * (9.0 / 8.0);
         double _dispontime = mda.crtc[1] * caractere;
         double _dispofftime = (mda.crtc[0] + 1 - mda.crtc[1]) * caractere;
         mda.dispontime = unchecked((uint64_t)(int64_t)_dispontime);

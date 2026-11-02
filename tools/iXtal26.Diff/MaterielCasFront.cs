@@ -11,6 +11,7 @@
 
 using iXtal26.Models;
 using iXtal26.Sound;
+using iXtal26.Ics;
 
 namespace iXtal26.Diff;
 
@@ -20,11 +21,11 @@ internal static partial class MaterielCas
     /// l'INTA. La demande doit être au registre IRR, et l'INTA rendre son vecteur.</summary>
     private static void Prise(int irq = 7)
     {
-        if (((pic.pic_.pend >> irq) & 1) == 0)
+        if (((Intel8259A.pic_.pend >> irq) & 1) == 0)
             throw new InvalidOperationException($"IRQ {irq} : aucune demande à prendre");
         io.outb(0x21, (byte)~(1 << irq));
-        var v = pic.picinterrupt();
-        if (v != pic.pic_.vector + irq)
+        var v = Intel8259A.picinterrupt();
+        if (v != Intel8259A.pic_.vector + irq)
             throw new InvalidOperationException($"IRQ {irq} : l'INTA rend {v:X2}h");
     }
 
@@ -135,7 +136,7 @@ internal static partial class MaterielCas
         bad += Un("SB 16 : 3Fh au MPU, INTA, puis F2h", _ =>
         {
             io.outb(0x331, 0x3f);
-            if ((pic.pic_.pend & 0x80) != 0)
+            if ((Intel8259A.pic_.pend & 0x80) != 0)
                 Prise();
             Dsp(0xf2);
             return $"{Etat82()} {Irr()}";

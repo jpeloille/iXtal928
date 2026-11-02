@@ -16,7 +16,7 @@
 
 using System.Runtime.CompilerServices;
 using static iXtal26.Memory.mem;
-using static iXtal26.Models.pic;
+using static iXtal26.Ics.Intel8259A;
 using static iXtal26.Scsi.scsi;
 
 namespace iXtal26.Scsi;
@@ -744,7 +744,7 @@ internal static partial class scsi_aha1540
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static bool bus_refuse_materiel(aha154x_t scsi)
     {
-        if (Models.dma.dma_maitre_materiel(scsi.dma))
+        if (Ics.Intel8237.dma_maitre_materiel(scsi.dma))
             return false;
         ModeMateriel.Sonde[260]++;
         return true;

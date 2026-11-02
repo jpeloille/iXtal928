@@ -17,7 +17,7 @@
 #pragma warning disable CS8600, CS8602
 
 using static iXtal26.io;
-using static iXtal26.Models.pic;
+using static iXtal26.Ics.Intel8259A;
 
 namespace iXtal26.Sound;
 

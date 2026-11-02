@@ -295,7 +295,7 @@ internal static partial class _386
                         //   mode matériel, la NMI du 8087, l'IRQ13 et le verrou de l'AT, FERR# du 486.
                         if (materiel.pb_59)
                                 return _x87_materiel.exception_demasquee();
-                        Models.pic.picint(1 << 13);
+                        Ics.Intel8259A.picint(1 << 13);
                         return true;
                 }
         }

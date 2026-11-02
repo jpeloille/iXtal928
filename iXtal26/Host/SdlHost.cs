@@ -1260,13 +1260,13 @@ public sealed class SdlHost : IDisposable
     /// en cycles CPU, avec l'horloge et le cœur de la machine qui l'a produit.
     ///
     /// Le tsc compte toujours dans l'unité de l'horloge que setpitclock() a reçue
-    /// (pit.cpuclock) : 14 318 184 Hz sur un 808x, la vitesse du CPU sur un 286. Un
+    /// (Intel8253.cpuclock) : 14 318 184 Hz sur un 808x, la vitesse du CPU sur un 286. Un
     /// cycle CPU vaut xt_cpu_multi / 2^32 tsc sur le 808x (clockhardware), et un tsc
     /// sur le 286 (exec386 y ajoute les cycles bruts).
     /// </summary>
     private static void AddCadence(ulong dtsc, ref double guestSeconds, ref double cycles)
     {
-        guestSeconds += dtsc / (double)Models.pit.cpuclock;
+        guestSeconds += dtsc / (double)Ics.Intel8253.cpuclock;
         cycles += Cpu.x86.AT != 0 ? dtsc : dtsc * 4294967296.0 / Cpu._808x.xt_cpu_multi;
     }
 

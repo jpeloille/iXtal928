@@ -22,6 +22,7 @@ using static iXtal26.PluginApi.device;
 using static iXtal26.Video.video;
 using static iXtal26.io;
 using static iXtal26.timer;
+using iXtal26.Ics;
 
 namespace iXtal26.Video;
 
@@ -181,8 +182,8 @@ internal static partial class vid_hercules
         disptime = hercules.crtc[0] + 1;
         _dispontime = hercules.crtc[1];
         _dispofftime = disptime - _dispontime;
-        _dispontime *= pit.MDACONST;
-        _dispofftime *= pit.MDACONST;
+        _dispontime *= Intel8253.MDACONST;
+        _dispofftime *= Intel8253.MDACONST;
         // pcem bug, fixed in hardware mode: PB-102 — MDACONST compte un caractère de 8 points (pit.c:42) ;
         //   l'Hercules en dessine 9 en texte, et son unité en fait 16 en graphique.
         // pcem bug, reproduced: PB-36 — la conversion d'un double négatif de la CGA et de la MDA

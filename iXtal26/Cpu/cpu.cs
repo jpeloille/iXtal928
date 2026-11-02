@@ -14,6 +14,7 @@
 // tools/iXtal26.Diff (cpu-config-check), et non contre une recopie de ses règles.
 
 using iXtal26.Models;
+using iXtal26.Ics;
 
 namespace iXtal26.Cpu;
 
@@ -193,12 +194,12 @@ internal static partial class cpu_c
                 if (cpu_s.cpu_type >= CPU_286)
                 {
                         if (cpu_turbo != 0)
-                                pit.setpitclock(cpu_turbo_speed);
+                                Intel8253.setpitclock(cpu_turbo_speed);
                         else
-                                pit.setpitclock(cpu_nonturbo_speed);
+                                Intel8253.setpitclock(cpu_nonturbo_speed);
                 }
                 else
-                        pit.setpitclock(14318184.0f);
+                        Intel8253.setpitclock(14318184.0f);
         }
     }
 

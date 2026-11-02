@@ -17,6 +17,7 @@ using static iXtal26.Cpu.x86;
 using static iXtal26.Sound.sound;
 using static iXtal26.Sound.sound_dbopl;
 using static iXtal26.timer;
+using iXtal26.Ics;
 
 namespace iXtal26.Sound;
 
@@ -51,7 +52,7 @@ internal static partial class sound_opl
     {
         opl_t opl = (opl_t)priv;
 
-        cycles -= (int)(pit.isa_timing * 8);
+        cycles -= (int)(Intel8253.isa_timing * 8);
         opl2_update2(opl);
         return opl_read(0, a);
     }
@@ -70,7 +71,7 @@ internal static partial class sound_opl
     {
         opl_t opl = (opl_t)priv;
 
-        cycles -= (int)(pit.isa_timing * 8);
+        cycles -= (int)(Intel8253.isa_timing * 8);
         opl2_update2(opl);
         return opl_read(0, a);
     }
@@ -88,7 +89,7 @@ internal static partial class sound_opl
     {
         opl_t opl = (opl_t)priv;
 
-        cycles -= (int)(pit.isa_timing * 8);
+        cycles -= (int)(Intel8253.isa_timing * 8);
         opl2_update2(opl);
         return opl_read(1, a);
     }
@@ -106,7 +107,7 @@ internal static partial class sound_opl
     {
         opl_t opl = (opl_t)priv;
 
-        cycles -= (int)(pit.isa_timing * 8);
+        cycles -= (int)(Intel8253.isa_timing * 8);
         opl3_update2(opl);
         return opl_read(0, a);
     }

@@ -52,8 +52,8 @@ iXtal26/Host/FiletImages.cs	-	-	-	host	G13.0 : le filet des images, vidées sur 
 iXtal26/Materiel/ModeMateriel.cs	-	-	-	host	G13.2 : la demande du mode matériel, sa table de corrections, son gel, sa sonde
 iXtal26/Materiel/materiel.cs	-	-	-	host	G13.2 : le mode matériel figé, un champ par correction, rien d'autre
 iXtal26/Cpu/808x.Materiel.cs	-	-	-	materiel	G13.2 : les corrections du 8088 et du 8086 (PB-01)
-iXtal26/Models/dma.Materiel.cs	-	-	-	materiel	G13.3 et G13.4 : les corrections du 8237 (PB-257 ; PB-157, PB-249 à PB-253)
-iXtal26/Models/pic.Materiel.cs	-	-	-	materiel	G13.4 : les corrections du 8259 (PB-05, PB-246 à PB-248, PB-255)
+iXtal26/Ics/Intel8237.Materiel.cs	-	-	-	materiel	G13.3 et G13.4 : les corrections du 8237 (PB-257 ; PB-157, PB-249 à PB-253)
+iXtal26/Ics/Intel8259A.Materiel.cs	-	-	-	materiel	G13.4 : les corrections du 8259 (PB-05, PB-246 à PB-248, PB-255)
 iXtal26/Keyboard/keyboard_at.Materiel.cs	-	-	-	materiel	G13.4 : les files du 8042 (PB-254)
 iXtal26/Mouse/mouse_ps2.Materiel.cs	-	-	-	materiel	G13.4 : les commandes, l'état et la lecture de la souris PS/2 (PB-94, PB-95, PB-261)
 iXtal26/Models/amstrad.Materiel.cs	-	-	-	materiel	G13.4 : le second port parallèle du PC1512 (PB-101)
@@ -93,7 +93,7 @@ iXtal26/Models/opti495.cs	pcem-dev/src/models/opti495.c	2929dafdf34c48bcb59a8195
 iXtal26/Models/ali1429.cs	pcem-dev/src/models/ali1429.c	4b6f4e666da943e695658372b05426caed3fdfb414013742220d0c3f61124445	1-66	transcribed	G6.3 : le chipset de l'ami486 (ombrage C0000-FFFFF, ports 0x22/0x23)
 iXtal26/Models/olivetti_m24.cs	pcem-dev/src/models/olivetti_m24.c	da2ec208b5e84800ff7021267fc54987fa69baa665646e19d4595a672a0da6c5	1-15	transcribed	G1.1 : les ports 66h et 67h
 iXtal26/Models/nmi.cs	pcem-dev/src/models/nmi.c	010a827b5c25f798704650f423ee58531fd24028430d15a10f2c0ebb04a0ab20	-	partial	nmi_mask seul
-iXtal26/Models/pic.cs	pcem-dev/src/models/pic.c	66771852f6eaab0b51357b0b7c72622c3dda636c9f975fbd86425993cb7993dd	-	partial	le 8259 entier, pic et pic2 ; cette ligne hachait harness_stubs.c depuis M1, sa note disant « reel a M3 »
+iXtal26/Ics/Intel8259A.cs	pcem-dev/src/models/pic.c	66771852f6eaab0b51357b0b7c72622c3dda636c9f975fbd86425993cb7993dd	-	partial	le 8259 entier, pic et pic2 ; cette ligne hachait harness_stubs.c depuis M1, sa note disant « reel a M3 »
 iXtal26/PluginApi/config.cs	pcem-dev/src/plugin-api/config.c	1b21c07f5fcf41ed68e0b3d963d4a79f388ef4a4ac8a40aef25b5b5127bdd9be	7-11,71-125,127-219,226-428,431-456	partial	moteur de configuration ; omis config_dump, config_new, add_config_callback ; G8.3 : machine_named_entries (outillage) recopie les sections de device dans l'oracle
 iXtal26/Program.cs	-	-	-	host	point d'entrée, arguments
 iXtal26/Sound/dbopl.cs	pcem-dev/src/dosbox/dbopl.cpp	3f1718e541207d5929f1d64e06fd0ba52be43a11fa42efcf1b20bda82cf77a0c	1-1494	deviated	G8.0-G8.1 : DBOPL en WAVE_TABLEMUL (tables vérifiées par opl-tables-check) ; pointeurs de fonctions membres en énumérations, offsets en indices, sorties en (tableau, décalage) ; WAVE_HANDLER/TABLELOG et Handler omis
@@ -113,7 +113,7 @@ iXtal26/Sound/sound_mpu401_uart.cs	pcem-dev/src/sound/sdl2-midi.c	46ad04c0d2c8ee
 iXtal26/Sound/sound_emu8k.cs	pcem-dev/src/sound/sound_emu8k.c	7c8dff3dd2dc36745b311cf7bb0ead75c9a8899b0d4bffe6e7e87516dff6fdce	87-225,280-287,301-345,483-725,797-1602,1607-1632,1636-1648,1667-1704,1730-2160,2171-2180,2189-2237	deviated	G12.2 : l'EMU8000 ; la ROM, le bloc vide et la RAM en un seul tableau, les tampons de la réverbération à 8 228 entrées et leurs gardes R9 (PB-161), le chorus en un tampon (PB-162), la conversion du C aux six sites (PB-163), la borne de :1831 (PB-164) ; les branches FILTER_* et RESAMPLER_* mortes, EMU8K_READ_INTERP_LINEAR et le bloc EMU8K_DEBUG_REGISTERS omis
 iXtal26/Sound/sound_emu8k.cs	pcem-dev/includes/private/sound/sound_emu8k.h	d125989a52f43864f9b4db3eca2117164ff8e14e49f8cc8d0d8df9157b19e2c6	5-381	partial	G12.2 : les unions en structures à disposition explicite, emu8k_t ; le commentaire documentaire :383-766 omis
 iXtal26/Sound/sound_emu8k.cs	tools/oracle/harness_emu8k.c	244279ffd1799db6367a8501c340deaf90167d63c292510752f4e555df24b905	-	host	G12.2 : Probe, pendant de h_emu8k_probe ; tables_init contre h_emu8k_tables ; les noyaux contre h_emu8k_kernel (EmuKernelCheck)
-iXtal26/Models/dma.cs	tools/oracle/harness_dma.c	208587df7b63ee8c203b21764af6e775cccb09a59716206a352e697d64405ba6	-	host	G12.1 : ProbeState, pendant de h_dma_probe (dma.c inclus par harness_dma.c)
+iXtal26/Ics/Intel8237.cs	tools/oracle/harness_dma.c	208587df7b63ee8c203b21764af6e775cccb09a59716206a352e697d64405ba6	-	host	G12.1 : ProbeState, pendant de h_dma_probe (dma.c inclus par harness_dma.c)
 iXtal26/Host/SoundCards.cs	pcem-dev/src/sound/sound_sb.c	904225e3a5c645c1583e010f6f4289bdc92489992639954a152ce46f158c3750	1349-1352	host	G12.1 : la règle ISA 16 bits des cartes son (la SB 16, l'AWE32 : drapeaux 0 chez PCem)
 iXtal26/Sound/sound_speaker.cs	pcem-dev/src/sound/sound_speaker.c	40958678cf1e3089ad7f6938e5334030331393f5c48a3fb50bbfa42a5da1ef7d	5-55	transcribed	
 iXtal26/io.cs	pcem-dev/src/io.c	14767211926517cb81dc27a8656a1ad0ab2e0f253a6fc7d344040f1700ebca21	-	partial	io_init/sethandler/removehandler et in*/out* ; cette ligne hachait harness_stubs.c depuis M1, sa note disant « src/io.c a M2 »
@@ -150,8 +150,8 @@ iXtal26/Cpu/386_ops_fpu.cs	pcem-dev/includes/private/cpu/x86_ops_fpu.h	eccd50112
 iXtal26/Cpu/386_ops_0f.cs	pcem-dev/includes/private/cpu/x86_ops_pmode.h	7018da370a3ba685225f329ae2ea759e94903cf125230ad3f34aedc6efd3ed43	56-174,176-350,352-508	partial	op0F00_common ENTIER, op0F00_a16/a32, op0F01_common et ses cinq formes, opLAR et opLSL dans leurs quatre formes (G2 D4) ; INVLPG omis (486)
 iXtal26/Cpu/386_ops_0f.cs	pcem-dev/includes/private/cpu/x86_ops_misc.h	e88375ec5118ab69eafbc4165c27c0263f81b5d39520308e086036eee6d4b105	796-806,827-974	partial	opCLTS, opLOADALL ; set_segment_limit, loadall_load_segment et opLOADALL386 (G2 D4)
 iXtal26/Cpu/386_ops_mov_ctrl.cs	pcem-dev/includes/private/cpu/x86_ops_mov_ctrl.h	637707e79a6a5197e21f8511b4b4021e9125f6ea4933f109d0aa51a360f33742	1-275	transcribed	
-iXtal26/Models/pit.cs	pcem-dev/src/models/pit.c	d18d85eb51b71c55b73c1e5162015443fbfb72fe1f4e9dae6d8e7010df9dca1b	-	partial	le 8253/8254 du 5150 et setpitclock ; pit2, le PS/2, l'AT et le PCjr omis
-iXtal26/Models/dma.cs	pcem-dev/src/models/dma.c	15a0f2b9b3e4b80bec05accedad937ae8af37d9d2bcf76c281e9e211b5991950	-	partial	le 8237 8 bits (canaux 0-3) et le 8237 haut (dma16_read, dma16_write, dès B3) ; les handlers PS/2 omis sur place ; G12.1 : le DMA 16 bits sous l'oracle par la SB 16, PB-157
+iXtal26/Ics/Intel8253.cs	pcem-dev/src/models/pit.c	d18d85eb51b71c55b73c1e5162015443fbfb72fe1f4e9dae6d8e7010df9dca1b	-	partial	le 8253/8254 du 5150 et setpitclock ; pit2, le PS/2, l'AT et le PCjr omis
+iXtal26/Ics/Intel8237.cs	pcem-dev/src/models/dma.c	15a0f2b9b3e4b80bec05accedad937ae8af37d9d2bcf76c281e9e211b5991950	-	partial	le 8237 8 bits (canaux 0-3) et le 8237 haut (dma16_read, dma16_write, dès B3) ; les handlers PS/2 omis sur place ; G12.1 : le DMA 16 bits sous l'oracle par la SB 16, PB-157
 iXtal26/Video/vid_cga.cs	pcem-dev/src/video/vid_cga.c	c75cd4918bed1aa146ce4e40267166a5859b226e4d6608839ba178fb644cc083	-	partial	la CGA entiere, neige comprise ; le chemin composite omis (et il porte un vrai defaut de PCem) ; G13.0 : PB-09 non reproduit (R9), charbuffer de 512 octets
 iXtal26/Video/vid_mda.cs	pcem-dev/src/video/vid_mda.c	6c63291e2b149320f03aeb996bb97899973b709ae5c829c8251d63019252201a	1-303	transcribed	G9.0 : la MDA ; fontdatm lu a plat (PB-96), 6845 sans masques (PB-97), PB-36 elargi
 iXtal26/Video/vid_mda.cs	pcem-dev/includes/private/video/vid_mda.h	baf22a6a4ec93db9b9784723fd4a2b50e3a773251c6728f994a45f6c4e97a7a8	1-40	transcribed	G9.0 : mda_t

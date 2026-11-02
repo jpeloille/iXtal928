@@ -63,8 +63,8 @@ DOSBox-X) ne servent que d'indices.
 
 - **Une source** : `[T1 p. 1-24]` pour une page imprimée ; `[T1 p. 5-29, l. 345]` pour une ligne de listing ;
   `[R1 F000:E5BC]` pour un octet de ROM. Le tableau ci-dessus donne la page du PDF qui correspond.
-- **Le code C#** : `<chemin>.cs#<symbole>`, chemin pris sous `iXtal26/`, par exemple `Models/pit.cs#pit_write`. Jamais de
-  numéro de ligne : G13 fait bouger le code, et un numéro périmé se lit comme s'il était juste.
+- **Le code C#** : `<chemin>.cs#<symbole>`, chemin pris sous `iXtal26/`, par exemple `Ics/Intel8253.cs#pit_write`.
+  Jamais de numéro de ligne : G13 fait bouger le code, et un numéro périmé se lit comme s'il était juste.
 - **PCem** : `pcem-dev/src/models/pit.c:37-59`. L'arbre vendoré ne bouge pas.
 - **Le registre** : `PB-nn`, numéroté comme dans `PCEM_BUGS.md`.
 
@@ -113,9 +113,9 @@ Chaque fichier du cœur, avec les chapitres qui l'expliquent :
 - `ppi.cs` : 10
 - `GlobalUsings.cs` : 21
 - `Models/model.cs` : 00, 21
-- `Models/pic.cs` : 03, 07
-- `Models/pit.cs` : 04, 08, 12
-- `Models/dma.cs` : 09
+- `Ics/Intel8259A.cs` : 03, 07
+- `Ics/Intel8253.cs` : 04, 08, 12
+- `Ics/Intel8237.cs` : 09
 - `Models/nmi.cs` : 14
 - `Models/serial.cs` : 17
 - `Cpu/808x.cs` : 01, 02, 03, 14

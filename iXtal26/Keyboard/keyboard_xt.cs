@@ -9,8 +9,8 @@ using static iXtal26.Cpu.cpu_c;
 using static iXtal26.Devices.cassette;
 using static iXtal26.Keyboard.keyboard;
 using static iXtal26.Memory.mem;
-using static iXtal26.Models.pic;
-using static iXtal26.Models.pit;
+using static iXtal26.Ics.Intel8259A;
+using static iXtal26.Ics.Intel8253;
 using static iXtal26.Sound.sound_speaker;
 using static iXtal26.Video.video;
 using static iXtal26.io;
@@ -52,7 +52,7 @@ internal static partial class keyboard_xt
 
     // pcem: keyboard_xt.c:28-41
     // CS0542: la globale `keyboard_xt` (keyboard_xt.c:41) ne peut pas porter le
-    // nom de la classe conteneur. Suffixe `_`, comme pic_ (pic.cs) et pit_ (pit.cs).
+    // nom de la classe conteneur. Suffixe `_`, comme pic_ (Intel8259A.cs) et pit_ (Intel8253.cs).
     internal static readonly keyboard_xt_t keyboard_xt_ = new();
 
     // pcem: keyboard_xt.c:43-44

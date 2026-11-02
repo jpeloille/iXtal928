@@ -12,6 +12,7 @@ using iXtal26.Cpu;
 using iXtal26.Models;
 using static iXtal26.Cpu.x86;
 using static iXtal26.Flash.rom;
+using iXtal26.Ics;
 
 namespace iXtal26.Video;
 
@@ -231,12 +232,12 @@ internal static partial class video
                 }
                 else
                 {
-                        video_timing_read_b = (int)(pit.bus_timing * timing.read_b);
-                        video_timing_read_w = (int)(pit.bus_timing * timing.read_w);
-                        video_timing_read_l = (int)(pit.bus_timing * timing.read_l);
-                        video_timing_write_b = (int)(pit.bus_timing * timing.write_b);
-                        video_timing_write_w = (int)(pit.bus_timing * timing.write_w);
-                        video_timing_write_l = (int)(pit.bus_timing * timing.write_l);
+                        video_timing_read_b = (int)(Intel8253.bus_timing * timing.read_b);
+                        video_timing_read_w = (int)(Intel8253.bus_timing * timing.read_w);
+                        video_timing_read_l = (int)(Intel8253.bus_timing * timing.read_l);
+                        video_timing_write_b = (int)(Intel8253.bus_timing * timing.write_b);
+                        video_timing_write_w = (int)(Intel8253.bus_timing * timing.write_w);
+                        video_timing_write_l = (int)(Intel8253.bus_timing * timing.write_l);
                 }
         }
         else if (video_timing[video_speed, 0] == VIDEO_ISA)
@@ -250,12 +251,12 @@ internal static partial class video
         }
         else
         {
-                video_timing_read_b = (int)(pit.bus_timing * video_timing[video_speed, 1]);
-                video_timing_read_w = (int)(pit.bus_timing * video_timing[video_speed, 2]);
-                video_timing_read_l = (int)(pit.bus_timing * video_timing[video_speed, 3]);
-                video_timing_write_b = (int)(pit.bus_timing * video_timing[video_speed, 1]);
-                video_timing_write_w = (int)(pit.bus_timing * video_timing[video_speed, 2]);
-                video_timing_write_l = (int)(pit.bus_timing * video_timing[video_speed, 3]);
+                video_timing_read_b = (int)(Intel8253.bus_timing * video_timing[video_speed, 1]);
+                video_timing_read_w = (int)(Intel8253.bus_timing * video_timing[video_speed, 2]);
+                video_timing_read_l = (int)(Intel8253.bus_timing * video_timing[video_speed, 3]);
+                video_timing_write_b = (int)(Intel8253.bus_timing * video_timing[video_speed, 1]);
+                video_timing_write_w = (int)(Intel8253.bus_timing * video_timing[video_speed, 2]);
+                video_timing_write_l = (int)(Intel8253.bus_timing * video_timing[video_speed, 3]);
         }
         // omitted: pclog("Video timing %i %i %i\n", …) (video.c:744) — sortie pure.
         if (cpu_16bitbus != 0)

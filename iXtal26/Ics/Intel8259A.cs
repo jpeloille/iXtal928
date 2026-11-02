@@ -6,11 +6,20 @@
 //         picint/picintlevel/picintc, picinterrupt, pic_intpending). Hors
 //         périmètre : ELCR et dumppic. Les compteurs Counters.n_picint et
 //         Counters.n_picinterrupt du stub de M1 sont conservés.
+//
+// noms: PCem → iXtal26 → ce qu'il désigne — R1(e). « = » : nom inchangé.
+//   pic.c       Ics/Intel8259A.cs   le fichier ; avant G14, Models/pic.cs
+//   (aucun)     Ics/Intel8259A.Materiel.cs  le mode matériel ; avant G14, Models/pic.Materiel.cs
+//   (aucun)     Intel8259A          le conteneur, Intel 8259A ; avant G14, la classe `pic` (iXtal26.Models)
+//   PIC         =                   la struct de ibm.h:144-150, l'état d'un 8259A ; espace iXtal26.Ics
+//   pic         pic_                le maître (pic.c:7) ; « _ » : `pic` était le nom du conteneur (CS0542)
+//   Les FONCTIONS et les autres globales gardent les noms de PCem (pic2, picint…) : elles sont l'API entre
+//   modules (fdc.cs:47 ; PLAN-G14.md, décision n° 1).
 
 using iXtal26.Diag;
 using static iXtal26.Cpu.x86;
 
-namespace iXtal26.Models;
+namespace iXtal26.Ics;
 
 // pcem: ibm.h:144-150
 internal sealed class PIC
@@ -22,7 +31,7 @@ internal sealed class PIC
     internal uint8_t level_sensitive;
 }
 
-internal static partial class pic
+internal static partial class Intel8259A
 {
     // omitted: `|| romset == ROM_XI8088` aux huit gardes AT (pic.c:14, 65, 299, 302,
     //          317, 338, 345, 359) — `romset` appartient à ibm.h:272 / pc.c, et le

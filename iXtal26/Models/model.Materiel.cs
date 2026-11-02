@@ -8,6 +8,8 @@
 // seules sur leur ligne. La source, le cas qui discrimine et la panne qui le rougit sont dans l'entrée PB de
 // PCEM_BUGS.md.
 
+using iXtal26.Ics;
+
 namespace iXtal26.Models;
 
 internal static partial class model_c
@@ -20,7 +22,7 @@ internal static partial class model_c
     //   déduit.
     private static void model_rafraichissement_materiel()
     {
-        pit.pit_set_out_func(pit.pit_, 1, pit.pit_refresh_timer_xt);
+        Intel8253.pit_set_out_func(Intel8253.pit_, 1, Intel8253.pit_refresh_timer_xt);
         ModeMateriel.Sonde[256]++;
     }
 

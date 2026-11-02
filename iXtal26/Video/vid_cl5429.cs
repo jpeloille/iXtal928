@@ -29,6 +29,7 @@ using static iXtal26.Video.vid_svga;
 using static iXtal26.Video.vid_svga_render;
 using static iXtal26.io;
 using static iXtal26.pc;
+using iXtal26.Ics;
 
 namespace iXtal26.Video;
 
@@ -704,7 +705,7 @@ internal static partial class vid_cl5429
                 vclk /= 3.0;
                 break;
         }
-        svga.clock = (pit.cpuclock * (float)(1UL << 32)) / vclk;
+        svga.clock = (Intel8253.cpuclock * (float)(1UL << 32)) / vclk;
 
         svga.vram_display_mask = ((svga.crtc[0x1b] & 2) != 0) ? gd5429.vram_mask : 0x3ffff;
     }

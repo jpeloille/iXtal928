@@ -35,6 +35,7 @@ using static iXtal26.Video.video;
 using static iXtal26.Video.vid_svga;
 using static iXtal26.Video.vid_svga_render;
 using static iXtal26.io;
+using iXtal26.Ics;
 
 namespace iXtal26.Video;
 
@@ -1463,7 +1464,7 @@ internal static partial class vid_s3
         if (svga.rowoffset == 0)
                 svga.rowoffset = 256;
         svga.interlace = svga.crtc[0x42] & 0x20;
-        svga.clock = (pit.cpuclock * (float)(1UL << 32)) / s3.getclock(clk_sel, s3.getclock_p);
+        svga.clock = (Intel8253.cpuclock * (float)(1UL << 32)) / s3.getclock(clk_sel, s3.getclock_p);
 
         switch (svga.crtc[0x67] >> 4)
         {

@@ -9,6 +9,7 @@
 // l'entrée PB de PCEM_BUGS.md.
 
 using iXtal26.Models;
+using iXtal26.Ics;
 
 namespace iXtal26.Sound;
 
@@ -20,7 +21,7 @@ internal static partial class sound_speaker
     //   déjà : la sortie est le carré de speakon, à 18,2 Hz, comme pour tout compte de 40h et plus.
     private static int16_t haut_parleur_materiel(int16_t val)
     {
-        if (pit.pit_.m[2] == 0 || pit.pit_.m[2] == 4 || pit.pit_.l[2] != 0)
+        if (Intel8253.pit_.m[2] == 0 || Intel8253.pit_.m[2] == 4 || Intel8253.pit_.l[2] != 0)
                 return val;
         ModeMateriel.Sonde[293]++;
         return speakon != 0 ? (int16_t)0x1400 : (int16_t)0;

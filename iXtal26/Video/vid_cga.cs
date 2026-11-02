@@ -25,6 +25,7 @@ using static iXtal26.PluginApi.device;
 using static iXtal26.Video.video;
 using static iXtal26.io;
 using static iXtal26.timer;
+using iXtal26.Ics;
 
 namespace iXtal26.Video;
 
@@ -158,7 +159,7 @@ internal static partial class vid_cga
         cga.vram[addr & 0x3fff] = val;
         if (cga.snow_enabled != 0)
         {
-                int offset = (int)(((timer_get_remaining_u64(cga.timer) / pit.CGACONST) * 2) & 0xfc);
+                int offset = (int)(((timer_get_remaining_u64(cga.timer) / Intel8253.CGACONST) * 2) & 0xfc);
                 cga.charbuffer[offset] = cga.vram[addr & 0x3fff];
                 cga.charbuffer[offset | 1] = cga.vram[addr & 0x3fff];
         }
@@ -173,7 +174,7 @@ internal static partial class vid_cga
         cycles -= 4;
         if (cga.snow_enabled != 0)
         {
-                int offset = (int)(((timer_get_remaining_u64(cga.timer) / pit.CGACONST) * 2) & 0xfc);
+                int offset = (int)(((timer_get_remaining_u64(cga.timer) / Intel8253.CGACONST) * 2) & 0xfc);
                 cga.charbuffer[offset] = cga.vram[addr & 0x3fff];
                 cga.charbuffer[offset | 1] = cga.vram[addr & 0x3fff];
         }
@@ -198,8 +199,8 @@ internal static partial class vid_cga
                 _dispontime = cga.crtc[1] << 1;
         }
         _dispofftime = disptime - _dispontime;
-        _dispontime *= pit.CGACONST;
-        _dispofftime *= pit.CGACONST;
+        _dispontime *= Intel8253.CGACONST;
+        _dispofftime *= Intel8253.CGACONST;
         // pcem bug, reproduced: PB-36 — même conversion d'un double négatif qu'à
         //   svga_recalctimings, dès que crtc[1] dépasse crtc[0] + 1 : GCC rend
         //   (uint64_t)(int64_t)x, C# saturerait à 0. Trouvé à M15 en relisant la VGA.

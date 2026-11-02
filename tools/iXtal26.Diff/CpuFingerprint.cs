@@ -14,6 +14,7 @@
 using iXtal26.Cpu;
 using iXtal26.Memory;
 using iXtal26.Models;
+using iXtal26.Ics;
 
 namespace iXtal26.Diff;
 
@@ -78,14 +79,14 @@ internal static class CpuFingerprint
         o[i++] = I(cpu_c.cpu_cycles_write_l);
         o[i++] = I(cpu_c.timing_misaligned);
         o[i++] = hash;
-        o[i++] = BitConverter.SingleToUInt32Bits(pit.cpuclock);
-        o[i++] = pit.PITCONST;
-        o[i++] = pit.CGACONST;
-        o[i++] = pit.RTCCONST;
+        o[i++] = BitConverter.SingleToUInt32Bits(Intel8253.cpuclock);
+        o[i++] = Intel8253.PITCONST;
+        o[i++] = Intel8253.CGACONST;
+        o[i++] = Intel8253.RTCCONST;
         o[i++] = timer.TIMER_USEC;
         o[i++] = _808x.xt_cpu_multi;
-        o[i++] = BitConverter.SingleToUInt32Bits(pit.isa_timing);
-        o[i++] = BitConverter.SingleToUInt32Bits(pit.bus_timing);
+        o[i++] = BitConverter.SingleToUInt32Bits(Intel8253.isa_timing);
+        o[i++] = BitConverter.SingleToUInt32Bits(Intel8253.bus_timing);
         o[i++] = I(Video.video.video_timing_read_b);
         o[i++] = I(Video.video.video_timing_read_w);
         o[i++] = I(Video.video.video_timing_read_l);

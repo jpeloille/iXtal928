@@ -228,13 +228,13 @@ internal static partial class MaterielCas
             iXtal26.io.inb(R9Aha.P + 1);
             for (var i = 0; i < 100 && (R9Aha.Isr() & HACC) == 0; i++)
                 pc.runpc();
-            var avant = (Models.pic.pic2.pend & 0x04) != 0;
+            var avant = (Ics.Intel8259A.pic2.pend & 0x04) != 0;
             R9Aha.Cmd(SetEeprom(1, octet1));
             for (var i = 0; i < 100 && (R9Aha.Etat() & 0x10) == 0; i++)
                 pc.runpc();
-            var (i10, i11) = ((Models.pic.pic2.pend & 0x04) != 0, (Models.pic.pic2.pend & 0x08) != 0);
+            var (i10, i11) = ((Ics.Intel8259A.pic2.pend & 0x04) != 0, (Ics.Intel8259A.pic2.pend & 0x08) != 0);
             iXtal26.io.outb(R9Aha.P, 0x20);
-            var irst = (Models.pic.pic2.pend & 0x08) != 0;
+            var irst = (Ics.Intel8259A.pic2.pend & 0x08) != 0;
             var vu = $"IRQ 10 {(avant ? "levée" : "basse")} avant, puis {(i10 ? "levée" : "basse")}, IRQ 11 {(i11 ? "levée" : "basse")}, " +
                      $"puis {(irst ? "levée" : "basse")} après IRST";
             var att = $"IRQ 10 levée avant, puis {(dix ? "levée" : "basse")}, IRQ 11 {(onze ? "levée" : "basse")}, puis basse après IRST";

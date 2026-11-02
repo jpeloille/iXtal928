@@ -949,7 +949,7 @@ public static class BootDiff
         var ahaCsharp = new ulong[Oracle.AhaProbeN];
         Scsi.scsi_aha1540.Probe(ahaCsharp);
         var dmaCsharp = new ulong[Oracle.DmaProbeN];
-        Models.dma.ProbeState(dmaCsharp);
+        Ics.Intel8237.ProbeState(dmaCsharp);
         var emuCsharp = new ulong[Oracle.Emu8kProbeN];
         Sound.sound_emu8k.Probe(emuCsharp);
         var stockCsharp = (new ulong[Oracle.AtapiProbeN], new ulong[Oracle.CdDataProbeN], new ulong[Oracle.ZipProbeN],
@@ -1792,7 +1792,7 @@ public static class BootDiff
         for (var t = 0; t < 3; t++)
         {
             Oracle.h_pit_probe(t, oc);
-            iXtal26.Models.pit.Probe(t, cs);
+            iXtal26.Ics.Intel8253.Probe(t, cs);
 
             var diff = new List<string>();
             for (var f = 0; f < PitFields.Length; f++)
@@ -2214,7 +2214,7 @@ public static class BootDiff
         for (var t = 0; t < 3; t++)
         {
             Oracle.h_pit_probe(t, oc);
-            iXtal26.Models.pit.Probe(t, cs);
+            iXtal26.Ics.Intel8253.Probe(t, cs);
             for (var f = 0; f < PitFields.Length; f++)
                 if (oc[f] != cs[f])
                     return true;
@@ -2234,7 +2234,7 @@ public static class BootDiff
         for (var t = 0; t < 3; t++)
         {
             Oracle.h_pit_probe(t, oc);
-            iXtal26.Models.pit.Probe(t, cs);
+            iXtal26.Ics.Intel8253.Probe(t, cs);
 
             var same = true;
             for (var f = 0; f < PitFields.Length; f++) same &= oc[f] == cs[f];

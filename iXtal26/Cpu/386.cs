@@ -477,9 +477,9 @@ internal static partial class _386
                         // masquee entre-temps, ou un acquittement spontane. Prendre le
                         // vecteur 0xFF serait sauter dans la table par son dernier
                         // emplacement.
-                        else if ((cpu_state.flags & I_FLAG) != 0 && Models.pic.pic_intpending != 0)
+                        else if ((cpu_state.flags & I_FLAG) != 0 && Ics.Intel8259A.pic_intpending != 0)
                         {
-                                var temp = Models.pic.picinterrupt();
+                                var temp = Ics.Intel8259A.picinterrupt();
                                 if (temp != 0xFF)
                                 {
                                         flags_rebuild();

@@ -9,8 +9,10 @@
 ## Où on en est
 
 G14.0a à G14.0d sont faites : la référence est gelée au commit R = `f15e11f` (`/var/tmp/ixtal-g14/ref-R`, séries
-`g14r` et `g14r-tout`, VERIFICATION.md § G14.0d), les outils de la preuve sont en place. Rien n'est encore renommé ;
-G14.1 attend son feu vert.
+`g14r` et `g14r-tout`, VERIFICATION.md § G14.0d), les outils de la preuve sont en place. G14.1 est faite : `pic`,
+`pit` et `dma` sont `Intel8259A`, `Intel8253` et `Intel8237`, dans `Ics/` (VERIFICATION.md § G14.1). Le runtime est
+passé à 10.0.14 le 31/10 : la référence a été réancrée (§ G14.1, le réancrage), sans rien reconstruire. G14.2 attend
+son feu vert.
 
 ### Ce que les lectures ont trouvé
 
@@ -189,7 +191,7 @@ est plus grossière que l'écart que le plan exige, c'est dit, et les listings p
 **Porte :** R remesuré contre lui-même, vert.
 **Contrôle négatif :** l'outil lancé contre un worktree à un autre commit le refuse, par l'empreinte de la DLL.
 
-### G14.1 — Le 8259A, le 8253 et le 8237
+### G14.1 — Le 8259A, le 8253 et le 8237  ✅ *fait, VERIFICATION.md § G14.1*
 
 `pic` → `Intel8259A`, `pit` → `Intel8253`, `dma` → `Intel8237`, avec leurs `.Materiel.cs`, dans `Ics/` et dans
 l'espace de noms `iXtal26.Ics`.
@@ -249,8 +251,10 @@ ceux qui les exercent.
 - les passes du banc et leurs résolutions ;
 - le sort du 6845 : aucun module en G14 (Q36, tranchée le 23/10).
 
-S'y ajoutent les deux commentaires du harnais qui citent `nvr.cs` et `keyboard_at.cs`
-(`harness.c:2092`, `harness_stubs.c:172`), corrigés avec `check-oracle.sh --fix`. La `.so` est reconstruite, égale
+S'y ajoutent les commentaires du harnais qui citent un fichier ou une classe C# renommés : `nvr.cs` et
+`keyboard_at.cs` (`harness.c:2092`, `harness_stubs.c:172`), et, depuis G14.1, `Models.pit.Probe()` et
+`Models.dma.ProbeState` (`harness.c:2757`, `harness.h:458`, `harness_dma.c:24`), corrigés avec
+`check-oracle.sh --fix`. La `.so` est reconstruite, égale
 hors débogage, comme en GR.4e. `PLAN.md` dit « G14 est fait » et met [ICI] avant G15.
 
 ## La vérification
@@ -259,7 +263,12 @@ hors débogage, comme en GR.4e. `PLAN.md` dit « G14 est fait » et met [ICI] av
 - **Les séries** : entières, dans les deux modes, identiques à l'unité à celles du commit R après normalisation ;
   l'émulateur change à chaque renommage, la règle du dépôt les demande donc entières.
 - **Le banc** : contre le binaire figé R, jamais contre le commit précédent, selon le protocole de G14.0b ;
-  `compare-ref.sh --empreintes-r` et `--lancees-r` avec le gel de `/var/tmp/ixtal-g14/gel-R/` (G14.0d).
+  `compare-ref.sh --empreintes-r` et `--lancees-r` avec le gel du runtime du jour : `/var/tmp/ixtal-g14/gel-R/`
+  (10.0.13, G14.0d), `/var/tmp/ixtal-g14/gel-R-10.0.14/` (10.0.14, G14.1 ; le même à l'octet).
+- **Le runtime** : une mise à jour d'apt de .NET entre deux étapes demande le réancrage de VERIFICATION.md § G14.1 :
+  ref-R revérifié (sha256 de bin/, manifeste, `git status`), le gel du lancé refait par une porte R contre R, les
+  listings de R recapturés sous le runtime neuf (`/var/tmp/ixtal-g14/ref-R-captures-<version>/`), sans rien
+  reconstruire ; l'IL n'en dépend pas.
 - **Rien d'autre ne change** : avant chaque étape, aucun commit hors `g14:` depuis R sur ce que la série et le banc
   lisent, et rien de non commité (la vérification de VERIFICATION.md § G14.0d).
 - **L'oracle** : sa `.so` inchangée de G14.0d à G14.4.

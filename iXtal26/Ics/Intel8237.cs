@@ -9,12 +9,23 @@
 //         sont transcrites en entier (dma16_wp, dma16_command, dma_ps2,
 //         dma_t.ps2_mode). N'est plus omis que le PS/2, marqué sur place.
 //         Cette ligne disait « seuls les HANDLERS 16 bits et PS/2 sont omis ».
+//
+// noms: PCem → iXtal26 → ce qu'il désigne — R1(e). « = » : nom inchangé.
+//   dma.c       Ics/Intel8237.cs    le fichier ; avant G14, Models/dma.cs
+//   (aucun)     Ics/Intel8237.Materiel.cs  le mode matériel ; avant G14, Models/dma.Materiel.cs
+//   (aucun)     Intel8237           le conteneur, Intel 8237A, les deux exemplaires de l'AT ; avant G14, la classe
+//                                   `dma` (iXtal26.Models)
+//   dma_t       =                   la struct de ibm.h:117-131, l'état d'un canal ; espace iXtal26.Ics
+//   dma[]       dma_[]              les huit canaux (dma.c:11) ; « _ » : `dma` était le nom du conteneur
+//   Les FONCTIONS et les autres globales gardent les noms de PCem (dma16_read, dma_channel_read…) :
+//   elles sont l'API entre modules (fdc.cs:47 ; PLAN-G14.md, décision n° 1). Les étiquettes de la sonde
+//   (`"dma[{c}]…"`, BootDiff.cs) sont des chaînes : elles gardent les noms du C.
 
 using iXtal26.Cpu;
 using iXtal26.Memory;
 using static iXtal26.Cpu.x86;
 
-namespace iXtal26.Models;
+namespace iXtal26.Ics;
 
 // pcem: ibm.h:117-131
 internal sealed class dma_t
@@ -34,7 +45,7 @@ internal sealed class dma_t
     internal uint16_t io_addr;
 }
 
-internal static partial class dma
+internal static partial class Intel8237
 {
     // CS0414 RETIRÉ À B3. Cette classe portait `#pragma warning disable CS0414` parce
     // que dma16_wp était écrit sans jamais être relu : le 5150 n'a que le DMA 8 bits.

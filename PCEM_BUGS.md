@@ -210,8 +210,13 @@ corresponding IRR bit is reset » ; rien d'autre ne bouge dans l'IRR du maître.
 05h et esclave 01h (OCW3 0Ah) ; STI. PCem sert 70h et perd l'IRQ 0 (l'IRR maître relu 00h) ; PB-05 seul corrigé,
 70h puis 08h ; avec PB-246, 08h puis 70h.
 *G13* : (a) — dans un 8259A selon la fiche, avec PB-246 et PB-247 ; PB-06 et PB-13 y sont absorbés.
-*Reproduit* : `Models/pic.cs`, `picinterrupt`, marqueur `fixed in hardware mode: PB-05`.
-*Corrigé en mode matériel* (G13.4) : sous `if (materiel.pb_05)`, `picinterrupt` passe la main à `picinterrupt_materiel` (`Models/pic.Materiel.cs`), un acquittement selon la fiche où chaque correction du 8259 ne vaut que si on la demande ; avec PB-05, servir l'esclave ne touche pas à l'IRR du maître, dont la cascade est recalculée par `pic_updatepending`. `materiel-cas PB-05` (AT, l'IRQ 0 masquée mais en attente, l'IRQ 8 : 70h, puis l'IRR du maître) rend 00h en mode PCem, 01h en mode matériel, la sonde comptant la correction ; la correction coupée (`--attendu materiel` en mode PCem), il rougit. PICBANC sur l'IBM AT, PB-05 seul : l'ordre de service « R T » au lieu de « R » ; avec PB-246, « T R ».
+*Reproduit* : `Ics/Intel8259A.cs`, `picinterrupt`, marqueur `fixed in hardware mode: PB-05`.
+*Corrigé en mode matériel* (G13.4) : sous `if (materiel.pb_05)`, `picinterrupt` passe la main à `picinterrupt_materiel`
+(`Ics/Intel8259A.Materiel.cs`), un acquittement selon la fiche où chaque correction du 8259 ne vaut que si on la demande
+; avec PB-05, servir l'esclave ne touche pas à l'IRR du maître, dont la cascade est recalculée par `pic_updatepending`.
+`materiel-cas PB-05` (AT, l'IRQ 0 masquée mais en attente, l'IRQ 8 : 70h, puis l'IRR du maître) rend 00h en mode PCem,
+01h en mode matériel, la sonde comptant la correction ; la correction coupée (`--attendu materiel` en mode PCem), il
+rougit. PICBANC sur l'IBM AT, PB-05 seul : l'ordre de service « R T » au lieu de « R » ; avec PB-246, « T R ».
 
 ### PB-06 — `pic.c:39` écrit `pic.mask2` dans le bloc `pic2`
 
@@ -226,7 +231,7 @@ mise sous tension n'est pas défini. Documenté.
 *Cas qui discrimine* : aucun — seule une sonde du PIC (`pic2.mask2` après un `pic_reset` pendant une IRQ de
 l'esclave) le verrait.
 *G13* : (d) — sans effet observable, et `pic_reset` modélise une mise sous tension, où toute valeur se vaut ; en C.
-*Reproduit* : `Models/pic.cs`, `pic_reset`, marqueur PB-06 (`:72`).
+*Reproduit* : `Ics/Intel8259A.cs`, `pic_reset`, marqueur PB-06 (`:72`).
 *Non corrigé en mode matériel* : sans objet, (d), comme le dit le champ *G13*.
 
 ### PB-14 — `disc_set_rate` : le cas 1 retombe dans le cas 2
@@ -1276,7 +1281,7 @@ Microsoft ou Borland) n'est jamais appelé.
 FLDZ ; FDIVP → PCem : ni NMI ni IRQ (la demande est jetée), silicium : le gestionnaire d'INT 2 s'exécute ; A0h = 00h :
 rien des deux côtés.
 *G13* : (a) — G13.6, l'acheminement, avec ZE seule ; SW1 : déduit ; la NMI sur front (D2-contre A7).
-*Reproduit* en mode PCem : `Models/pic.cs` (`picint`, inchangé) et `Cpu/x87_ops.cs` (`x87_div`, partagé par
+*Reproduit* en mode PCem : `Ics/Intel8259A.cs` (`picint`, inchangé) et `Cpu/x87_ops.cs` (`x87_div`, partagé par
 les deux instanciations, marqueur PB-69) ; marqueur PB-69 à l'aiguillage des ESC, `Cpu/808x.cs` (`case 0xd8`).
 *Corrigé en mode matériel* (G13.6c, avec PB-59) : sur le 8087, `exception_demasquee` pose `nmi` si IEM est nul, sans
 IRQ13 ; le 808x prend la NMI si le port A0h l'ouvre, et la consomme (garde dans `execx86`, une NMI par front : déduit).
@@ -3537,12 +3542,12 @@ figure 6 (lectures « Illegal ») ; AT TR p. 1-14. Documenté ; la valeur d'une 
 transfère rien jusqu'à OUT D0h,00h. OUT DAh,5Ah (un master clear) puis IN AL,DAh : PCem 5Ah ; le 8237A 00h.
 *G13* : (a) la commande et DAh, sans dépendre du master clear ; (c) les lectures illégales et les bits de requête :
 inscrits à part en G13.4, PB-259, pour que la part (a) se corrige seule.
-*Reproduit* en mode PCem : `Models/dma.cs` (transcrit dès B3), marqueurs `fixed in hardware mode: PB-157` :
+*Reproduit* en mode PCem : `Ics/Intel8237.cs` (transcrit dès B3), marqueurs `fixed in hardware mode: PB-157` :
 `dma16_write` (la commande) et `dma16_read` (DAh) ; SB16BANC relit D0h, DAh et DEh, et la sonde du DMA compare l'état.
 *Corrigé en mode matériel* (G13.4) : sous `if (materiel.pb_157)`, la commande du 8237 haut est rangée
 (`dma16_command_materiel`), et son bit 2 refuse les transferts des canaux 4 à 7, comme celui du bas ; DAh se lit sur
 le temporaire, nul hors du transfert de mémoire à mémoire, que ni PCem ni le mode ne font (`dma_temporaire_materiel`,
-`Models/dma.Materiel.cs`). `materiel-cas PB-157` (AT : OUT D0h,04h puis un transfert du canal 5 ; OUT DAh,5Ah puis
+`Ics/Intel8237.Materiel.cs`). `materiel-cas PB-157` (AT : OUT D0h,04h puis un transfert du canal 5 ; OUT DAh,5Ah puis
 IN DAh) rend « fait » et 5Ah en mode PCem, « refusé » et 00h en mode matériel ; la correction coupée, il rougit.
 DMABANC, sur l'AT : le 8237 haut désactivé retient la requête du canal 1 (avec PB-253), et DAh rend 00h.
 
@@ -5832,8 +5837,11 @@ Documenté.
 *Cas qui discrimine* : PICBANC (à écrire), ibmat, CLI : l'IRQ 0 (le PIT) et l'IRQ 9 (la SB Pro v2 en IRQ 2, F2h au
 DSP) en attente, relues à l'IRR (OCW3 0Ah) ; STI. PCem sert 71h puis 08h ; le 8259A, 08h puis 71h.
 *G13* : (a) — avec PB-05 et PB-247, dans un `picinterrupt` selon la fiche.
-*Reproduit* : `Models/pic.cs`, `picinterrupt`, marqueur `fixed in hardware mode: PB-246`.
-*Corrigé en mode matériel* (G13.4) : sous `if (materiel.pb_246)`, `picinterrupt_materiel` (`Models/pic.Materiel.cs`) ne teste la cascade qu'à son rang, IR2 ; une cascade sans demande servable passe au niveau suivant. `materiel-cas PB-246` (AT, l'IRQ 0 et l'IRQ 9, deux acquittements) rend 71h puis 08h en mode PCem, 08h puis 71h en mode matériel ; la correction coupée, il rougit. PICBANC sur l'IBM AT, PB-246 seul : « T R » au lieu de « R ».
+*Reproduit* : `Ics/Intel8259A.cs`, `picinterrupt`, marqueur `fixed in hardware mode: PB-246`.
+*Corrigé en mode matériel* (G13.4) : sous `if (materiel.pb_246)`, `picinterrupt_materiel` (`Ics/Intel8259A.Materiel.cs`)
+ne teste la cascade qu'à son rang, IR2 ; une cascade sans demande servable passe au niveau suivant.
+`materiel-cas PB-246` (AT, l'IRQ 0 et l'IRQ 9, deux acquittements) rend 71h puis 08h en mode PCem, 08h puis 71h en mode
+matériel ; la correction coupée, il rougit. PICBANC sur l'IBM AT, PB-246 seul : « T R » au lieu de « R ».
 
 ### PB-247 — Le masque de service du 8259 est ignoré
 
@@ -5850,8 +5858,8 @@ inhibited » ; p. 18, « in the normal nested mode a slave is masked out when it
 *Cas qui discrimine* : PICBANC (à écrire), 5150 : INT 1Ch détourné, qui fait STI et attend une frappe injectée.
 PCem : INT 09h s'exécute dans INT 1Ch, avant l'EOI de l'IRQ 0 ; le 8259A : seulement après cet EOI.
 *G13* : (a) — (a) est propre au 808x, dans `IRQTEST`, un chemin chaud ; (b) ne se voit que par PB-246.
-*Reproduit* : `Models/pic.cs`, `picinterrupt`, marqueur `fixed in hardware mode: PB-247` ; `Cpu/808x.cs`, `IRQTEST` et
-`takeint`, de même.
+*Reproduit* : `Ics/Intel8259A.cs`, `picinterrupt`, marqueur `fixed in hardware mode: PB-247` ; `Cpu/808x.cs`, `IRQTEST`
+et `takeint`, de même.
 *Corrigé en mode matériel* (G13.4) : sous `if (materiel.pb_247)`, `picinterrupt_materiel` choisit hors du masque de service (`mask2`), au maître comme à l'esclave ; sur le 8088, `IRQTEST` et `takeint` passent par `irqtest_materiel` et `takeint_materiel` (`Cpu/808x.Materiel.cs`), qui retirent aussi `mask2` : sans cela, une chaîne REP s'arrêterait sans fin pour une IRQ que le 8259A retient. Le 286 et ses successeurs acceptaient déjà sur `pic_intpending`, qui tient compte de `mask2`. `materiel-cas PB-247` (XT, IR0 en service, l'IRQ 1 en attente : l'acquittement, puis le 8088 sous IF = 1) rend 09h et l'entrée dans INT 09h en mode PCem, FFh et le 8088 dans son code en mode matériel ; la correction coupée, il rougit. PICBANC sur l'XT : dans l'INT 08h, IR0 en service, sous STI, une seule entrée au lieu de 14h (avec PB-248, qui garde l'ISR que « no operation » effaçait).
 
 ### PB-248 — Les rotations, la priorité et « sans opération » du 8259 font un EOI ; ni poll ni masque spécial
@@ -5869,8 +5877,20 @@ rotations automatique et spécifique, Poll Command, Special Mask Mode. Document�
 *Cas qui discrimine* : dans l'INT 08h (IR0 en service), OCW2 40h, puis OCW3 0Bh et IN 20h : PCem 00h, l'ISR effacé ;
 le 8259A 01h. Poll, une IRQ n en attente : OCW3 0Ch puis IN 20h, le 8259A rend 80h + n ; PCem, l'IRR ou l'ISR.
 *G13* : (a) — documenté, vérifiable en C# seul ; aucun BIOS du dépôt pour témoin.
-*Reproduit* : `Models/pic.cs`, `pic_write` et `pic2_write`, marqueurs `fixed in hardware mode: PB-248` (l'OCW2 et l'OCW3).
-*Corrigé en mode matériel* (G13.4) : sous `if (materiel.pb_248)`, l'OCW2 (`pic_ocw2_materiel`) distingue les huit formes de la figure 8 (fin non spécifique, spécifique, « no operation », rotations en fin automatique et aux fins, priorité posée) ; l'OCW3 (`pic_ocw3_materiel`) ajoute le poll et le masque spécial ; la lecture qui suit un poll rend 80h + le niveau et l'acquitte (`pic_poll_lire_materiel`) ; ICW1 et la mise sous tension remettent IR7 au plus bas, le masque spécial, la rotation et le poll (`Models/pic.Materiel.cs`). L'état que PCem ne tient pas (le niveau le plus bas, le masque spécial, la rotation automatique, le poll en attente) vit dans `pic.Materiel.cs`, par contrôleur ; le masque de service tient compte de la rotation et du masque spécial. `picinterrupt_materiel` parcourt les niveaux dans l'ordre tourné. `materiel-cas PB-248` (XT : 40h puis l'ISR ; le poll ; la priorité C1h ; AT : le masque spécial et la demande vue par le processeur) rend la valeur de PCem en mode PCem, celle de la fiche en mode matériel ; la correction coupée, il rougit. PICBANC : le poll 80h et l'ISR 01h, « no operation » 01h. Le masque de service recalculé à la mise sous tension remet aussi celui de l'esclave, que PCem oublie (PB-06), et la fin spécifique d'IR2 teste le niveau, que PCem compare à `val` (PB-13).
+*Reproduit* : `Ics/Intel8259A.cs`, `pic_write` et `pic2_write`, marqueurs `fixed in hardware mode: PB-248`
+(l'OCW2 et l'OCW3).
+*Corrigé en mode matériel* (G13.4) : sous `if (materiel.pb_248)`, l'OCW2 (`pic_ocw2_materiel`) distingue les huit formes
+de la figure 8 (fin non spécifique, spécifique, « no operation », rotations en fin automatique et aux fins, priorité
+posée) ; l'OCW3 (`pic_ocw3_materiel`) ajoute le poll et le masque spécial ; la lecture qui suit un poll rend 80h + le
+niveau et l'acquitte (`pic_poll_lire_materiel`) ; ICW1 et la mise sous tension remettent IR7 au plus bas, le masque
+spécial, la rotation et le poll (`Ics/Intel8259A.Materiel.cs`). L'état que PCem ne tient pas (le niveau le plus bas, le
+masque spécial, la rotation automatique, le poll en attente) vit dans `Intel8259A.Materiel.cs`, par contrôleur ; le
+masque de service tient compte de la rotation et du masque spécial. `picinterrupt_materiel` parcourt les niveaux dans
+l'ordre tourné. `materiel-cas PB-248` (XT : 40h puis l'ISR ; le poll ; la priorité C1h ; AT : le masque spécial et la
+demande vue par le processeur) rend la valeur de PCem en mode PCem, celle de la fiche en mode matériel ; la correction
+coupée, il rougit. PICBANC : le poll 80h et l'ISR 01h, « no operation » 01h. Le masque de service recalculé à la mise
+sous tension remet aussi celui de l'esclave, que PCem oublie (PB-06), et la fin spécifique d'IR2 teste le niveau, que
+PCem compare à `val` (PB-13).
 
 ### PB-249 — Le Clear Mask du 8237 (0Eh, DCh) est sans effet
 
@@ -5884,9 +5904,9 @@ p. 1-14, DCh « Clear Mask Register ». Documenté.
 *Cas qui discrimine* : OUT 0Fh,0Fh (les quatre masques posés), OUT 0Eh,00h, puis un transfert sur le canal 2 : PCem
 `DMA_NODATA` (masqué) ; le 8237A le fait. Sur l'AT, OUT DEh,0Fh puis OUT DCh,00h : de même pour les canaux 4 à 7.
 *G13* : (a) — avec PB-157 et les autres voisins du 8237, dans un 8237 selon la fiche.
-*Reproduit* en mode PCem : `Models/dma.cs`, `dma_write` et `dma16_write`, marqueurs `fixed in hardware mode: PB-249`.
+*Reproduit* en mode PCem : `Ics/Intel8237.cs`, `dma_write` et `dma16_write`, marqueurs `fixed in hardware mode: PB-249`.
 *Corrigé en mode matériel* (G13.4) : sous `if (materiel.pb_249)`, une écriture en 0Eh ou en DCh efface les quatre
-masques du contrôleur (`dma_clear_mask_materiel`, `Models/dma.Materiel.cs`). `materiel-cas PB-249` (OUT 0Fh,0Fh,
+masques du contrôleur (`dma_clear_mask_materiel`, `Ics/Intel8237.Materiel.cs`). `materiel-cas PB-249` (OUT 0Fh,0Fh,
 OUT 0Eh,00h, un transfert du canal 2 ; OUT DEh,0Fh, OUT DCh,00h, un transfert du canal 5) rend « refusé » deux fois en
 mode PCem, « fait » deux fois en mode matériel ; la correction coupée, il rougit. DMABANC : sur l'XT, le
 rafraîchissement du canal 0 reprend après Clear Mask (01h au lieu de 00h) ; sur l'AT, Clear Mask au 8237 haut
@@ -5905,10 +5925,10 @@ EOP externe, et en entier par un Reset ; figure 6 (p. 9), « Write Request Regis
 *Cas qui discrimine* : XT, le canal 1 en bloc et en vérification (mode 81h), compte 0003h, démasqué ; OUT 09h,05h. Le
 8237A fait quatre cycles : l'état (08h) rend 02h, le compte FFFFh ; PCem rien (état 00h, compte 0003h).
 *G13* : (a) — documenté ; demande un moteur de transfert propre au mode matériel.
-*Reproduit* en mode PCem : `Models/dma.cs`, `dma_write` et `dma16_write`, marqueurs `fixed in hardware mode: PB-250`.
+*Reproduit* en mode PCem : `Ics/Intel8237.cs`, `dma_write` et `dma16_write`, marqueurs `fixed in hardware mode: PB-250`.
 *Corrigé en mode matériel* (G13.4) : sous `if (materiel.pb_250)`, une écriture en 09h ou en D2h pose ou efface la
 requête logicielle d'un canal (`dma_requete_materiel`), et les requêtes en attente se servent avant tout accès aux
-registres des deux 8237 (`dma_servir_materiel`, `Models/dma.Materiel.cs`) : non masquables, en mode bloc seulement,
+registres des deux 8237 (`dma_servir_materiel`, `Ics/Intel8237.Materiel.cs`) : non masquables, en mode bloc seulement,
 jusqu'au TC (N + 1 transferts, l'adresse avancée ou reculée d'autant), puis l'auto-initialisation ou le masque posé,
 le bit TC de l'état et la requête effacée. Un contrôleur désactivé, ou un canal du bas que la cascade ne sert pas
 (PB-253), les garde en attente. La vérification et la lecture ne touchent pas la mémoire ; l'écriture non plus : la
@@ -5932,9 +5952,9 @@ Temporary, and Internal First/Last Flip-Flop registers are cleared and the Mask 
 disquette par INT 13h : PCem la refuse (`DMA_NODATA`, le contrôleur reste désactivé) ; le 8237A la fait. L'état relu
 après un TC puis un master clear : PCem garde le bit TC ; le 8237A rend 00h.
 *G13* : (a) — documenté ; facultatif pour PB-157, que les BIOS du dépôt ne mettent pas en défaut.
-*Reproduit* en mode PCem : `Models/dma.cs`, `dma_write` et `dma16_write`, marqueurs `fixed in hardware mode: PB-251`.
+*Reproduit* en mode PCem : `Ics/Intel8237.cs`, `dma_write` et `dma16_write`, marqueurs `fixed in hardware mode: PB-251`.
 *Corrigé en mode matériel* (G13.4) : sous `if (materiel.pb_251)`, le master clear d'un contrôleur efface aussi sa
-commande, ses bits de l'état et ses requêtes (`dma_master_clear_materiel`, `Models/dma.Materiel.cs`) ; le temporaire
+commande, ses bits de l'état et ses requêtes (`dma_master_clear_materiel`, `Ics/Intel8237.Materiel.cs`) ; le temporaire
 reste nul. `materiel-cas PB-251` (le canal 2 au TC, OUT 08h,04h, OUT 0Dh : l'état ; puis le canal 2 démasqué, un
 transfert) rend 04h et « refusé » en mode PCem, 00h et « fait » en mode matériel ; la correction coupée, il rougit.
 DMABANC : le 8237 bas désactivé puis remis à zéro sert la requête du canal 1 (FFFFh, avec PB-250).
@@ -5952,9 +5972,9 @@ Mask register » ; p. 8, « The entire register is also set by a Reset ». Docum
 *Cas qui discrimine* : en C# seul, `dma_reset`, puis le mode du canal 2 posé en écriture (46h) sans toucher au masque,
 et `dma_channel_write(2, …)` : PCem fait le transfert ; le 8237A rend `DMA_NODATA` (le canal masqué).
 *G13* : (a) — documenté, vérifiable en C# seul ; aucun BIOS du dépôt pour témoin.
-*Reproduit* en mode PCem : `Models/dma.cs`, `dma_reset`, marqueur `fixed in hardware mode: PB-252`.
+*Reproduit* en mode PCem : `Ics/Intel8237.cs`, `dma_reset`, marqueur `fixed in hardware mode: PB-252`.
 *Corrigé en mode matériel* (G13.4) : sous `if (materiel.pb_252)`, le reset pose les huit masques et efface les deux
-commandes, l'état et les requêtes (`dma_reset_materiel`, `Models/dma.Materiel.cs`). `materiel-cas PB-252` (le canal 2
+commandes, l'état et les requêtes (`dma_reset_materiel`, `Ics/Intel8237.Materiel.cs`). `materiel-cas PB-252` (le canal 2
 au TC, `dma_reset` : l'état ; le mode reposé, un transfert) rend 04h et « fait » en mode PCem, 00h et « refusé » en
 mode matériel ; la correction coupée, il rougit. Les POST des machines du dépôt n'en changent pas : chaque BIOS
 démasque ses canaux avant de s'en servir.
@@ -5973,12 +5993,12 @@ en cascade). Documenté par composition.
 *Cas qui discrimine* : ibmat, OUT D4h,04h (le canal 4 masqué), puis une lecture de disquette par INT 13h : PCem la
 fait ; l'AT la bloque (le 8237 bas n'obtient pas le bus) jusqu'au démasquage.
 *G13* : (a) — documenté par composition ; avec PB-157 (la commande du haut) et PB-251.
-*Reproduit* en mode PCem : `Models/dma.cs`, `dma_channel_read` et `dma_channel_write`, marqueurs `fixed in hardware
+*Reproduit* en mode PCem : `Ics/Intel8237.cs`, `dma_channel_read` et `dma_channel_write`, marqueurs `fixed in hardware
 mode: PB-253`. La 1542C (`Scsi/scsi_aha1540.cs`) est hors du domaine de la carte mère : ses sites sont inscrits à part
 en G13.4, PB-260, au domaine du stockage.
 *Corrigé en mode matériel* (G13.4) : sous `if (materiel.pb_253)`, sur l'AT, un canal 0 à 3 n'a le bus que si le canal
 4 n'est pas masqué, s'il est en mode cascade (C0h) et si le 8237 haut n'est pas désactivé (`dma_cascade_materiel`,
-`Models/dma.Materiel.cs`) ; sinon le transfert est refusé, comme par la commande du bas. La commande du haut n'est
+`Ics/Intel8237.Materiel.cs`) ; sinon le transfert est refusé, comme par la commande du bas. La commande du haut n'est
 rangée qu'avec PB-157. `materiel-cas PB-253` (AT, le canal 4 en cascade : un transfert du canal 2 ; le canal 4 masqué ;
 le canal 4 démasqué en mode simple) rend « fait » trois fois en mode PCem, « fait » puis « refusé » deux fois en mode
 matériel ; la correction coupée, il rougit. DMABANC, sur l'AT : le canal 4 masqué retient la requête du canal 1.
@@ -6026,8 +6046,12 @@ choisi, au lieu de l'IRR. Les lectures de 20h des ROM du dépôt suivent toutes 
 *Cas qui discrimine* : OCW3 0Bh (l'ISR), puis ICW1 à ICW4 du maître, OCW1 FFh, un tic du PIT en attente ; IN 20h :
 PCem 00h (l'ISR) ; le 8259A 01h (l'IRR, que l'IMR n'affecte pas).
 *G13* : (a) — documenté, vérifiable en C# seul ; l'effet sur les logiciels est inconnu.
-*Reproduit* : `Models/pic.cs`, `pic_reset`, `pic_write` et `pic2_write`, marqueurs `fixed in hardware mode: PB-255`.
-*Corrigé en mode matériel* (G13.4) : sous `if (materiel.pb_255)`, ICW1 remet la lecture sur l'IRR (`pic_icw1_255_materiel`), et la mise sous tension aussi, aux deux contrôleurs (`pic_reset_255_materiel`, `Models/pic.Materiel.cs`). `materiel-cas PB-255` (XT : OCW3 0Bh, ICW1 à ICW4, OCW1 FFh, une IRQ 0 en attente, IN 20h ; AT : la mise sous tension, IN 20h et IN A0h) rend 00h, puis 00h et 00h en mode PCem, 01h, puis 01h et 01h en mode matériel ; la correction coupée, il rougit. PICBANC : le premier relevé, 01h au lieu de 00h.
+*Reproduit* : `Ics/Intel8259A.cs`, `pic_reset`, `pic_write` et `pic2_write`, marqueurs `fixed in hardware mode: PB-255`.
+*Corrigé en mode matériel* (G13.4) : sous `if (materiel.pb_255)`, ICW1 remet la lecture sur l'IRR
+(`pic_icw1_255_materiel`), et la mise sous tension aussi, aux deux contrôleurs (`pic_reset_255_materiel`,
+`Ics/Intel8259A.Materiel.cs`). `materiel-cas PB-255` (XT : OCW3 0Bh, ICW1 à ICW4, OCW1 FFh, une IRQ 0 en attente, IN 20h
+; AT : la mise sous tension, IN 20h et IN A0h) rend 00h, puis 00h et 00h en mode PCem, 01h, puis 01h et 01h en mode
+matériel ; la correction coupée, il rougit. PICBANC : le premier relevé, 01h au lieu de 00h.
 
 ### PB-256 — Ni la M24 ni le PC1512 n'ont de rafraîchissement par DMA
 
@@ -6068,8 +6092,13 @@ cycle de bus. Documenté ; l'effet sur le temps est déduit.
 *Cas qui discrimine* : en C# seul, un 5150, le canal 2 masqué, `dma_channel_write(2, …)` : PCem rend `DMA_NODATA` et
 débite le cycle (`FETCHCOMPLETE`, `memcycs += 4`) ; le 8237A ne fait aucun cycle.
 *G13* : (a) — documenté, vérifiable en C# seul ; à corriger avec PB-03 (G13.3).
-*Reproduit* en mode PCem : `Models/dma.cs`, `dma_channel_read` et `dma_channel_write`, marqueurs `fixed in hardware mode: PB-257`.
-*Corrigé en mode matériel* (G13.3, avec PB-03) : sous `if (materiel.pb_257)`, `dma_cycle_materiel` (`Models/dma.Materiel.cs`) ne facture le cycle que d'un transfert accepté (canal démasqué, au mode du transfert). `materiel-cas PB-257` rend la valeur de PCem en mode PCem, celle du matériel en mode matériel, la sonde comptant la correction ; la correction coupée (`--attendu materiel` en mode PCem), il rougit. Le cas : un PC, canal 2 masqué, `dma_channel_write` : 4 cycles de bus facturés (PCem) contre 0 ; démasqué en écriture, 4 des deux côtés.
+*Reproduit* en mode PCem : `Ics/Intel8237.cs`, `dma_channel_read` et `dma_channel_write`,
+marqueurs `fixed in hardware mode: PB-257`.
+*Corrigé en mode matériel* (G13.3, avec PB-03) : sous `if (materiel.pb_257)`, `dma_cycle_materiel`
+(`Ics/Intel8237.Materiel.cs`) ne facture le cycle que d'un transfert accepté (canal démasqué, au mode du transfert).
+`materiel-cas PB-257` rend la valeur de PCem en mode PCem, celle du matériel en mode matériel, la sonde comptant la
+correction ; la correction coupée (`--attendu materiel` en mode PCem), il rougit. Le cas : un PC, canal 2 masqué,
+`dma_channel_write` : 4 cycles de bus facturés (PCem) contre 0 ; démasqué en écriture, 4 des deux côtés.
 
 ### PB-258 — L'erreur de division empile dans le segment d'un préfixe
 
@@ -6117,7 +6146,8 @@ haute, l'état relu : le 8237A pose son bit de requête ; PCem 0.
 de puces du dépôt ; les bits de requête demandent une ligne DREQ que PCem n'a pas, et un modèle qui garderait une
 requête après chaque transfert arrêterait le POST de l'XT (« HOT TIMER 1 OUTPUT », XT TR p. 5-30), et celui de la
 M24, dont la ROM 1.43 fait le même test (`F000:DC5C-DC62`).
-*Reproduit* : `Models/dma.cs`, `dma_read` (l'état, les lectures illégales) et `dma16_read` (de même), marqueurs PB-259.
+*Reproduit* : `Ics/Intel8237.cs`, `dma_read` (l'état, les lectures illégales) et `dma16_read` (de même),
+marqueurs PB-259.
 *Non corrigé en mode matériel* : inconnu, reproduit dans les deux modes (décision n° 14), comme le dit le champ *G13*.
 
 ### PB-260 — La 1542C, maître de bus, passe outre son canal de DMA et le 8237
@@ -6140,7 +6170,7 @@ octet : la carte ne prend le bus (`bus_refuse_materiel`, `Scsi/scsi_aha1540.Mate
 sa configuration, relu à chaque échéance de 10 µs) est démasqué, en mode cascade (Q28 (A), validée par Julien le
 20/10), et son 8237 actif (le bit 2
 de la commande ; celle du 8237 haut n'est rangée que sous PB-157) ; le canal 0 passe aussi par la cascade du canal 4
-sous PB-253 (`dma_maitre_materiel`, `Models/dma.Materiel.cs`). Refusé, l'échéance passe sans rien faire et la carte
+sous PB-253 (`dma_maitre_materiel`, `Ics/Intel8237.Materiel.cs`). Refusé, l'échéance passe sans rien faire et la carte
 reprend à la première qui suit. La machine des commandes et le port de contrôle ne sont pas gardés : la ROM de la carte
 envoie HRST, 24h, 04h et 23h avant de mettre son canal en cascade (sa routine 0x3FE, désassemblée en G13.7e4). Restent
 ceux de PCem : les canaux 1 à 4 (inconnus), le côté SCSI arrêté avec le côté hôte (le FIFO, inconnu), les temps
@@ -7151,13 +7181,13 @@ FFh) : `speakval` vaut INT_MIN chez PCem (sortie 0 en mode 0), 1FFFh avec le com
 jusqu'en G13.8g1 à `--speaker-check`, qui ne monte aucune machine : il synthétise le bip du POST pour le modèle du
 haut-parleur de l'hôte (`Host/SpeakerModel.cs`), sans PIT ni `speakval`.
 *G13* : (b) — la correction est certaine, mais la valeur audible reste celle du modèle de PCem.
-*Reproduit* : `Models/pit.cs`, `pit_write`, marqueur PB-21, avec la garde explicite qu'impose .NET — voir la
+*Reproduit* : `Ics/Intel8253.cs`, `pit_write`, marqueur PB-21, avec la garde explicite qu'impose .NET — voir la
 `DEVIATION` sur place. C'est le seul endroit du dépôt où une conversion flottant→entier
 devait être écrite à la main : .NET **sature** (`(int)float.PositiveInfinity` vaut
 `int.MaxValue`, que le clamp ramène alors à 0x2000) là où x86 rend l'entier indéfini.
 Trouvé par la sonde `speaker-probe` de M9, au premier tir.
 *Corrigé en mode matériel* (G13.8g1, Q13) : sous `if (materiel.pb_21)`, après le calcul de PCem, `speakval_materiel`
-(`Models/pit.Materiel.cs`) le refait avec le compte 0 lu 2^16, au dénominateur et au numérateur (la même phrase de la
+(`Ics/Intel8253.Materiel.cs`) le refait avec le compte 0 lu 2^16, au dénominateur et au numérateur (la même phrase de la
 fiche) ; le quotient borné par 65 536, la conversion sans dépassement. Le commentaire PB-21 de `pit_write` (le
 marqueur passe à la garde) garde la `DEVIATION`, qui vaut pour le mode PCem. `materiel-cas PB-21` : les deux cas
 ci-dessus ; témoin, 8000h et 4000h, 0 des deux côtés.
@@ -7705,7 +7735,7 @@ maître avec la même condition ; sur le PC et l'XT, `pic2.pend` reste nul.
 cascade vient du niveau de la sortie INT de l'esclave, que `pic_updatepending` rend déjà (déduit).
 *Cas qui discrimine* : aucun.
 *G13* : (d) — sans effet ; la ligne disparaît dans un 8259A selon la fiche (PB-05).
-*Reproduit* : `Models/pic.cs`, l'OCW2 de `pic_write`, marqueur PB-13 (`:166`).
+*Reproduit* : `Ics/Intel8259A.cs`, l'OCW2 de `pic_write`, marqueur PB-13 (`:166`).
 
 ### PB-15 — `fdd_getrpm` : un `switch` après des retours inconditionnels
 

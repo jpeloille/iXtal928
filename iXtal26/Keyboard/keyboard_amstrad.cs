@@ -7,8 +7,8 @@
 //         entier. Omis : les pclog, sortie pure.
 
 using static iXtal26.Keyboard.keyboard;
-using static iXtal26.Models.pic;
-using static iXtal26.Models.pit;
+using static iXtal26.Ics.Intel8259A;
+using static iXtal26.Ics.Intel8253;
 using static iXtal26.Sound.sound_speaker;
 using static iXtal26.ppi_c;
 using static iXtal26.timer;

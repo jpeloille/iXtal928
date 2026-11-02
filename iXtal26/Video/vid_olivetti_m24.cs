@@ -21,6 +21,7 @@ using static iXtal26.PluginApi.device;
 using static iXtal26.Video.video;
 using static iXtal26.io;
 using static iXtal26.timer;
+using iXtal26.Ics;
 
 namespace iXtal26.Video;
 
@@ -123,7 +124,7 @@ internal static partial class vid_olivetti_m24
     internal static void m24_write(uint32_t addr, uint8_t val, object? p)
     {
         m24_t m24 = (m24_t)p;
-        int offset = (int)(((timer_get_remaining_u64(m24.timer) / pit.CGACONST) * 4) & 0xfc);
+        int offset = (int)(((timer_get_remaining_u64(m24.timer) / Intel8253.CGACONST) * 4) & 0xfc);
 
         m24.vram[addr & 0x7FFF] = val;
         m24.charbuffer[offset] = val;
@@ -152,8 +153,8 @@ internal static partial class vid_olivetti_m24
                 _dispontime = m24.crtc[1] << 1;
         }
         _dispofftime = disptime - _dispontime;
-        _dispontime *= pit.CGACONST / 2;
-        _dispofftime *= pit.CGACONST / 2;
+        _dispontime *= Intel8253.CGACONST / 2;
+        _dispofftime *= Intel8253.CGACONST / 2;
         // pcem bug, reproduced: PB-36 — même conversion d'un double négatif qu'à
         //   cga_recalctimings, dès que crtc[1] dépasse crtc[0] + 1 : GCC rend
         //   (uint64_t)(int64_t)x, C# saturerait à 0.

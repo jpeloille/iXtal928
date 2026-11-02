@@ -13,7 +13,7 @@
 
 using iXtal26.Disc;
 using iXtal26.PluginApi;
-using static iXtal26.Models.pic;
+using static iXtal26.Ics.Intel8259A;
 using static iXtal26.PluginApi.device;
 using static iXtal26.pc;
 

@@ -130,7 +130,7 @@ internal static class _x87_materiel
                 }
                 return true;
         }
-        Models.pic.picint(1 << 13);
+        Ics.Intel8259A.picint(1 << 13);
         if (cpu_c.fpu_type == cpu_c.FPU_BUILTIN)
                 ignne = false;
         else

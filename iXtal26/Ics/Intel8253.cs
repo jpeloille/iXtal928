@@ -10,6 +10,20 @@
 //         pit_refresh_timer_at. Omis : pit2 et tout le PS/2, le PCjr, et les deux
 //         globales mortes de pit.c. Cette ligne omettait « l'AT » en bloc, ce qui
 //         n'est plus vrai : son rafraîchissement mémoire est transcrit.
+//
+// noms: PCem → iXtal26 → ce qu'il désigne — R1(e). « = » : nom inchangé.
+//   pit.c       Ics/Intel8253.cs    le fichier ; avant G14, Models/pit.cs
+//   (aucun)     Ics/Intel8253.Materiel.cs  le mode matériel ; avant G14, Models/pit.Materiel.cs
+//   (aucun)     Intel8253           le conteneur ; avant G14, la classe `pit` (iXtal26.Models). Intel
+//                                   8253-5 ; le code est celui de PCem, qui fait aussi la relecture du 8254 sur
+//                                   toutes les machines (pit.c:328)
+//   PIT         =                   la struct de ibm.h:78-105, l'état du 8253 ; espace iXtal26.Ics
+//   PIT_nr      =                   la struct de ibm.h:73-76, un canal et son PIT ; espace iXtal26.Ics
+//   (aucun)     set_out_func_t      le rappel de sortie d'un canal, set_out_funcs[3] de ibm.h:104 ; espace
+//                                   iXtal26.Ics
+//   pit         pit_                le PIT (pit.c:20) ; « _ » : `pit` était le nom du conteneur (CS0542)
+//   Les FONCTIONS et les autres globales gardent les noms de PCem (setpitclock, pit_write…) : elles sont l'API
+//   entre modules (fdc.cs:47 ; PLAN-G14.md, décision n° 1).
 
 // CS8618 : `PIT_nr.pit` transcrit `struct PIT *pit` (ibm.h:75). Le C le laisse
 // indéterminé jusqu'à pit_init (pit.c:594) ; aucun constructeur ne peut le poser
@@ -24,7 +38,7 @@
 
 using iXtal26.Cpu;
 
-namespace iXtal26.Models;
+namespace iXtal26.Ics;
 
 /*IBM AT -
   Write B0
@@ -74,10 +88,11 @@ internal sealed class PIT
     internal set_out_func_t?[] set_out_funcs = new set_out_func_t?[3];
 }
 
-internal static partial class pit
+internal static partial class Intel8253
 {
-    // CS0542: la globale `PIT pit` (pit.c:20, ibm.h:107) ne peut pas porter le
-    // nom de sa classe conteneur. Même renommage que `PIC pic_` (pic.cs:35).
+    // CS0542: la globale `PIT pit` (pit.c:20, ibm.h:107) ne pouvait pas porter le
+    // nom de sa classe conteneur, `pit` avant G14 ; le nom reste (PLAN-G14.md,
+    // décision n° 1). Même renommage que `PIC pic_` (Intel8259A.cs:44).
     internal static readonly PIT pit_ = new();
 
     // omitted: PIT pit2 (pit.c:20) et ses trois fonctions — pit_ps2_init
@@ -669,9 +684,9 @@ internal static partial class pit
     internal static void pit_irq0_timer(int new_out, int old_out)
     {
         if (new_out != 0 && old_out == 0)
-                pic.picint(1);
+                Intel8259A.picint(1);
         if (new_out == 0)
-                pic.picintc(1);
+                Intel8259A.picintc(1);
     }
 
     // pcem: pit.c:558-561 — LE RAFRAÎCHISSEMENT MÉMOIRE D'UN AT, et le POST le COMPTE.
@@ -695,7 +710,7 @@ internal static partial class pit
     internal static void pit_refresh_timer_xt(int new_out, int old_out)
     {
         if (new_out != 0 && old_out == 0)
-                dma.dma_channel_read(0);
+                Intel8237.dma_channel_read(0);
     }
 
     // pcem: pit.c:563-574

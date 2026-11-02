@@ -6,6 +6,7 @@
 //         mort chez PCem aussi, sa seule référence étant le printf commenté :20.
 
 using iXtal26.Models;
+using iXtal26.Ics;
 
 namespace iXtal26.Sound;
 
@@ -37,9 +38,9 @@ internal static partial class sound_speaker
         {
                 if (speaker_gated != 0 && was_speaker_enable != 0)
                 {
-                        if (pit.pit_.m[2] == 0 || pit.pit_.m[2] == 4)
+                        if (Intel8253.pit_.m[2] == 0 || Intel8253.pit_.m[2] == 4)
                                 val = (int16_t)speakval;
-                        else if (pit.pit_.l[2] < 0x40)
+                        else if (Intel8253.pit_.l[2] < 0x40)
                                 val = 0xa00;
                         else
                                 val = speakon != 0 ? (int16_t)0x1400 : (int16_t)0;

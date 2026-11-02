@@ -30,6 +30,7 @@ using iXtal26.Memory;
 using iXtal26.Models;
 using static iXtal26.Cpu._386_common;
 using static iXtal26.Cpu.x86;
+using iXtal26.Ics;
 
 namespace iXtal26.Cpu;
 
@@ -765,7 +766,8 @@ internal static partial class _808x
         {
                 if (materiel.pb_247)
                         return irqtest_materiel();
-                return (cpu_state.flags & I_FLAG) != 0 && (pic.pic_.pend & ~pic.pic_.mask) != 0 && noint == 0;
+                return (cpu_state.flags & I_FLAG) != 0 && (Intel8259A.pic_.pend & ~Intel8259A.pic_.mask) != 0 &&
+                       noint == 0;
         }
     }
 
@@ -4069,7 +4071,7 @@ startrep:
                 }
                 else if (takeint != 0 && cpu_state.ssegs == 0 && noint == 0)
                 {
-                        temp = pic.picinterrupt();
+                        temp = Intel8259A.picinterrupt();
                         if (temp != 0xFF)
                         {
                                 if (inhlt != 0)
@@ -4088,7 +4090,8 @@ startrep:
                 }
                 // pcem bug, fixed in hardware mode: PB-247 — 808x.c:3985, même test qu'IRQTEST : `pend & ~mask` sans
                 //   `mask2` (l'ISR), que le 8259A retient (fiche 8259A, p. 15).
-                takeint = ((cpu_state.flags & I_FLAG) != 0 && (pic.pic_.pend & ~pic.pic_.mask) != 0) ? 1 : 0;
+                takeint = ((cpu_state.flags & I_FLAG) != 0 &&
+                           (Intel8259A.pic_.pend & ~Intel8259A.pic_.mask) != 0) ? 1 : 0;
                 if (materiel.pb_247)
                         takeint_materiel();
 

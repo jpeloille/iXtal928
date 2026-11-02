@@ -13,6 +13,7 @@ using iXtal26.Memory;
 using iXtal26.Models;
 using static iXtal26.Cpu._386_common;
 using static iXtal26.Cpu.x86;
+using iXtal26.Ics;
 
 namespace iXtal26.Cpu;
 
@@ -441,11 +442,13 @@ internal static partial class _808x
     //   prioritaire en service (fiche 8259A, p. 15). Sans cela, IRQTEST arrêterait une chaîne REP pour une IRQ que le
     //   8259A retient, sans fin. Pas de sonde : ce test court à chaque instruction ; picinterrupt_materiel compte.
     private static bool irqtest_materiel() =>
-        (cpu_state.flags & I_FLAG) != 0 && (pic.pic_.pend & ~pic.pic_.mask & ~pic.pic_.mask2) != 0 && noint == 0;
+        (cpu_state.flags & I_FLAG) != 0 &&
+        (Intel8259A.pic_.pend & ~Intel8259A.pic_.mask & ~Intel8259A.pic_.mask2) != 0 && noint == 0;
 
     private static void takeint_materiel()
     {
-        takeint = ((cpu_state.flags & I_FLAG) != 0 && (pic.pic_.pend & ~pic.pic_.mask & ~pic.pic_.mask2) != 0) ? 1 : 0;
+        takeint = ((cpu_state.flags & I_FLAG) != 0 &&
+                   (Intel8259A.pic_.pend & ~Intel8259A.pic_.mask & ~Intel8259A.pic_.mask2) != 0) ? 1 : 0;
     }
 
     // ===== Le x87 du 8087 (G13.6) =====

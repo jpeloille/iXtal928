@@ -36,6 +36,7 @@ using iXtal26.Memory;
 using iXtal26.Models;
 using iXtal26.Mouse;
 using iXtal26.SoftFloat;
+using iXtal26.Ics;
 
 namespace iXtal26.Diff;
 
@@ -513,17 +514,17 @@ internal static partial class MaterielCas
         var memcycs = typeof(_808x).GetField("memcycs", BindingFlags.NonPublic | BindingFlags.Static)!;
         var bad = 0;
         _808x.Reset();
-        dma.dma_reset();
-        dma.dma_write(0x0A, 0x06, null!);                 // masque le canal 2
+        Intel8237.dma_reset();
+        Intel8237.dma_write(0x0A, 0x06, null!);                 // masque le canal 2
         memcycs.SetValue(null, 0);
-        dma.dma_channel_write(2, 0x55);
+        Intel8237.dma_channel_write(2, 0x55);
         var refuse = (int)memcycs.GetValue(null)!;
         bad += Voir("canal 2 masqué, dma_channel_write", refuse == (hw ? 0 : 4), $"{refuse} cycles de bus facturés",
                     $"{(hw ? 0 : 4)}", hw);
-        dma.dma_write(0x0B, 0x46, null!);                 // canal 2 : écriture en mémoire, mode simple
-        dma.dma_write(0x0A, 0x02, null!);                 // démasque le canal 2
+        Intel8237.dma_write(0x0B, 0x46, null!);                 // canal 2 : écriture en mémoire, mode simple
+        Intel8237.dma_write(0x0A, 0x02, null!);                 // démasque le canal 2
         memcycs.SetValue(null, 0);
-        dma.dma_channel_write(2, 0x55);
+        Intel8237.dma_channel_write(2, 0x55);
         var accepte = (int)memcycs.GetValue(null)!;
         bad += Voir("canal 2 démasqué, en écriture, dma_channel_write", accepte == 4, $"{accepte} cycles de bus facturés",
                     "4", hw);
@@ -1222,7 +1223,7 @@ internal static partial class MaterielCas
                 Pic(true);
                 var (_, m) = Acheminer(fpu, [0xDB, 0xE3, 0xD9, 0x2F, 0xD9, 0x77, 0x10, 0xD9, 0xE8, 0xD9, 0xEE, 0xDE, 0xF9,
                                              0xDD, 0x3F, 0xF4], 9);
-                var irq13 = (pic.pic2.pend & 0x20) != 0;
+                var irq13 = (Intel8259A.pic2.pend & 0x20) != 0;
                 var attendu = hw ? (0x3804, false) : (0x3004, true);
                 bad += Voir($"FNSTENV ; FDIVP 1/0 ; FNSTSW m16, et IRQ13 ({nom})", (m, irq13) == attendu,
                             $"{m:X4}, IRQ13 {(irq13 ? "en attente" : "non")}",
@@ -1395,7 +1396,7 @@ internal static partial class MaterielCas
                     var (ip, _) = Acheminer(fpu, [.. Zero, 0xD9, 0xE8, 0xF4], 8);
                     bad += Voir($"FDIVP 1/0 ; FLD1 ({nom})", ip == (hw ? 0x010A : 0x010C), $"IP = {ip:X4}",
                                 hw ? "IP = 010A (attend)" : "IP = 010C", hw);
-                    var irq13 = (pic.pic2.pend & 0x20) != 0;
+                    var irq13 = (Intel8259A.pic2.pend & 0x20) != 0;
                     bad += Voir($"FDIVP 1/0, IRQ13 en attente ({nom}, témoin)", irq13, $"{irq13}", "True", hw);
                     (ip, _) = Acheminer(fpu, [.. Zero, 0x9B, 0xF4], 8);
                     bad += Voir($"FDIVP 1/0 ; WAIT ({nom})", ip == (hw ? 0x010A : 0x010B), $"IP = {ip:X4}",
@@ -3339,14 +3340,14 @@ internal static partial class MaterielCas
     private static void Pic(bool at)
     {
         x86.AT = at ? 1 : 0;
-        pic.pic_reset();
+        Intel8259A.pic_reset();
         foreach (var (port, v) in at
                      ? new (ushort, byte)[] { (0x20, 0x11), (0x21, 0x08), (0x21, 0x04), (0x21, 0x01), (0x21, 0x00) }
                      : [(0x20, 0x13), (0x21, 0x08), (0x21, 0x01), (0x21, 0x00)])
-            pic.pic_write(port, v, null!);
+            Intel8259A.pic_write(port, v, null!);
         if (at)
             foreach (var (port, v) in new (ushort, byte)[] { (0xA0, 0x11), (0xA1, 0x70), (0xA1, 0x02), (0xA1, 0x01), (0xA1, 0x00) })
-                pic.pic2_write(port, v, null!);
+                Intel8259A.pic2_write(port, v, null!);
     }
 
     private static int Avec8259(Func<int> cas)
@@ -3359,7 +3360,7 @@ internal static partial class MaterielCas
         finally
         {
             x86.AT = at;
-            pic.pic_reset();
+            Intel8259A.pic_reset();
         }
     }
 
@@ -3370,12 +3371,12 @@ internal static partial class MaterielCas
     private static int Pb05(bool hw) => Avec8259(() =>
     {
         Pic(at: true);
-        pic.pic_write(0x21, 0x01, null!);
-        pic.picint(1 << 0);
-        pic.picint(1 << 8);
-        var v = pic.picinterrupt();
-        pic.pic_write(0x20, 0x0A, null!);
-        var irr = pic.pic_read(0x20, null!);
+        Intel8259A.pic_write(0x21, 0x01, null!);
+        Intel8259A.picint(1 << 0);
+        Intel8259A.picint(1 << 8);
+        var v = Intel8259A.picinterrupt();
+        Intel8259A.pic_write(0x20, 0x0A, null!);
+        var irr = Intel8259A.pic_read(0x20, null!);
         return Voir("AT, IRQ 0 masquée et IRQ 8 en attente, un acquittement, l'IRR du maître", v == 0x70 && irr == (hw ? 1 : 0),
                     $"vecteur {v:X2}h, IRR {irr:X2}h", $"vecteur 70h, IRR {(hw ? 1 : 0):X2}h", hw);
     });
@@ -3386,11 +3387,11 @@ internal static partial class MaterielCas
     private static int Pb246(bool hw) => Avec8259(() =>
     {
         Pic(at: true);
-        pic.picint(1 << 0);
-        pic.picint(1 << 9);
-        var v1 = pic.picinterrupt();
-        pic.pic_write(0x20, 0x20, null!);
-        var v2 = pic.picinterrupt();
+        Intel8259A.picint(1 << 0);
+        Intel8259A.picint(1 << 9);
+        var v1 = Intel8259A.picinterrupt();
+        Intel8259A.pic_write(0x20, 0x20, null!);
+        var v2 = Intel8259A.picinterrupt();
         var (a1, a2) = hw ? (0x08, 0x71) : (0x71, 0x08);
         return Voir("AT, IRQ 0 et IRQ 9 en attente, deux acquittements", v1 == a1 && v2 == a2, $"{v1:X2}h puis {v2:X2}h",
                     $"{a1:X2}h puis {a2:X2}h", hw);
@@ -3405,22 +3406,22 @@ internal static partial class MaterielCas
     {
         var bad = 0;
         Pic(at: false);
-        pic.picint(1 << 0);
-        pic.picinterrupt();
-        pic.picint(1 << 1);
-        var v = pic.picinterrupt();
+        Intel8259A.picint(1 << 0);
+        Intel8259A.picinterrupt();
+        Intel8259A.picint(1 << 1);
+        var v = Intel8259A.picinterrupt();
         bad += Voir("XT, IRQ 0 en service, IRQ 1 en attente, un acquittement", v == (hw ? 0xFF : 0x09), $"{v:X2}h",
                     hw ? "FFh, rien" : "09h", hw);
-        pic.pic_write(0x20, 0x20, null!);
-        v = pic.picinterrupt();
+        Intel8259A.pic_write(0x20, 0x20, null!);
+        v = Intel8259A.picinterrupt();
         bad += Voir("puis une fin non spécifique, un acquittement", v == (hw ? 0x09 : 0xFF), $"{v:X2}h",
                     hw ? "09h" : "FFh, l'IRQ 1 déjà servie", hw);
         var r = Jouer([0x90, 0x90, 0x90], r => r[(int)R.FLAGS] = 0xF202, () =>
         {
             Pic(at: false);
-            pic.picint(1 << 0);
-            pic.picinterrupt();
-            pic.picint(1 << 1);
+            Intel8259A.picint(1 << 0);
+            Intel8259A.picinterrupt();
+            Intel8259A.picint(1 << 1);
             mem.ram[0x24] = 0x00;
             mem.ram[0x25] = 0x05;
             mem.ram[0x26] = 0x00;
@@ -3435,9 +3436,9 @@ internal static partial class MaterielCas
                   () =>
                   {
                       Pic(at: false);
-                      pic.picint(1 << 0);
-                      pic.picinterrupt();
-                      pic.picint(1 << 1);
+                      Intel8259A.picint(1 << 0);
+                      Intel8259A.picinterrupt();
+                      Intel8259A.picint(1 << 1);
                   });
         bad += Voir("le 8088, IF = 1, REP STOSB, CX = 4, un pas", r[(int)R.CX] == (hw ? 0 : 4),
                     $"CX = {r[(int)R.CX]}", hw ? "CX = 0" : "CX = 4, la chaîne arrêtée avant sa première répétition", hw);
@@ -3454,36 +3455,36 @@ internal static partial class MaterielCas
     {
         var bad = 0;
         Pic(at: false);
-        pic.picint(1 << 0);
-        pic.picinterrupt();
-        pic.pic_write(0x20, 0x40, null!);
-        pic.pic_write(0x20, 0x0B, null!);
-        var isr = pic.pic_read(0x20, null!);
+        Intel8259A.picint(1 << 0);
+        Intel8259A.picinterrupt();
+        Intel8259A.pic_write(0x20, 0x40, null!);
+        Intel8259A.pic_write(0x20, 0x0B, null!);
+        var isr = Intel8259A.pic_read(0x20, null!);
         bad += Voir("XT, IR0 en service, OCW2 40h, l'ISR", isr == (hw ? 1 : 0), $"{isr:X2}h", $"{(hw ? 1 : 0):X2}h", hw);
 
         Pic(at: false);
-        pic.picint(1 << 3);
-        pic.pic_write(0x20, 0x0C, null!);
-        var mot = pic.pic_read(0x20, null!);
-        pic.pic_write(0x20, 0x0B, null!);
-        isr = pic.pic_read(0x20, null!);
+        Intel8259A.picint(1 << 3);
+        Intel8259A.pic_write(0x20, 0x0C, null!);
+        var mot = Intel8259A.pic_read(0x20, null!);
+        Intel8259A.pic_write(0x20, 0x0B, null!);
+        isr = Intel8259A.pic_read(0x20, null!);
         bad += Voir("XT, IRQ 3 en attente, poll (OCW3 0Ch), puis l'ISR", mot == (hw ? 0x83 : 0x00) && isr == (hw ? 0x08 : 0x00),
                     $"{mot:X2}h, ISR {isr:X2}h", hw ? "83h, ISR 08h" : "00h, ISR 00h", hw);
 
         Pic(at: false);
-        pic.pic_write(0x20, 0xC1, null!);
-        pic.picint(1 << 0);
-        pic.picint(1 << 2);
-        var v = pic.picinterrupt();
+        Intel8259A.pic_write(0x20, 0xC1, null!);
+        Intel8259A.picint(1 << 0);
+        Intel8259A.picint(1 << 2);
+        var v = Intel8259A.picinterrupt();
         bad += Voir("XT, priorité C1h, IRQ 0 et IRQ 2 en attente, un acquittement", v == (hw ? 0x0A : 0x08), $"{v:X2}h",
                     hw ? "0Ah" : "08h", hw);
 
         Pic(at: true);
-        pic.picint(1 << 0);
-        pic.picinterrupt();
-        pic.pic_write(0x20, 0x68, null!);
-        pic.picint(1 << 1);
-        var dem = pic.pic_intpending;
+        Intel8259A.picint(1 << 0);
+        Intel8259A.picinterrupt();
+        Intel8259A.pic_write(0x20, 0x68, null!);
+        Intel8259A.picint(1 << 1);
+        var dem = Intel8259A.pic_intpending;
         bad += Voir("AT, IR0 en service, masque spécial (OCW3 68h), IRQ 1 en attente : la demande", dem == (hw ? 2 : 0),
                     $"{dem:X2}h", $"{(hw ? 2 : 0):X2}h", hw);
         return bad;
@@ -3498,20 +3499,20 @@ internal static partial class MaterielCas
     {
         var bad = 0;
         Pic(at: false);
-        pic.pic_write(0x20, 0x0B, null!);
+        Intel8259A.pic_write(0x20, 0x0B, null!);
         foreach (var (port, v) in new (ushort, byte)[] { (0x20, 0x13), (0x21, 0x08), (0x21, 0x01), (0x21, 0xFF) })
-            pic.pic_write(port, v, null!);
-        pic.picint(1 << 0);
-        var l = pic.pic_read(0x20, null!);
+            Intel8259A.pic_write(port, v, null!);
+        Intel8259A.picint(1 << 0);
+        var l = Intel8259A.pic_read(0x20, null!);
         bad += Voir("XT, OCW3 0Bh, ICW1 à ICW4, OCW1 FFh, IRQ 0 en attente, IN 20h", l == (hw ? 1 : 0), $"{l:X2}h",
                     $"{(hw ? 1 : 0):X2}h", hw);
         x86.AT = 1;
-        pic.pic2_write(0xA0, 0x0B, null!);                // l'esclave lu sur l'ISR, avant la mise sous tension
-        pic.pic_reset();
-        pic.picint(1 << 0);
-        pic.picint(1 << 8);
-        var m = pic.pic_read(0x20, null!);
-        var e = pic.pic2_read(0xA0, null!);
+        Intel8259A.pic2_write(0xA0, 0x0B, null!);                // l'esclave lu sur l'ISR, avant la mise sous tension
+        Intel8259A.pic_reset();
+        Intel8259A.picint(1 << 0);
+        Intel8259A.picint(1 << 8);
+        var m = Intel8259A.pic_read(0x20, null!);
+        var e = Intel8259A.pic2_read(0xA0, null!);
         bad += Voir("AT, mise sous tension, IRQ 0 et IRQ 8 en attente, IN 20h et IN A0h", (m, e) == (hw ? (1, 1) : (0, 0)),
                     $"{m:X2}h et {e:X2}h", hw ? "01h et 01h" : "00h et 00h", hw);
         return bad;
@@ -3522,12 +3523,13 @@ internal static partial class MaterielCas
     private static void Dma(ushort port, byte v)
     {
         if (port >= 0xC0)
-            dma.dma16_write(port, v, null!);
+            Intel8237.dma16_write(port, v, null!);
         else
-            dma.dma_write(port, v, null!);
+            Intel8237.dma_write(port, v, null!);
     }
 
-    private static byte DmaLu(ushort port) => port >= 0xC0 ? dma.dma16_read(port, null!) : dma.dma_read(port, null!);
+    private static byte DmaLu(ushort port) =>
+        port >= 0xC0 ? Intel8237.dma16_read(port, null!) : Intel8237.dma_read(port, null!);
 
     /// <summary>Le compte courant d'un canal du 8237 bas (port 01h, 03h, 05h, 07h), la bascule remise à zéro d'abord.</summary>
     private static int Compte(int canal)
@@ -3538,7 +3540,7 @@ internal static partial class MaterielCas
         return lo | hi << 8;
     }
 
-    private static string Fait(int r) => r == dma.DMA_NODATA ? "refusé (DMA_NODATA)" : "fait";
+    private static string Fait(int r) => r == Intel8237.DMA_NODATA ? "refusé (DMA_NODATA)" : "fait";
 
     private static int Avec8237(bool at, Func<int> cas)
     {
@@ -3547,13 +3549,13 @@ internal static partial class MaterielCas
         {
             _808x.Reset();
             x86.AT = at ? 1 : 0;
-            dma.dma_reset();
+            Intel8237.dma_reset();
             return cas();
         }
         finally
         {
             x86.AT = avant;
-            dma.dma_reset();
+            Intel8237.dma_reset();
         }
     }
 
@@ -3566,8 +3568,8 @@ internal static partial class MaterielCas
         Dma(0xD6, 0x45);                                  // canal 5 : simple, écriture en mémoire
         Dma(0xD4, 0x01);                                  // démasque le canal 5
         Dma(0xD0, 0x04);                                  // le 8237 haut désactivé
-        var r = dma.dma_channel_write(5, 0x1234);
-        bad += Voir("AT, OUT D0h,04h, dma_channel_write du canal 5", (r == dma.DMA_NODATA) == hw, Fait(r),
+        var r = Intel8237.dma_channel_write(5, 0x1234);
+        bad += Voir("AT, OUT D0h,04h, dma_channel_write du canal 5", (r == Intel8237.DMA_NODATA) == hw, Fait(r),
                     hw ? "refusé" : "fait", hw);
         Dma(0xDA, 0x5A);
         var t = DmaLu(0xDA);
@@ -3584,15 +3586,15 @@ internal static partial class MaterielCas
         Dma(0x0B, 0x46);                                  // canal 2 : simple, écriture en mémoire
         Dma(0x0F, 0x0F);
         Dma(0x0E, 0x00);
-        var r = dma.dma_channel_write(2, 0x55);
-        bad += Voir("OUT 0Fh,0Fh, OUT 0Eh,00h, dma_channel_write du canal 2", (r != dma.DMA_NODATA) == hw, Fait(r),
-                    hw ? "fait" : "refusé", hw);
+        var r = Intel8237.dma_channel_write(2, 0x55);
+        bad += Voir("OUT 0Fh,0Fh, OUT 0Eh,00h, dma_channel_write du canal 2", (r != Intel8237.DMA_NODATA) == hw,
+                    Fait(r), hw ? "fait" : "refusé", hw);
         Dma(0xD6, 0x45);                                  // canal 5 : simple, écriture en mémoire
         Dma(0xDE, 0x0F);
         Dma(0xDC, 0x00);
-        r = dma.dma_channel_write(5, 0x1234);
-        bad += Voir("OUT DEh,0Fh, OUT DCh,00h, dma_channel_write du canal 5", (r != dma.DMA_NODATA) == hw, Fait(r),
-                    hw ? "fait" : "refusé", hw);
+        r = Intel8237.dma_channel_write(5, 0x1234);
+        bad += Voir("OUT DEh,0Fh, OUT DCh,00h, dma_channel_write du canal 5", (r != Intel8237.DMA_NODATA) == hw,
+                    Fait(r), hw ? "fait" : "refusé", hw);
         return bad;
     });
 
@@ -3635,15 +3637,15 @@ internal static partial class MaterielCas
         var bad = 0;
         Dma(0x0B, 0x46);                                  // canal 2 : simple, écriture en mémoire, compte 0
         Dma(0x0A, 0x02);
-        dma.dma_channel_write(2, 0x55);                   // le TC
+        Intel8237.dma_channel_write(2, 0x55);                   // le TC
         Dma(0x08, 0x04);
         Dma(0x0D, 0x00);
         var st = DmaLu(0x08);
         bad += Voir("le canal 2 au TC, OUT 08h,04h, OUT 0Dh ; l'état", st == (hw ? 0x00 : 0x04), $"{st:X2}h",
                     hw ? "00h" : "04h", hw);
         Dma(0x0A, 0x02);
-        var r = dma.dma_channel_write(2, 0x55);
-        bad += Voir("puis OUT 0Ah,02h, dma_channel_write du canal 2", (r != dma.DMA_NODATA) == hw, Fait(r),
+        var r = Intel8237.dma_channel_write(2, 0x55);
+        bad += Voir("puis OUT 0Ah,02h, dma_channel_write du canal 2", (r != Intel8237.DMA_NODATA) == hw, Fait(r),
                     hw ? "fait" : "refusé", hw);
         return bad;
     });
@@ -3656,13 +3658,13 @@ internal static partial class MaterielCas
         var bad = 0;
         Dma(0x0B, 0x46);
         Dma(0x0A, 0x02);
-        dma.dma_channel_write(2, 0x55);
-        dma.dma_reset();
+        Intel8237.dma_channel_write(2, 0x55);
+        Intel8237.dma_reset();
         var st = DmaLu(0x08);
         bad += Voir("le canal 2 au TC, dma_reset ; l'état", st == (hw ? 0x00 : 0x04), $"{st:X2}h", hw ? "00h" : "04h", hw);
         Dma(0x0B, 0x46);
-        var r = dma.dma_channel_write(2, 0x55);
-        bad += Voir("le mode reposé, dma_channel_write du canal 2", (r == dma.DMA_NODATA) == hw, Fait(r),
+        var r = Intel8237.dma_channel_write(2, 0x55);
+        bad += Voir("le mode reposé, dma_channel_write du canal 2", (r == Intel8237.DMA_NODATA) == hw, Fait(r),
                     hw ? "refusé" : "fait", hw);
         return bad;
     });
@@ -3678,17 +3680,18 @@ internal static partial class MaterielCas
         Dma(0xD4, 0x00);
         Dma(0x0B, 0x56);                                  // canal 2 : simple, auto-initialisé, écriture en mémoire
         Dma(0x0A, 0x02);
-        var r = dma.dma_channel_write(2, 0x55);
-        bad += Voir("AT, le canal 4 en cascade, dma_channel_write du canal 2", r != dma.DMA_NODATA, Fait(r), "fait", hw);
+        var r = Intel8237.dma_channel_write(2, 0x55);
+        bad += Voir("AT, le canal 4 en cascade, dma_channel_write du canal 2", r != Intel8237.DMA_NODATA, Fait(r),
+                    "fait", hw);
         Dma(0xD4, 0x04);
-        r = dma.dma_channel_write(2, 0x55);
-        bad += Voir("OUT D4h,04h (le canal 4 masqué), dma_channel_write du canal 2", (r == dma.DMA_NODATA) == hw,
+        r = Intel8237.dma_channel_write(2, 0x55);
+        bad += Voir("OUT D4h,04h (le canal 4 masqué), dma_channel_write du canal 2", (r == Intel8237.DMA_NODATA) == hw,
                     Fait(r), hw ? "refusé" : "fait", hw);
         Dma(0xD4, 0x00);
         Dma(0xD6, 0x40);
-        r = dma.dma_channel_write(2, 0x55);
+        r = Intel8237.dma_channel_write(2, 0x55);
         bad += Voir("le canal 4 démasqué, en mode simple (40h), dma_channel_write du canal 2",
-                    (r == dma.DMA_NODATA) == hw, Fait(r), hw ? "refusé" : "fait", hw);
+                    (r == Intel8237.DMA_NODATA) == hw, Fait(r), hw ? "refusé" : "fait", hw);
         return bad;
     });
 

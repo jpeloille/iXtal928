@@ -183,7 +183,7 @@ Quatre fonctions appliquent les règles d'Intel :
 |---|---|
 | L'EU prend son octet dans la file ; si la file est vide, elle attend la fin d'un cycle de bus. | `Cpu/808x.cs#FETCH`. S'il y a un octet en file, il le retire (`fetchcycles -= 4`). Sinon, il retire de `cycles`, et ajoute à `fetchclocks`, les horloges qui manquent pour boucler un cycle de 4, puis lit l'octet directement. |
 | La BIU charge un octet par cycle de bus libre, jusqu'à quatre octets. | `Cpu/808x.cs#FETCHADD` convertit des horloges libres en octets chargés, à raison d'un par tranche de 4, tant que la file en compte moins de quatre. On l'appelle pendant le calcul de l'adresse effective (`Cpu/808x.cs#fetcheal`), dans les boucles de REP, et à la fin de chaque instruction. |
-| Un chargement commencé se termine avant l'accès de l'EU. | `Cpu/808x.cs#FETCHCOMPLETE` termine le cycle en cours. Son seul appelant est `Cpu/808x.cs#refreshread`. Malgré son nom, ce dernier est appelé par `Models/dma.cs#dma_channel_read` et `Models/dma.cs#dma_channel_write` à **chaque** transfert DMA d'une machine qui n'est pas un AT : le rafraîchissement sur le canal 0, mais aussi la disquette sur le canal 2. Voir « Les écarts ». |
+| Un chargement commencé se termine avant l'accès de l'EU. | `Cpu/808x.cs#FETCHCOMPLETE` termine le cycle en cours. Son seul appelant est `Cpu/808x.cs#refreshread`. Malgré son nom, ce dernier est appelé par `Ics/Intel8237.cs#dma_channel_read` et `Ics/Intel8237.cs#dma_channel_write` à **chaque** transfert DMA d'une machine qui n'est pas un AT : le rafraîchissement sur le canal 0, mais aussi la disquette sur le canal 2. Voir « Les écarts ». |
 | Un saut vide la file. | `Cpu/808x.cs#FETCHCLEAR`, appelé par chaque saut pris et chaque interruption (sauf INTO, absent du cœur : constat C3), ainsi que par HLT, les reprises de REP et les resets. Il pose aussi `memcycs = cycdiff - cycles` : à la fin de l'instruction, la BIU ne reçoit alors que les horloges écoulées après le saut. |
 
 Sur un 8086, les mêmes fonctions utilisent six octets et chargent deux octets à la fois depuis une adresse paire : c'est
@@ -216,8 +216,8 @@ chaque tranche de 10 ms (chapitre 21). Pour chaque instruction :
 ### Le rafraîchissement
 
 La chaîne part du front montant de la sortie 1 du 8253 :
-1. `Models/pit.cs#pit_refresh_timer_xt` ;
-2. `Models/dma.cs#dma_channel_read`, sur le canal 0 ;
+1. `Ics/Intel8253.cs#pit_refresh_timer_xt` ;
+2. `Ics/Intel8237.cs#dma_channel_read`, sur le canal 0 ;
 3. `Cpu/808x.cs#refreshread`, qui appelle `FETCHCOMPLETE` puis ajoute 4 à `memcycs`.
 
 Le code compte quatre horloges de bus par rafraîchissement, comme IBM [T1 p. 1-15]. S'y ajoutent les 1 à 3 horloges

@@ -192,6 +192,8 @@ Collisions conteneur/membre : `x86seg.c` et le typedef `x86seg` ; `fdc.c` et son
 `int cpu` (M16). Le conteneur prend `_c` (`x86seg_c`, `fdc_c`, `fdd_c`, `model_c`, `cpu_c`),
 le membre garde son nom. `pit.c`/`PIT`, `timer.c`/`pc_timer_t`, `mem.c`/`mem_mapping_t`,
 `vid_cga.c`/`cga_t`, `device.c`/`device_t` sont tous distincts.
+`pic.c`, `pit.c` et `dma.c` ont fait l'inverse : la globale a pris `_` (`pic_`, `pit_`, `dma_`). Depuis G14, leurs
+conteneurs portent le nom de la puce (`Ics/`) ; les globales gardent leur nom (`PLAN-G14.md`, décision n° 1).
 `808x.c` → classe `_808x` (un identifiant C# ne peut pas commencer par un chiffre ; le
 nom de fichier, si).
 

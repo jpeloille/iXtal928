@@ -275,15 +275,15 @@ internal static partial class MaterielCas
         MonterIde(tmp);
         io.outb(0x176, 0xA0);
         Ide.ide.ide_irq_raise(Ide.ide.ide_drives[2]);
-        Models.pic.picint(1 << 14);
+        Ics.Intel8259A.picint(1 << 14);
         io.outb(0x176, 0xA0);
-        var garde = (Models.pic.pic2.pend & 0x80) != 0;
+        var garde = (Ics.Intel8259A.pic2.pend & 0x80) != 0;
         var bad = Voir("IRQ 15 levée par le secondaire, IRQ 14 en attente, OUT 176h,A0h ; la demande de l'IRQ 15",
                        garde == hw, garde ? "gardée" : "perdue", hw ? "gardée" : "perdue", hw);
         // Puis nIEN posé sur le secondaire (OUT 376h,02h) : sa ligne retombe, la demande de l'IRQ 15 se retire, celle de
         // l'IRQ 14 reste — dans les deux modes.
         io.outb(0x376, 0x02);
-        var (i15, i14) = ((Models.pic.pic2.pend & 0x80) != 0, (Models.pic.pic2.pend & 0x40) != 0);
+        var (i15, i14) = ((Ics.Intel8259A.pic2.pend & 0x80) != 0, (Ics.Intel8259A.pic2.pend & 0x40) != 0);
         bad += Voir("puis OUT 376h,02h (nIEN) ; les demandes des IRQ 15 et 14", !i15 && i14,
                     $"IRQ 15 {(i15 ? "posée" : "retirée")}, IRQ 14 {(i14 ? "posée" : "retirée")}", "IRQ 15 retirée, IRQ 14 posée", hw);
         return bad + VoirArret();
@@ -301,21 +301,21 @@ internal static partial class MaterielCas
         io.outb(0x1F6, 0xA0);
         Ide.ide.ide_irq_raise(Ide.ide.ide_drives[0]);
         io.outb(0x1F6, 0xA0);
-        var garde = (Models.pic.pic2.pend & 0x40) != 0;
+        var garde = (Ics.Intel8259A.pic2.pend & 0x40) != 0;
         bad += Voir("l'interruption levée, OUT 1F6h,A0h ; la demande de l'IRQ 14", garde == hw, garde ? "gardée" : "perdue",
                     hw ? "gardée" : "perdue", hw);
-        Models.pic.pic2.pend &= unchecked((byte)~0x40);
+        Ics.Intel8259A.pic2.pend &= unchecked((byte)~0x40);
         io.outb(0x1F6, 0xA0);
-        var seconde = (Models.pic.pic2.pend & 0x40) != 0;
+        var seconde = (Ics.Intel8259A.pic2.pend & 0x40) != 0;
         bad += Voir("la demande servie, l'état non lu, OUT 1F6h,A0h ; une seconde demande", seconde == !hw,
                     seconde ? "posée" : "aucune", hw ? "aucune" : "posée", hw);
         // L'état lu (1F7h, l'interruption retombe), une interruption neuve, servie avant toute écriture de 1F6h, puis
         // OUT 1F6h,A0h : le matériel ne voit pas de front neuf.
         io.inb(0x1F7);
         Ide.ide.ide_irq_raise(Ide.ide.ide_drives[0]);
-        Models.pic.pic2.pend &= unchecked((byte)~0x40);
+        Ics.Intel8259A.pic2.pend &= unchecked((byte)~0x40);
         io.outb(0x1F6, 0xA0);
-        seconde = (Models.pic.pic2.pend & 0x40) != 0;
+        seconde = (Ics.Intel8259A.pic2.pend & 0x40) != 0;
         bad += Voir("l'état lu, une interruption neuve servie, OUT 1F6h,A0h ; une seconde demande", seconde == !hw,
                     seconde ? "posée" : "aucune", hw ? "aucune" : "posée", hw);
         // SRST négue INTRQ (§ 6.3.10) : l'état lu, une interruption neuve, OUT 3F6h,04h (SRST), puis OUT 3F6h,00h. PCem
@@ -323,9 +323,9 @@ internal static partial class MaterielCas
         io.inb(0x1F7);
         Ide.ide.ide_irq_raise(Ide.ide.ide_drives[0]);
         io.outb(0x3F6, 0x04);
-        var pendant = (Models.pic.pic2.pend & 0x40) != 0;
+        var pendant = (Ics.Intel8259A.pic2.pend & 0x40) != 0;
         io.outb(0x3F6, 0x00);
-        var apres = (Models.pic.pic2.pend & 0x40) != 0;
+        var apres = (Ics.Intel8259A.pic2.pend & 0x40) != 0;
         bad += Voir("une interruption levée, OUT 3F6h,04h (SRST), puis OUT 3F6h,00h ; la demande pendant, puis après",
                     !pendant && apres == !hw, $"{(pendant ? "posée" : "retirée")}, puis {(apres ? "posée" : "aucune")}",
                     hw ? "retirée, puis aucune" : "retirée, puis posée", hw);
@@ -335,9 +335,9 @@ internal static partial class MaterielCas
         io.inb(0x1F7);
         io.outb(0x3F6, 0x02);
         Ide.ide.ide_irq_raise(Ide.ide.ide_drives[0]);
-        var masquee = (Models.pic.pic2.pend & 0x40) != 0;
+        var masquee = (Ics.Intel8259A.pic2.pend & 0x40) != 0;
         io.outb(0x3F6, 0x00);
-        var demasquee = (Models.pic.pic2.pend & 0x40) != 0;
+        var demasquee = (Ics.Intel8259A.pic2.pend & 0x40) != 0;
         bad += Voir("nIEN posé, une interruption levée, puis nIEN remis à 0 ; la demande", !masquee && demasquee,
                     $"{(masquee ? "posée" : "aucune")}, puis {(demasquee ? "posée" : "aucune")}", "aucune, puis posée", hw);
         return bad + VoirArret();

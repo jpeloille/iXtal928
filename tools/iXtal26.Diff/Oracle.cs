@@ -342,7 +342,7 @@ public static class Oracle
     [DllImport(Lib)] internal static extern void h_set_device_config(string head, string name, string data);
     [DllImport(Lib)] internal static extern void h_sound_probe([Out] ulong[] o);
     public const int SoundProbeN = 62;
-    // G12.1 — la sonde du DMA (harness_dma.c, Models/dma.cs ProbeState) ; le FIR de la SB 16 par sb_exec_command.
+    // G12.1 — la sonde du DMA (harness_dma.c, Ics/Intel8237.cs ProbeState) ; le FIR de la SB 16 par sb_exec_command.
     [DllImport(Lib)] internal static extern void h_dma_probe([Out] ulong[] o);
     public const int DmaProbeN = 29;
     [DllImport(Lib)] internal static extern void h_sb16_filter(int cmd, int val, [Out] float[] o);

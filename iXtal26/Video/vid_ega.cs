@@ -27,6 +27,7 @@ using static iXtal26.PluginApi.device;
 using static iXtal26.Video.video;
 using static iXtal26.io;
 using static iXtal26.timer;
+using iXtal26.Ics;
 
 namespace iXtal26.Video;
 
@@ -384,9 +385,9 @@ internal static partial class vid_ega
         //   (harness_ega.c).
 
         if (ega.vidclock != 0)
-                crtcconst = (ega.seqregs[1] & 1) != 0 ? pit.MDACONST : (pit.MDACONST * (9.0 / 8.0));
+                crtcconst = (ega.seqregs[1] & 1) != 0 ? Intel8253.MDACONST : (Intel8253.MDACONST * (9.0 / 8.0));
         else
-                crtcconst = (ega.seqregs[1] & 1) != 0 ? pit.CGACONST : (pit.CGACONST * (9.0 / 8.0));
+                crtcconst = (ega.seqregs[1] & 1) != 0 ? Intel8253.CGACONST : (Intel8253.CGACONST * (9.0 / 8.0));
 
         disptime = ega.crtc[0] + 2;
         _dispontime = ega.crtc[1] + 1;

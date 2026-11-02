@@ -26,6 +26,7 @@ using static iXtal26.Video.video;
 using static iXtal26.Video.vid_svga;
 using static iXtal26.Video.vid_unk_ramdac;
 using static iXtal26.io;
+using iXtal26.Ics;
 
 namespace iXtal26.Video;
 
@@ -240,13 +241,13 @@ internal static partial class vid_et4000
         case 1:
                 break;
         case 3:
-                svga.clock = (pit.cpuclock * (double)(1ul << 32)) / 40000000.0;
+                svga.clock = (Intel8253.cpuclock * (double)(1ul << 32)) / 40000000.0;
                 break;
         case 5:
-                svga.clock = (pit.cpuclock * (double)(1ul << 32)) / 65000000.0;
+                svga.clock = (Intel8253.cpuclock * (double)(1ul << 32)) / 65000000.0;
                 break;
         default:
-                svga.clock = (pit.cpuclock * (double)(1ul << 32)) / 36000000.0;
+                svga.clock = (Intel8253.cpuclock * (double)(1ul << 32)) / 36000000.0;
                 break;
         }
 

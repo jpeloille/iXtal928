@@ -30,6 +30,7 @@ using static iXtal26.PluginApi.device;
 using static iXtal26.Video.video;
 using static iXtal26.io;
 using static iXtal26.timer;
+using iXtal26.Ics;
 
 namespace iXtal26.Video;
 
@@ -191,8 +192,8 @@ internal static partial class vid_pc1512
         disptime = 114; /*Fixed on PC1512*/
         _dispontime = 80;
         _dispofftime = disptime - _dispontime;
-        _dispontime *= pit.CGACONST;
-        _dispofftime *= pit.CGACONST;
+        _dispontime *= Intel8253.CGACONST;
+        _dispofftime *= Intel8253.CGACONST;
         pc1512.dispontime = (uint64_t)_dispontime;
         pc1512.dispofftime = (uint64_t)_dispofftime;
     }

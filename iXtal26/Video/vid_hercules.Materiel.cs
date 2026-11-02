@@ -18,6 +18,7 @@ using iXtal26.Models;
 using static iXtal26.Memory.mem;
 using static iXtal26.Video.video;
 using static iXtal26.timer;
+using iXtal26.Ics;
 
 namespace iXtal26.Video;
 
@@ -58,7 +59,7 @@ internal static partial class vid_hercules
     {
         ModeMateriel.Sonde[102]++;
         bool graphique = (hercules.ctrl & 2) != 0 && (hercules.ctrl2 & 1) != 0;
-        double caractere = pit.MDACONST * 2.032125 * (graphique ? 1.0 : 0.5625);
+        double caractere = Intel8253.MDACONST * 2.032125 * (graphique ? 1.0 : 0.5625);
         double _dispontime = hercules.crtc[1] * caractere;
         double _dispofftime = (hercules.crtc[0] + 1 - hercules.crtc[1]) * caractere;
         hercules.dispontime = unchecked((uint64_t)(int64_t)_dispontime);

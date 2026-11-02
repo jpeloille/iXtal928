@@ -4,19 +4,20 @@
 // ORACLE: (aucun) — le code propre au mode matériel du 8237 (G13 ; R10 de TRANSCRIPTION.md).
 // STATUS: materiel
 //
-// Les corrections des défauts de PCem dans dma.c, appelées par les gardes de dma.cs (`if (materiel.pb_nn)`), seules
-// sur leur ligne. La source, le cas qui discrimine et la panne qui le rougit sont dans l'entrée PB de PCEM_BUGS.md.
+// Les corrections des défauts de PCem dans dma.c, appelées par les gardes d'Intel8237.cs (`if (materiel.pb_nn)`),
+// seules sur leur ligne. La source, le cas qui discrimine et la panne qui le rougit sont dans l'entrée PB de
+// PCEM_BUGS.md.
 // Les deux 8237 selon la fiche (231466-005) : `base` vaut 0 pour celui du bas (canaux 0 à 3, ports 00h à 0Fh), 4 pour
 // celui du haut (canaux 4 à 7, ports C0h à DFh, adresses déjà ramenées à 0h à Fh par `addr >>= 1`).
 
 using iXtal26.Cpu;
 using static iXtal26.Cpu.x86;
 
-namespace iXtal26.Models;
+namespace iXtal26.Ics;
 
-internal static partial class dma
+internal static partial class Intel8237
 {
-    // L'état que PCem n'a pas, dans une classe à part : un champ statique de plus dans `dma` changerait son
+    // L'état que PCem n'a pas, dans une classe à part : un champ statique de plus dans `Intel8237` changerait son
     // constructeur statique, et le code que le JIT produit pour les méthodes qui le lisent, en mode PCem aussi.
     private static class Etat8237
     {

@@ -4,23 +4,25 @@
 // ORACLE: (aucun) — le code propre au mode matériel du 8259A (G13 ; R10 de TRANSCRIPTION.md).
 // STATUS: materiel
 //
-// Les corrections des défauts de PCem dans pic.c, appelées par les gardes de pic.cs (`if (materiel.pb_nn)`), seules
-// sur leur ligne. La source, le cas qui discrimine et la panne qui le rougit sont dans l'entrée PB de PCEM_BUGS.md ;
-// la fiche est celle du 8259A d'Intel (231468-003). Chaque correction ne vaut que si on la demande : sans PB-248, la
-// priorité reste fixe (IR0 la plus haute) et le masque de service est celui de pic_update_mask, comme dans PCem.
+// Les corrections des défauts de PCem dans pic.c, appelées par les gardes d'Intel8259A.cs (`if (materiel.pb_nn)`),
+// seules sur leur ligne. La source, le cas qui discrimine et la panne qui le rougit sont dans l'entrée PB de
+// PCEM_BUGS.md ; la fiche est celle du 8259A d'Intel (231468-003). Chaque correction ne vaut que si on la demande :
+// sans PB-248, la priorité reste fixe (IR0 la plus haute) et le masque de service est celui de pic_update_mask,
+// comme dans PCem.
 
 using iXtal26.Diag;
 using static iXtal26.Cpu.x86;
 
-namespace iXtal26.Models;
+namespace iXtal26.Ics;
 
-internal static partial class pic
+internal static partial class Intel8259A
 {
-    // pcem bug, fixed in hardware mode: PB-248 — l'état du 8259A que PCem ne tient pas, par contrôleur : le niveau de
-    //   plus basse priorité (7 après ICW1 : fiche p. 10, point c), le masque spécial (OCW3, bits 6-5), la rotation en
-    //   fin d'interruption automatique (OCW2 80h et 00h), un poll en attente (OCW3, bit 2). Dans une classe à part :
-    //   un champ initialisé de plus dans pic change son constructeur statique, et le JIT n'y intègre plus en constante
-    //   l'adresse de pic_current (picintc, mesuré contre M0) ; le mode PCem doit rester à l'octet près.
+    // pcem bug, fixed in hardware mode: PB-248 — l'état du 8259A que PCem ne tient pas, par contrôleur : le niveau
+    //   de plus basse priorité (7 après ICW1 : fiche p. 10, point c), le masque spécial (OCW3, bits 6-5), la
+    //   rotation en fin d'interruption automatique (OCW2 80h et 00h), un poll en attente (OCW3, bit 2). Dans une
+    //   classe à part : un champ initialisé de plus dans Intel8259A change son constructeur statique, et le JIT n'y
+    //   intègre plus en constante l'adresse de pic_current (picintc, mesuré contre M0) ; le mode PCem doit rester à
+    //   l'octet près.
     private static class Etat8259
     {
         internal static int bas1 = 7, bas2 = 7;

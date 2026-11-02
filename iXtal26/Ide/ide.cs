@@ -29,7 +29,7 @@ using iXtal26.Scsi;
 using static iXtal26.Ide.ide_atapi;
 using static iXtal26.Scsi.scsi;
 using static iXtal26.PluginApi.device;
-using static iXtal26.Models.pic;
+using static iXtal26.Ics.Intel8259A;
 using static iXtal26.io;
 using static iXtal26.pc;
 using static iXtal26.timer;

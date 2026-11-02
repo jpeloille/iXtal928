@@ -40,6 +40,7 @@ using iXtal26.PluginApi;
 using static iXtal26.Flash.rom;
 using static iXtal26.PluginApi.config;
 using static iXtal26.rtc_h;
+using iXtal26.Ics;
 
 namespace iXtal26.Devices;
 
@@ -123,7 +124,7 @@ internal static class nvr
         else
         {
                 int c = 1 << ((nvrram[RTC_REGA] & RTC_RS) - 1);
-                timer.timer_set_delay_u64(nvr.rtc_timer, (uint64_t)(pit.RTCCONST * (uint64_t)c));
+                timer.timer_set_delay_u64(nvr.rtc_timer, (uint64_t)(Intel8253.RTCCONST * (uint64_t)c));
         }
     }
 
@@ -145,15 +146,15 @@ internal static class nvr
         else
         {
                 int c = 1 << ((nvrram[RTC_REGA] & RTC_RS) - 1);
-                timer.timer_advance_u64(nvr.rtc_timer, (uint64_t)(pit.RTCCONST * (uint64_t)c));
+                timer.timer_advance_u64(nvr.rtc_timer, (uint64_t)(Intel8253.RTCCONST * (uint64_t)c));
                 nvrram[RTC_REGC] |= RTC_PF;
                 if ((nvrram[RTC_REGB] & RTC_PIE) != 0)
                 {
                         nvrram[RTC_REGC] |= RTC_IRQF;
                         if (Cpu.x86.AMSTRAD != 0)
-                                pic.picint(2);
+                                Intel8259A.picint(2);
                         else
-                                pic.picint(0x100);
+                                Intel8259A.picint(0x100);
                 }
         }
     }
@@ -195,9 +196,9 @@ internal static class nvr
                         {
                                 nvrram[RTC_REGC] |= RTC_IRQF;
                                 if (Cpu.x86.AMSTRAD != 0)
-                                        pic.picint(2);
+                                        Intel8259A.picint(2);
                                 else
-                                        pic.picint(0x100);
+                                        Intel8259A.picint(0x100);
                         }
                 }
 
@@ -207,9 +208,9 @@ internal static class nvr
                 {
                         nvrram[RTC_REGC] |= RTC_IRQF;
                         if (Cpu.x86.AMSTRAD != 0)
-                                pic.picint(2);
+                                Intel8259A.picint(2);
                         else
-                                pic.picint(0x100);
+                                Intel8259A.picint(0x100);
                 }
         }
     }
@@ -261,7 +262,7 @@ internal static class nvr
                         if ((val & RTC_RS) != 0)
                         {
                                 c = 1 << ((val & RTC_RS) - 1);
-                                timer.timer_set_delay_u64(nvr.rtc_timer, (uint64_t)(pit.RTCCONST * (uint64_t)c));
+                                timer.timer_set_delay_u64(nvr.rtc_timer, (uint64_t)(Intel8253.RTCCONST * (uint64_t)c));
                         }
                         else
                                 timer.timer_disable(nvr.rtc_timer);
@@ -330,9 +331,9 @@ internal static class nvr
                 if (nvraddr == RTC_REGC)
                 {
                         if (Cpu.x86.AMSTRAD != 0)
-                                pic.picintc(2);
+                                Intel8259A.picintc(2);
                         else
-                                pic.picintc(0x100);
+                                Intel8259A.picintc(0x100);
                         temp = nvrram[RTC_REGC];
                         nvrram[RTC_REGC] = 0;
                         return temp;
