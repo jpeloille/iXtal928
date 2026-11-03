@@ -40,7 +40,7 @@ ramène. À partir de G11, chaque bloc livre :
 
 G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
 
-## Où on en est — 4 novembre 2026, GR fait (l'écoute de GR.3i attendue) ; G14 fait
+## Où on en est — 4 novembre 2026, GR fait (l'écoute de GR.3i attendue) ; G14 fait, G15 en cours
 
 ```
 8088 ✅ ── 286 ✅ ── G2 ✅ ── G3 ✅ ── G4 ✅ ── G5 ✅ ── G6 ✅ ── G7 ✅ ── G1 ✅ ── G8 ✅ ── PS2 ✅ ── G9 ✅
@@ -182,7 +182,7 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
 - **G14, fait** : du 23/10 au 04/11 (`PLAN-G14.md`, VERIFICATION.md § G14 et sa synthèse). Douze puces dans `Ics/`
   (`ali1429`, sans fiche, garde son nom) ; l'IL et le code machine de R à la table des noms près, les séries identiques
   à l'unité, le banc vert contre R ; Q36 (le 6845 reste dans ses cinq cartes), Q37 à Q39 tranchées.
-- **G15 à G17** attendent chacun un feu vert.
+- **G15, en cours** : feu vert du 04/11, `PLAN-G15.md`, Q40 à Q50 posées ; G16 et G17 attendent un feu vert.
 
 ## Les générations
 
@@ -562,7 +562,7 @@ et ainsi de suite. Les cartes (CGA, FDC, VGA…) restent des *devices*.
   **abandonné** (décision utilisateur du 03/10, voir G15) — il n'est plus « à mesurer
   séparément ».
 
-## G15 — Normaliser le C#  *(décision utilisateur du 03/10 ; attend un feu vert)*
+## G15 — Normaliser le C#  *(décision utilisateur du 03/10 ; feu vert du 04/11 ; `PLAN-G15.md`)*
 
 Après G14.
 
