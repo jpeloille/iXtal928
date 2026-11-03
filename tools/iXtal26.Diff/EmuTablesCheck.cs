@@ -12,6 +12,7 @@
 
 using System.Runtime.InteropServices;
 using iXtal26.Sound;
+using iXtal26.Ics;
 
 namespace iXtal26.Diff;
 
@@ -40,27 +41,34 @@ internal static class EmuTablesCheck
 
         iXtal26.PluginApi.paths.set_roms_paths(romsPath);
         var e = new emu8k_t();
-        sound_emu8k.emu8k_init(e, 0x620, 0);
+        Emu8000.emu8k_init(e, 0x620, 0);
         ulong romC = 1469598103934665603UL;
-        foreach (var b in MemoryMarshal.AsBytes(e.mem.AsSpan(0, sound_emu8k.ROM_MOTS)))
+        foreach (var b in MemoryMarshal.AsBytes(e.mem.AsSpan(0, Emu8000.ROM_MOTS)))
         {
             romC ^= b;
             romC *= 1099511628211UL;
         }
 
         var bad = 0;
-        bad += Cmp("freqtable", freq.Select(x => x).ToArray(), sound_emu8k.freqtable);
-        bad += Cmp("attentable", atten.Select(x => (long)x).ToArray(), sound_emu8k.attentable.Select(x => (long)x).ToArray());
-        bad += Cmp("env_vol_db_to_vol_target", voldb.Select(x => (long)x).ToArray(), sound_emu8k.env_vol_db_to_vol_target.Select(x => (long)x).ToArray());
-        bad += Cmp("env_vol_amplitude_to_db", ampdb.Select(x => (long)x).ToArray(), sound_emu8k.env_vol_amplitude_to_db.Select(x => (long)x).ToArray());
-        bad += Cmp("env_mod_hertz_to_octave", hzoct.Select(x => (long)x).ToArray(), sound_emu8k.env_mod_hertz_to_octave.Select(x => (long)x).ToArray());
-        bad += Cmp("env_attack_to_samples", attack.Select(x => (long)x).ToArray(), sound_emu8k.env_attack_to_samples.Select(x => (long)x).ToArray());
-        bad += Cmp("lfotable", lfo.Select(x => (long)x).ToArray(), sound_emu8k.lfotable.Select(x => (long)x).ToArray());
-        bad += Cmp("lfofreqtospeed", lfospeed, sound_emu8k.lfofreqtospeed);
-        bad += Cmp("chortable", chor.Select(BitConverter.DoubleToInt64Bits).ToArray(), sound_emu8k.chortable.Select(BitConverter.DoubleToInt64Bits).ToArray());
-        bad += Cmp("filt_coeffs", filt.Select(x => (long)x).ToArray(), sound_emu8k.filt_coeffs.Select(x => (long)x).ToArray());
+        bad += Cmp("freqtable", freq.Select(x => x).ToArray(), Emu8000.freqtable);
+        bad += Cmp("attentable", atten.Select(x => (long)x).ToArray(),
+                   Emu8000.attentable.Select(x => (long)x).ToArray());
+        bad += Cmp("env_vol_db_to_vol_target", voldb.Select(x => (long)x).ToArray(),
+                   Emu8000.env_vol_db_to_vol_target.Select(x => (long)x).ToArray());
+        bad += Cmp("env_vol_amplitude_to_db", ampdb.Select(x => (long)x).ToArray(),
+                   Emu8000.env_vol_amplitude_to_db.Select(x => (long)x).ToArray());
+        bad += Cmp("env_mod_hertz_to_octave", hzoct.Select(x => (long)x).ToArray(),
+                   Emu8000.env_mod_hertz_to_octave.Select(x => (long)x).ToArray());
+        bad += Cmp("env_attack_to_samples", attack.Select(x => (long)x).ToArray(),
+                   Emu8000.env_attack_to_samples.Select(x => (long)x).ToArray());
+        bad += Cmp("lfotable", lfo.Select(x => (long)x).ToArray(), Emu8000.lfotable.Select(x => (long)x).ToArray());
+        bad += Cmp("lfofreqtospeed", lfospeed, Emu8000.lfofreqtospeed);
+        bad += Cmp("chortable", chor.Select(BitConverter.DoubleToInt64Bits).ToArray(),
+                   Emu8000.chortable.Select(BitConverter.DoubleToInt64Bits).ToArray());
+        bad += Cmp("filt_coeffs", filt.Select(x => (long)x).ToArray(),
+                   Emu8000.filt_coeffs.Select(x => (long)x).ToArray());
         bad += Cmp("cubic_table", cubic.Select(x => (long)BitConverter.SingleToInt32Bits(x)).ToArray(),
-                   sound_emu8k.cubic_table.Select(x => (long)BitConverter.SingleToInt32Bits(x)).ToArray());
+                   Emu8000.cubic_table.Select(x => (long)BitConverter.SingleToInt32Bits(x)).ToArray());
         if (romO != romC)
         {
             Console.WriteLine($"  la ROM chargée : oracle {romO:X16}, C# {romC:X16}");

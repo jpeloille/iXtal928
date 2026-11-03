@@ -31,6 +31,7 @@ using static iXtal26.PluginApi.device;
 using static iXtal26.Sound.sound;
 using static iXtal26.Sound.sound_opl;
 using static iXtal26.Sound.sound_sb_dsp;
+using iXtal26.Ics;
 
 namespace iXtal26.Sound;
 
@@ -542,7 +543,7 @@ internal static partial class sound_sb
         int c;
 
         opl3_update2(sb.opl);
-        sound_emu8k.emu8k_update(emu);
+        Emu8000.emu8k_update(emu);
         sb_dsp_update(sb.dsp);
         int dsp_rec_pos = sb.dsp.record_pos_write;
         for (c = 0; c < len * 2; c += 2) {
@@ -1591,7 +1592,7 @@ internal static partial class sound_sb
         if (mpu_addr != 0)
                 sound_mpu401_uart.mpu401_uart_init(sb.mpu, (uint16_t)mpu_addr, -1, 0);
         sb.emu8k = new emu8k_t();
-        sound_emu8k.emu8k_init(sb.emu8k, emu_addr, onboard_ram);
+        Emu8000.emu8k_init(sb.emu8k, emu_addr, onboard_ram);
 
         return sb;
     }
@@ -1613,7 +1614,7 @@ internal static partial class sound_sb
     {
         sb_t sb = (sb_t)p;
 
-        sound_emu8k.emu8k_close(sb.emu8k!);
+        Emu8000.emu8k_close(sb.emu8k!);
 
         sb_close(sb);
     }

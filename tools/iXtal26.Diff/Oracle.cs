@@ -346,7 +346,7 @@ public static class Oracle
     [DllImport(Lib)] internal static extern void h_dma_probe([Out] ulong[] o);
     public const int DmaProbeN = 29;
     [DllImport(Lib)] internal static extern void h_sb16_filter(int cmd, int val, [Out] float[] o);
-    // G12.2 — la sonde de l'EMU8000 (harness_emu8k.c, Sound/sound_emu8k.cs Probe) et les tables de emu8k_init.
+    // G12.2 — la sonde de l'EMU8000 (harness_emu8k.c, Ics/Emu8000.cs Probe) et les tables de emu8k_init.
     [DllImport(Lib)] internal static extern void h_emu8k_probe([Out] ulong[] o);
     public const int Emu8kProbeN = 72;
     [DllImport(Lib)]

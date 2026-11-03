@@ -4,7 +4,7 @@
 // ORACLE: (aucun) — le code propre au mode matériel de l'EMU8000 de l'AWE32 (G13 ; R10 de TRANSCRIPTION.md).
 // STATUS: materiel
 //
-// Les corrections des défauts de PCem dans sound_emu8k.c, appelées par les gardes de sound_emu8k.cs
+// Les corrections des défauts de PCem dans sound_emu8k.c, appelées par les gardes d'Emu8000.cs
 // (`if (materiel.pb_nn)`), seules sur leur ligne. La source, le cas qui discrimine et la panne qui le rougit sont dans
 // l'entrée PB de PCEM_BUGS.md. La référence : le guide de l'EMU8000 (Dave Rossum, AWE32/EMU8000 Programmer's Guide,
 // E-mu/Creative, 1994-1996), p. 11-14 (les adresses de la DRAM, WC, HWCF3) et p. 20 (l'initialisation). Les méthodes
@@ -18,9 +18,9 @@
 
 using System.Runtime.CompilerServices;
 
-namespace iXtal26.Sound;
+namespace iXtal26.Ics;
 
-internal static partial class sound_emu8k
+internal static partial class Emu8000
 {
     private static class EtatEmu
     {

@@ -9,11 +9,12 @@
 ## Où on en est
 
 G14.0a à G14.0d sont faites : la référence est gelée au commit R = `f15e11f` (`/var/tmp/ixtal-g14/ref-R`, séries
-`g14r` et `g14r-tout`, VERIFICATION.md § G14.0d), les outils de la preuve sont en place. G14.1 et G14.2 sont faites :
+`g14r` et `g14r-tout`, VERIFICATION.md § G14.0d), les outils de la preuve sont en place. G14.1 à G14.3 sont faites :
 `pic`, `pit` et `dma` sont `Intel8259A`, `Intel8253` et `Intel8237` (VERIFICATION.md § G14.1), `keyboard_at`, `nvr`
-et `serial` sont `Intel8042`, `Motorola146818` et `National8250` (§ G14.2), dans `Ics/`. Le runtime est passé à
+et `serial` sont `Intel8042`, `Motorola146818` et `National8250` (§ G14.2), `sound_emu8k`, `vid_tkd8001_ramdac` et
+`vid_unk_ramdac` sont `Emu8000`, `TridentTKD8001` et `SierraSC1502x` (§ G14.3), dans `Ics/`. Le runtime est passé à
 10.0.14 le 31/10 : la référence a été réancrée (§ G14.1, le réancrage), sans rien reconstruire ; il n'a pas changé
-depuis. G14.3 attend son feu vert.
+depuis. G14.4 est lancée, sur le feu vert du 03/11 (« Feu vert pour g14.3 et g14.4 »).
 
 ### Ce que les lectures ont trouvé
 
@@ -230,11 +231,12 @@ l'espace de noms `iXtal26.Ics`.
 
 Mêmes portes et mêmes contrôles négatifs que G14.1.
 
-### G14.3 — Les puces des cartes
+### G14.3 — Les puces des cartes  ✅ *fait, VERIFICATION.md § G14.3*
 
 `sound_emu8k` → `Emu8000` ; `vid_tkd8001_ramdac` → `TridentTKD8001` ; `vid_unk_ramdac` → `SierraSC1502x`, la famille
-que PCem nomme. Mêmes portes ; celles du son (SonBanc, SB16BANC, AWEBANC) et de la vidéo (ET4BANC, la 8900D) sont
-dans les séries.
+que PCem nomme (« a Sierra 1502x », `vid_unk_ramdac.c:4-7`) ; la puce exacte de la carte reste inconnue (PB-100).
+Mêmes portes ; celles du son (SB16BANC, AWEBANC) et de la vidéo (ET4BANC, la 8900D) sont dans les séries, SonBanc
+(l'AWE32 : SonAweVoix, SonAweWc) au banc.
 
 ### G14.4 — Les jeux de puces
 
@@ -253,14 +255,17 @@ ceux qui les exercent.
 - le sort du 6845 : aucun module en G14 (Q36, tranchée le 23/10).
 
 S'y ajoutent les commentaires du harnais qui citent un fichier ou une classe C# renommés : `nvr.cs` et
-`keyboard_at.cs` (`harness.c:2092`, `harness_stubs.c:172`), et, depuis G14.1, `Models.pit.Probe()` et
-`Models.dma.ProbeState` (`harness.c:2757`, `harness.h:458`, `harness_dma.c:24`), corrigés avec
-`check-oracle.sh --fix`. La `.so` est reconstruite, égale
+`keyboard_at.cs` (`harness.c:2092`, `harness_stubs.c:172`), depuis G14.1 `Models.pit.Probe()` et
+`Models.dma.ProbeState` (`harness.c:2757`, `harness.h:458`, `harness_dma.c:24`), et depuis G14.3
+`sound_emu8k.VoiceFnv`, `sound_emu8k.CombFnv` et `sound_emu8k.Probe` (`harness_emu8k.c:67`, `:126`, `:143`), corrigés
+avec `check-oracle.sh --fix`. La `.so` est reconstruite, égale
 hors débogage, comme en GR.4e. `PLAN.md` dit « G14 est fait » et met [ICI] avant G15.
 
 ## La vérification
 
-- **L'IL et le code machine** : identiques, à la table des noms près, à chaque commit de G14.1 à G14.4.
+- **L'IL et le code machine** : identiques, à la table des noms près, à chaque commit de G14.1 à G14.4. Un jeton de
+  chaîne littérale qui change de valeur en désignant la même chaîne n'est pas un écart (Q39) : prouvé jeton par jeton
+  en G14.3, lu par `listings-jit.sh compare` dans le tas #US de chaque DLL à partir de G14.4.
 - **Les séries** : entières, dans les deux modes, identiques à l'unité à celles du commit R après normalisation ;
   l'émulateur change à chaque renommage, la règle du dépôt les demande donc entières.
 - **Le banc** : contre le binaire figé R, jamais contre le commit précédent, selon le protocole de G14.0b ;
@@ -278,7 +283,7 @@ hors débogage, comme en GR.4e. `PLAN.md` dit « G14 est fait » et met [ICI] av
 
 Le principe de G14, sa portée et sa porte sont décidés (`PLAN.md` § G14 et § G15, 03/10). Les décisions ci-dessous
 en découlent ; la règle du 18/10 n'en laisse qu'une question à Julien, Q36, tranchée le 23/10. G14.0b et G14.0c en
-ont ouvert deux autres, Q37 et Q38, tranchées le 24/10.
+ont ouvert deux autres, Q37 et Q38, tranchées le 24/10 ; G14.3 une, Q39, tranchée le 03/11.
 
 1. **La portée : le conteneur seul.** La classe, son fichier, son répertoire et son espace de noms changent ; les
    membres et les types d'état (`pic_`, `pit_`, `PIT`, `PIC`, `dma_t`, `SERIAL`, `keyboard_at_t`) gardent leurs noms.
@@ -361,6 +366,14 @@ ont ouvert deux autres, Q37 et Q38, tranchées le 24/10.
   *Proposé : `tools/renommage` applique dans un worktree ; la préversion de Rider sert de contre-compte (fichiers et
   sites égaux) ; les juges restent le diff inverse, l'IL et les listings par la table, les séries et le banc.*
   *Tranchée par Julien le 24/10 : « Le script ».*
+
+- **Q39 (G14.3)** — Le déplacement de `sound_emu8k.cs` dans `Ics/` change l'ordre des fichiers compilés, donc les
+  décalages des chaînes littérales dans le tas #US : les listings du JIT sortent 4 méthodes changées, 16 jetons de
+  `CORINFO_HELP_STRCNS` sur des chemins froids, chacun vers la même chaîne ; l'IL est le même. La porte « le code
+  machine identique » ne disait pas si cet écart passe.
+  *Proposé : l'admettre pour G14.3 sur la preuve des 16 jetons, et outiller la porte avant G14.4 (`listings-jit.sh
+  compare` résout chaque jeton par le tas #US de sa DLL, avec son contrôle négatif) ; la porte redevient 0/0/0.*
+  *Tranchée par Julien le 03/11 : « Outiller, admettre pour G14.3 ».*
 
 ## Les risques
 

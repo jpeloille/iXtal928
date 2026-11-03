@@ -7,10 +7,22 @@
 // G9.3 (PLAN-G9.md). Le RAMDAC de la Tseng ET4000AX, un Sierra SC1502x HiColor : quatre lectures
 // de 3C6h arment le registre de commande, la lecture suivante le rend, l'écriture suivante choisit
 // la profondeur.
+//
+// noms: PCem → iXtal26 → ce qu'il désigne — R1(e). « = » : nom inchangé.
+//   vid_unk_ramdac.c  Ics/SierraSC1502x.cs  le fichier ; avant G14, Video/vid_unk_ramdac.cs
+//   (aucun)     Ics/SierraSC1502x.Materiel.cs  le mode matériel ; avant G14, Video/vid_unk_ramdac.Materiel.cs
+//   (aucun)     SierraSC1502x       le conteneur, la famille SC1502x de Sierra, que PCem nomme (« a Sierra 1502x »,
+//                                   vid_unk_ramdac.c:4-7) ; la puce exacte de la carte est inconnue (PB-100). Le
+//                                   RAMDAC de l'ET4000 (vid_et4000.c:58, :278) ; avant G14, la classe
+//                                   `vid_unk_ramdac` (iXtal26.Video)
+//   unk_ramdac_t  =                 la struct de vid_unk_ramdac.h:3-6, l'état du RAMDAC ; espace iXtal26.Ics
+//   Les FONCTIONS gardent les noms de PCem (unk_ramdac_out, unk_ramdac_in) : elles sont l'API entre modules
+//   (fdc.cs:47 ; PLAN-G14.md, décision n° 1).
 
 using static iXtal26.Video.vid_svga;
+using iXtal26.Video;
 
-namespace iXtal26.Video;
+namespace iXtal26.Ics;
 
 // pcem: vid_unk_ramdac.h:3-6
 internal sealed class unk_ramdac_t
@@ -23,7 +35,7 @@ internal sealed class unk_ramdac_t
   It is possibly a Sierra 1502x
   It's addressed by the TLIVESA1 driver for ET4000*/
 /* Note by Tenshi: Not possibly, this *IS* a Sierra 1502x. */
-internal static partial class vid_unk_ramdac
+internal static partial class SierraSC1502x
 {
     // pcem: vid_unk_ramdac.c:14-76
     internal static void unk_ramdac_out(uint16_t addr, uint8_t val, unk_ramdac_t ramdac, svga_t svga)

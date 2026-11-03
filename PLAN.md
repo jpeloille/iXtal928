@@ -40,7 +40,7 @@ ramène. À partir de G11, chaque bloc livre :
 
 G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
 
-## Où on en est — 3 novembre 2026, GR fait (l'écoute de GR.3i attendue) ; G14 en cours, G14.2 faite
+## Où on en est — 3 novembre 2026, GR fait (l'écoute de GR.3i attendue) ; G14 en cours, G14.3 faite
 
 ```
 8088 ✅ ── 286 ✅ ── G2 ✅ ── G3 ✅ ── G4 ✅ ── G5 ✅ ── G6 ✅ ── G7 ✅ ── G1 ✅ ── G8 ✅ ── PS2 ✅ ── G9 ✅
@@ -180,8 +180,8 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
   comptée, la relecture contradictoire, la dette de G1, G7 et G8. Reste l'écoute de GR.3i, préparée, que Julien
   fera ; et, dits sans étape, quatre trous de la couverture et quatre défauts candidats de PCem.
 - **G14, en cours** : feu vert du 23/10 ; `PLAN-G14.md`, sur reconnaissance (`iXtal26/Docs/G14-reconnaissance/`).
-  G14.0a-d (la référence figée, les outils de la preuve), G14.1 et G14.2 (8259A, 8253, 8237, 8042, MC146818 et 8250
-  dans `Ics/`) sont faits ; puis G14.3 et G14.4, un commit par famille, et la clôture ; Q36 tranchée (pas de 6845).
+  G14.0a-d (la référence figée, les outils de la preuve) et G14.1 à G14.3 (neuf puces dans `Ics/`) sont faits ;
+  puis G14.4, les jeux de puces, et la clôture, un commit par famille ; Q36 tranchée (pas de 6845).
 - **G15 à G17** attendent chacun un feu vert.
 
 ## Les générations

@@ -13,6 +13,26 @@
 //         RESAMPLER_LINEAR :1633-1634) et la branche `#elif 0` (:1116-1119) ; le commentaire documentaire de
 //         l'en-tête (emu8k.h:383-766) ; les lignes que PCem commente.
 //
+// noms: PCem → iXtal26 → ce qu'il désigne — R1(e). « = » : nom inchangé.
+//   sound_emu8k.c  Ics/Emu8000.cs  le fichier ; avant G14, Sound/sound_emu8k.cs
+//   (aucun)     Ics/Emu8000.Materiel.cs  le mode matériel ; avant G14, Sound/sound_emu8k.Materiel.cs
+//   (aucun)     Emu8000             le conteneur, l'EMU8000 d'E-mu, que PCem nomme (sound_emu8k.c:564), le
+//                                   synthétiseur de l'AWE32 : sb_awe32_init seule l'initialise (sound_sb.c:1092) ;
+//                                   avant G14, la classe `sound_emu8k` (iXtal26.Sound)
+//   emu8k_t     =                   la struct de sound_emu8k.h:343-376, l'état de la puce ; espace iXtal26.Ics
+//   emu8k_voice_t  =                la struct de sound_emu8k.h:164-341, un des 32 canaux ; espace iXtal26.Ics
+//   emu8k_envelope_t, emu8k_chorus_eng_t, emu8k_reverb_combfilter_t, emu8k_reverb_eng_t, emu8k_slide_t
+//               =                   les structs de sound_emu8k.h:87-93, :95-107, :133-142, :144-158, :160-162 ;
+//                                   espace iXtal26.Ics
+//   emu8k_mem_internal_t  =         la struct de sound_emu8k.h:14-23 (« used for the increment of oscillator
+//                                   position », :13) ; espace iXtal26.Ics. emu8k_mem_pointers_t (:26-35) n'a pas
+//                                   de type : EMU8K_READ en tire le bloc et l'adresse (sound_emu8k.c:284-287)
+//   (aucun)     emu8k_cpf_u … emu8k_fm2frq2_u  les douze unions anonymes du canal (sound_emu8k.h:165-312),
+//                                   chacune du nom de son premier membre, suffixé `_u` (LES UNIONS, ci-dessous) ;
+//                                   espace iXtal26.Ics
+//   Les FONCTIONS et les globales de PCem gardent leur nom (emu8k_init, emu8k_update, freqtable…) : elles
+//   sont l'API entre modules (fdc.cs:47 ; PLAN-G14.md, décision n° 1).
+//
 // LES UNIONS (PLAN-G12.md, décision n° 15). Les unions anonymes du C (emu8k.h:14-35, :164-312) deviennent des
 //   structures à disposition explicite, un champ par union, suffixé `_u` ; leurs membres gardent les noms du C
 //   (`ccca_u.ccca_qcontrol` pour `ccca_qcontrol`). Petit-boutien, comme le C le suppose (emu8k.h:10-12).
@@ -36,8 +56,9 @@
 using System.Runtime.InteropServices;
 using static iXtal26.io;
 using static iXtal26.Sound.sound;
+using iXtal26.Sound;
 
-namespace iXtal26.Sound;
+namespace iXtal26.Ics;
 
 // pcem: sound_emu8k.h:14-23 — used for the increment of oscillator position
 [StructLayout(LayoutKind.Explicit)]
@@ -72,7 +93,7 @@ internal sealed class emu8k_chorus_eng_t
     internal emu8k_mem_internal_t lfo_inc;
     internal emu8k_mem_internal_t lfo_pos;
 
-    internal readonly int32_t[] chorus_buffer = new int32_t[sound_emu8k.EMU8K_LFOCHORUS_SIZE * 2];
+    internal readonly int32_t[] chorus_buffer = new int32_t[Emu8000.EMU8K_LFOCHORUS_SIZE * 2];
 }
 
 // pcem: sound_emu8k.h:133-142. DEVIATION: le tampon a 34 × 242 = 8 228 entrées, et non MAX_REFL_SIZE (7 744) : la
@@ -81,7 +102,7 @@ internal sealed class emu8k_chorus_eng_t
 internal sealed class emu8k_reverb_combfilter_t
 {
     internal int read_pos;
-    internal readonly int32_t[] reflection = new int32_t[sound_emu8k.REFL_TAMPON];
+    internal readonly int32_t[] reflection = new int32_t[Emu8000.REFL_TAMPON];
     internal float output_gain;
     internal float feedback;
     internal float damp1;
@@ -331,7 +352,7 @@ internal sealed class emu8k_t
     }
 }
 
-internal static partial class sound_emu8k
+internal static partial class Emu8000
 {
     // pcem: sound_emu8k.h:5-9 — All these defines are in samples, not in bytes.
     internal const uint32_t EMU8K_MEM_ADDRESS_MASK = 0xFFFFFF;

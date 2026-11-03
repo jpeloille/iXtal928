@@ -20,7 +20,7 @@ using static iXtal26.PluginApi.device;
 using static iXtal26.Video.video;
 using static iXtal26.Video.vid_svga;
 using static iXtal26.Video.vid_svga_render;
-using static iXtal26.Video.vid_tkd8001_ramdac;
+using static iXtal26.Ics.TridentTKD8001;
 using static iXtal26.io;
 using iXtal26.Ics;
 

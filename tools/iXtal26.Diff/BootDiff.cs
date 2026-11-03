@@ -951,7 +951,7 @@ public static class BootDiff
         var dmaCsharp = new ulong[Oracle.DmaProbeN];
         Ics.Intel8237.ProbeState(dmaCsharp);
         var emuCsharp = new ulong[Oracle.Emu8kProbeN];
-        Sound.sound_emu8k.Probe(emuCsharp);
+        Ics.Emu8000.Probe(emuCsharp);
         var stockCsharp = (new ulong[Oracle.AtapiProbeN], new ulong[Oracle.CdDataProbeN], new ulong[Oracle.ZipProbeN],
                            new ulong[Oracle.LptProbeN]);
         Ide.ide_atapi.Probe(stockCsharp.Item1);

@@ -17195,7 +17195,7 @@ la même empreinte normalisée que celle de R (`82655396…`), et son IL est cel
 |---|---|
 | `iXtal26.dll` | `d4dbe211…5023cf` |
 | `iXtal26.Diff.dll` | `6da165da…819152` |
-| `libixtal26oracle.so` | `fe905731…6bc03ae` |
+| `libixtal26oracle.so` | `fe905731…a2bc03ae` |
 
 *Les deux disques que `os.sha256` ne reconnaît plus.* `os/386-HDD-C.img` a été écrite par une séance de Julien le 23/10
 à 19 h 15 (`caa336c3…` ; l'ancre dit `c3d938cc…`), `os/486-HDD-C.img` le 24/10 à 14 h 28 (`6968dbe6…` ; l'ancre
@@ -17810,7 +17810,7 @@ première ligne.
 
 - **La `.so` de l'oracle** : `git diff HEAD -- tools/oracle/ pcem-dev/` vide dans `g141`, et `git diff f15e11f HEAD`
   aussi ; les séries jouent la `.so` de `S-g14r`, copiée dans `S-g141`, conforme à `gel-R/S-g14r.sha256`
-  (`fe905731…6bc03ae`).
+  (`fe905731…a2bc03ae`).
 - **Les anciens noms** (`grep-anciens.log`), dans le code compilé (`iXtal26/`, `tools/iXtal26.Diff/`,
   `tools/perfbanc/`, `*.cs`) : `iXtal26.Models.(pic|pit|dma|PIC|PIT|PIT_nr|set_out_func_t|dma_t)` : **0** ;
   `Models.(…)` : **0** ; `using static iXtal26.Models.(pic|pit|dma)` : **0** ; `class (pic|pit|dma)` : 0 ; aucun
@@ -18201,7 +18201,7 @@ nomme `Devices.nvr`, `Models.serial`, `Keyboard.keyboard_at`, ni les types d'ét
 
 - **La `.so` de l'oracle** : `git diff HEAD -- tools/oracle/ pcem-dev/` vide dans `g142`, et `git diff f15e11f HEAD`
   aussi ; les séries jouent la `.so` de `S-g14r`, copiée dans `S-g142`, conforme à `gel-R/S-g14r.sha256`
-  (`fe905731…6bc03ae` ; `prep-serie-g142.log`).
+  (`fe905731…a2bc03ae` ; `prep-serie-g142.log`).
 - **Les anciens noms** (`grep-anciens.log`), dans le code compilé (`*.cs` d'`iXtal26/`, `tools/iXtal26.Diff/`,
   `tools/perfbanc/`) : `iXtal26.Keyboard.(keyboard_at|keyboard_at_t|mouse_write_fn)`, `iXtal26.Devices.nvr`,
   `iXtal26.Models.(serial|SERIAL|serial_rcr_fn)` : **0** ; les mêmes, relatifs (`Keyboard.keyboard_at`,
@@ -18311,3 +18311,506 @@ Trouvé en route, non corrigé (règle du 18/10) :
   aujourd'hui `Intel8042.cs:169`) : journaux datés, non touchés (décision n° 10).
 - Les deux commentaires du harnais (`harness.c:2092` `nvr.cs`, `harness_stubs.c:172` `keyboard_at.cs`) restent ceux
   que § G14.5 liste ; G14.2 n'en ajoute pas.
+
+## G14.3 — Les puces des cartes
+
+Le 3 novembre 2026 (PLAN-G14.md § G14.3, décisions n° 1 à 4, 7 à 11 et 13 ; Q37, Q38). Feu vert de Julien le 03/11 : «
+Feu vert pour g14.3 et g14.4 ». `sound_emu8k` → `Emu8000`, avec son `.Materiel.cs` ; `vid_tkd8001_ramdac` →
+`TridentTKD8001` ; `vid_unk_ramdac` → `SierraSC1502x`, avec son `.Materiel.cs` ; dans `Ics/` et l'espace de noms
+`iXtal26.Ics`. Le worktree de l'étape est `/var/tmp/ixtal-g14/g143`, sur la branche locale `g14-3`, parti de `4982715` ;
+les journaux sont sous `/var/tmp/ixtal-g14/g14-3/`, les outils jetables qui les ont produits sous `outils/` (recopiés de
+`g14-2/outils/` et adaptés : `verif-avant.sh`, `prep-g143.sh`, `diff_inverse.py` et son lexeur, `delta_main.py`,
+`longues.py`, `renvois.py`, `il-portes.sh`, `jit-portes.sh`, `capture-C.sh`, `attendre-calme.sh`, `sonde-lourds.py`,
+`bancs.sh`, `synthese.py`, `series-g143.sh`, `mesures.sh` ; `complement-atapi-vide.sh` et
+`complement-atapi-vide-tout.sh`, prêts, n'ont pas servi : aucun rejeu ; `documents.py` récrit pour l'étape, l'ancien
+gardé en `documents-g142.py.orig` ; neufs : `worktree-g143.sh`, `construire.sh`, `avant-renommage.sh`, `recoupes.py`,
+`documents_inverse.py`, `chaines.py`, `grep-anciens.sh`, `prep-serie-g143.sh`, `jetons_chaines.py`, et `reflue_md.py`
+pour ce texte). Rien n'a été construit ni modifié dans le dépôt principal ; la préversion de Rider seule y a lu.
+
+**Le commit : `18dd8c8`**, « g14: G14.3, les puces des cartes — … », auteur Julien Peloille, sur la branche `g14-3`
+du worktree `g143`, parent `4982715`. Non poussé ; `master` reste à `4982715`. L'arbre commité est celui que les portes
+ont jugé : aucun fichier suivi n'a changé après la construction de 12 h 23, la construction finale (16 h 28) rend les
+mêmes DLL à l'octet, `git diff HEAD` est vide après le commit, `git show --stat` donne les 17 fichiers attendus, cinq
+déplacements compris (`apres-commit.log`). Les chemins ont été ajoutés par leur nom neuf (les anciens, déplacés par
+`git mv`, étaient déjà à l'index ; le défaut du premier commit de G14.2 ne s'est pas reproduit). Le message est aussi
+dans `message-commit.txt`. `VERIFICATION.md` et les plans n'y sont pas (les textes des plans : `textes-plans.md`).
+
+| Ancien chemin | Nouveau chemin | Conteneur |
+|---|---|---|
+| `iXtal26/Sound/sound_emu8k.cs` | `iXtal26/Ics/Emu8000.cs` | `Sound.sound_emu8k` → `Ics.Emu8000` |
+| `iXtal26/Sound/sound_emu8k.Materiel.cs` | `iXtal26/Ics/Emu8000.Materiel.cs` | (le même, partiel) |
+| `iXtal26/Video/vid_tkd8001_ramdac.cs` | `iXtal26/Ics/TridentTKD8001.cs` | `vid_tkd8001_ramdac` → `TridentTKD8001` |
+| `iXtal26/Video/vid_unk_ramdac.cs` | `iXtal26/Ics/SierraSC1502x.cs` | `Video.vid_unk_ramdac` → `Ics.SierraSC1502x` |
+| `iXtal26/Video/vid_unk_ramdac.Materiel.cs` | `iXtal26/Ics/SierraSC1502x.Materiel.cs` | (le même, partiel) |
+
+Les types d'état gardent leur nom et passent dans `iXtal26.Ics` avec leur fichier (décisions n° 1 et 2) : `emu8k_t` et
+les vingt autres types de `sound_emu8k.cs` (`emu8k_voice_t`, les cinq moteurs et enveloppes, `emu8k_mem_internal_t`, les
+douze unions `emu8k_*_u`), `tkd8001_ramdac_t`, `unk_ramdac_t` (la table, `tools/noms/g14.txt`, étape G14.3 : 25 types,
+5 fichiers ; `EtatEmu`, imbriquée dans le conteneur, le suit sans entrée). Les membres, globales comprises (`freqtable`,
+`dmareadbit`, `ram_pointers`…), ne changent pas. `vid_tkd8001_ramdac.Materiel.cs` n'existe pas.
+
+### Avant l'étape
+
+**Le runtime n'a pas changé** (`verif-avant.log`, le 03/11 à 11 h 50) : `dotnet --list-runtimes` ne donne que
+Microsoft.NETCore.App et AspNetCore.App 10.0.14, `--list-sdks` 10.0.114, `dotnet --version` 10.0.114. Depuis le
+réancrage de G14.1 (le 02/11), `/var/log/apt/history.log` n'a qu'une entrée, `apt install hunspell-fr` du 01/11 à
+7 h 27, déjà vue par G14.1 et G14.2 ; la dernière de `history.log.1.gz` est celle du 31/10 à 6 h 55 (10.0.14). Pas de
+réancrage : le gel `gel-R-10.0.14/` et la capture `ref-R-captures-10.0.14/jit` restent ceux de la porte.
+
+**ref-R n'a pas bougé** (même journal) : HEAD `f15e11f`, `git status --porcelain` vide, les trois DLL de bin/
+conformes à `gel-R-10.0.14/empreintes-r.sha256` (lui-même égal à `gel-R/empreintes-r.sha256`), les 1 894 fichiers du
+manifeste de fin conformes, 163 liens, aucun répertoire de job.
+
+**La vérification « hors G14 »** (§ G14.0d ; `verif-avant.log`), sur le pathspec de § G14.0d :
+- `git log --no-merges --invert-grep --grep='^g14:' f15e11f..4982715 -- CHEMINS` : **vide**. Les trois commits de
+  l'intervalle, `651d5f7`, `d561881` et `4982715`, sont des `g14:`. Le témoin, la même commande sur `1d49a7f..f15e11f`,
+  sort `622b091` (« hote: un second disque dur sur l'ami486 »), le seul connu, d'avant R, déjà jugé en G14.0d, G14.1
+  et G14.2 : rien après R ;
+- `git diff f15e11f 4982715 -- tools/oracle/ pcem-dev/` : 0 ligne ;
+- dans `g143`, avant le renommage (`avant-renommage.log`) : `git status --porcelain` vide ; `nvr/default/` conforme à
+  `gel-R/nvr-default.sha256` (7 fichiers), `S-g14r` conforme à `gel-R/S-g14r.sha256` (4) ; `roms.sha256` : 34 OK
+  (`worktree-g143.log`) ;
+- `ildump comparer` du parent construit (`g143` avant le renommage, `construction-avant.log`, 0 avertissement) contre
+  R, avec la table cumulée de l'étape d'avant (`--noms tools/noms/g14.txt --jusqua G14.2` ; `il-parent.log`) :
+  iXtal26 5 738 entrées, **0 changée, 0 disparue, 0 apparue** (3 875 noms réécrits) ; iXtal26.Diff contre `S-g14r` :
+  3 331 entrées, 0 ; SoftFloat, sans table : 90 entrées, 0.
+
+Le dépôt principal a des fichiers non commités (`PLAN.md`, `tools/fetch-sources.sh`,
+`iXtal26/Docs/arbre-classes-cpu.html`, des `__pycache__/`) ; ils n'entrent pas dans le worktree, parti du commit.
+
+### Le renommage
+
+**Le worktree.** `git worktree add -b g14-3 /var/tmp/ixtal-g14/g143 4982715` (`master` = `origin/master` = `4982715`) ;
+`roms/` lié entrée par entrée, les noms cités dès le premier passage (163 liens, `roms.sha256` : 34 OK ;
+`outils/worktree-g143.sh`, `worktree-g143.log`). Construit en Release avant le renommage (`construction-avant.log`,
+0 avertissement).
+
+**Le contre-compte de Rider** (`rider-preview.tsv`, `rider-contre-script.txt`). Dans le dépôt principal,
+`rename_refactoring` en `preview=true` seulement, sur `sound_emu8k`, `vid_tkd8001_ramdac` et `vid_unk_ramdac`, le 03/11
+vers 11 h 52 : `applied` faux, `touched` à 0, aucun conflit, `moreFiles` à 0 ; `git status` du dépôt principal identique
+avant et après (`depot-principal-status-avant-rider.txt`, `depot-principal-status-apres-rider.txt`).
+
+| Conteneur | Rider : fichiers, sites | Script, dans `iXtal26/` | Hors d'`iXtal26/` |
+|---|---|---|---|
+| `sound_emu8k` → `Emu8000` | 4, 6 | 4, 6 | 5 fichiers, 43 sites (ci-dessous) |
+| `vid_tkd8001_ramdac` → `TridentTKD8001` | 2, 1 | 2, 1 | 0 |
+| `vid_unk_ramdac` → `SierraSC1502x` | 3, 1 | 3, 1 | 0 |
+
+Les 43 sites hors d'`iXtal26/` : `EmuKernelCheck.cs` 19, `EmuTablesCheck.cs` 13, `MaterielCasEmu.cs` 6, `R9Awe.cs` 4,
+`BootDiff.cs` 1. Les fichiers comptent ceux des déclarations, les sites non. Les trois comptes sont égaux, et les
+fichiers que Rider nomme sont exactement ceux du script. Rider ne voit ni iXtal26.Diff ni le banc.
+
+**La table de l'étape seule.** `tools/renommage` cumule les étapes du début jusqu'à `--jusqua` et refuse une étape
+déjà faite (« Hors de la portée » de § G14.2) : il reçoit un extrait de la table, `g14-3/noms-g143-seule.txt` : deux
+lignes d'en-tête et les lignes 64 à 94 de `tools/noms/g14.txt` (l'étape G14.3), copiées telles quelles (`diff` vide
+contre la table). Les juges, `ildump` et `listings-jit.sh`, lisent la table elle-même, `--jusqua G14.3`, contre R.
+
+**L'outil** (`renommer.sh g143 noms-g143-seule.txt G14.3`, `renommage-g143.log`, `renommage-g143.tsv`) : 3 projets, 342
+fichiers, la compilation de départ sans erreur ; **14 fichiers modifiés, 70 sites** : 5 déclarations (`sound_emu8k` et
+`vid_unk_ramdac` deux, leurs deux parties ; `vid_tkd8001_ramdac` une), 5 espaces de noms de fichier, 2 `using static`
+(`vid_tvga.cs`, `vid_et4000.cs`), 1 nom qualifié (`Sound.sound_emu8k.` de `BootDiff.cs:954`), 48 noms simples
+(`sound_emu8k` : 42 dans iXtal26.Diff, le 43ᵉ site étant le nom qualifié de `BootDiff.cs`, 3 dans `sound_sb.cs`, 1 dans
+`sound_sb.Materiel.cs`, 2 dans `sound_emu8k.cs` lui-même, `EMU8K_LFOCHORUS_SIZE` et `REFL_TAMPON` lus par deux types
+d'état), 9 `using` ajoutés : `using iXtal26.Ics;`
+dans six fichiers qui nomment un type d'état de l'EMU8000 par l'espace `iXtal26.Sound` (`sound_sb.cs`,
+`sound_sb.Materiel.cs`, et `EmuKernelCheck.cs`, `EmuTablesCheck.cs`, `MaterielCasEmu.cs`, `R9Awe.cs` d'iXtal26.Diff),
+`using iXtal26.Sound;` dans `sound_emu8k.cs` (`sound_sb.sb_pri`, dans `Probe`), `using iXtal26.Video;` dans les deux
+RAMDAC (`svga_t`) ; 0 renvoi `cref` ; 0 ligne portée au-delà de 120 caractères ou allongée. Les 17 « inféré (var), non
+touché » du journal ne sont pas des sites. La recompilation en mémoire est sans erreur ni avertissement de plus. Cinq
+`git mv`. `vid_et4000.cs` et `vid_tvga.cs`, qui nomment `unk_ramdac_t` et `tkd8001_ramdac_t`, avaient déjà
+`using iXtal26.Ics;` (de G14.1, pour `Intel8253` ; `renommage-g141.tsv`) : rien n'y est ajouté. Les types d'état n'ont
+d'autre site que l'espace de leur fichier (compté sous le premier type déclaré : `emu8k_mem_internal_t` pour
+`sound_emu8k.cs`, `tkd8001_ramdac_t` et `unk_ramdac_t` pour les RAMDAC) : ils gardent leur nom, et leurs renvois
+simples, inchangés, ne sont pas comptés.
+
+*Reproductible* : le même renommage, refait par l'outil seul dans un worktree jetable `rp2-g143` (détaché à
+`4982715`), rend le même journal et le même diff (`diff` vides, `git status` identiques ; `renommage-rp2.log`).
+`rp2-g143` sert ensuite à séparer ce que l'outil a fait de ce qui a été fait à la main.
+
+**Les blocs `// noms:`.** Un par fichier transcrit, sur le modèle de `fdc.cs:10-49` et des blocs de G14.1 et G14.2 :
+`Emu8000.cs:16-34`, `TridentTKD8001.cs:7-15`, `SierraSC1502x.cs:11-20` (les `.Materiel.cs` n'en ont pas, comme ceux de
+G14.1 et G14.2). Chacun donne le fichier C et le fichier C# (avant G14 : `Sound/…`, `Video/…`), le `.Materiel.cs` quand
+il existe, le conteneur et son ancien nom, les types d'état (leur ligne de PCem, l'espace `iXtal26.Ics`), et que les
+fonctions (et, pour l'EMU8000, les globales de PCem) gardent leur nom. Les trois choses que le plan et la table disent
+de ces puces, vérifiées contre le code C# et le C de PCem :
+- *`Emu8000`, l'EMU8000, le synthétiseur de l'AWE32* : PCem nomme la puce (« The EMU8000 PGM describes… »,
+  `sound_emu8k.c:564`) ; `emu8k_init` n'a qu'un appelant, `sb_awe32_init` (`sound_sb.c:1092` ; en C#,
+  `sound_sb.cs:1595`, qui n'alloue `emu8k_t` que là, l'en-tête d'`Emu8000.cs` le dit déjà). Le bloc nomme la puce
+  « l'EMU8000 d'E-mu » (la table : « E-mu EMU8000 ») : la référence porte déjà le fabricant (décision n° 3) ;
+- *`TridentTKD8001`, le RAMDAC de la 8900D* : PCem le nomme en tête (« Trident TKD8001 RAMDAC emulation »,
+  `vid_tkd8001_ramdac.c:1`) ; `vid_tvga.c` l'appelle en écriture et en lecture hors de la TVGA9000 (`:87-88`,
+  `:198-199` ; en C#, `vid_tvga.cs:116-118`, `:233-234`), donc pour la TVGA8900D (`vid_tvga.c:1`, « Trident TVGA
+  (8900D) emulation »). La TGUI9400CXi de PCem l'emploie aussi (`vid_tgui9440.c:86`), non transcrite : le bloc le dit ;
+- *`SierraSC1502x`, la famille que PCem nomme* : `vid_unk_ramdac.c:4-7` (« It is possibly a Sierra 1502x » ; « Note
+  by Tenshi: Not possibly, this *IS* a Sierra 1502x. »), recopié en C# au-dessus du conteneur ; la fiche que le
+  `.Materiel.cs` cite est celle des SC15025/SC15026 (Sierra, pp. 3-88/3-89), et PB-100 dit la puce exacte de la carte
+  inconnue (`PCEM_BUGS.md`, « la puce exacte de la carte modélisée (« SC1502x ») : inconnue »). Seule l'ET4000
+  l'appelle (`vid_et4000.c:58`, `:278`) ; `vid_cl5429.c`, `vid_paradise.c` et `vid_ht216.c` incluent son en-tête sans
+  l'appeler.
+
+Chaque borne des blocs a été relue sur le C (`sound_emu8k.h` : `emu8k_mem_internal_t` `:14-23`, la phrase de PCem
+`:13`, `emu8k_mem_pointers_t` `:26-35`, `emu8k_envelope_t` `:87-93`, `emu8k_chorus_eng_t` `:95-107`,
+`emu8k_reverb_combfilter_t` `:133-142`, `emu8k_reverb_eng_t` `:144-158`, `emu8k_slide_t` `:160-162`, `emu8k_voice_t`
+`:164-341`, ses douze unions de `:165` à `:312`, `emu8k_t` `:343-376` ; `vid_tkd8001_ramdac.h:3-6`,
+`vid_unk_ramdac.h:3-6` ; `sound_emu8k.c:284-287`, `EMU8K_READ`, qui tire le bloc et l'adresse de l'union
+`emu8k_mem_pointers_t`). Les douze unions du canal portent chacune le nom de son premier membre, suffixé `_u` (`cpf`,
+`ptrx`, `cvcf`, `vtft`, `psst`, `csl`, `ccca`, `ifatn`, `pefe`, `fmmod`, `tremfrq`, `fm2frq2` : la première ligne de
+chacune, relue). Deux phrases du premier jet ont été reprises avant la construction (`documents.log`) : la ligne
+d'`emu8k_mem_internal_t` disait « une position d'oscillateur », elle cite PCem (`:13`) ; « les globales gardent toutes
+les noms de PCem » est devenu « les globales de PCem gardent leur nom » (le C# a aussi les siennes : `tables_init`,
+`Probe`, `CombFnv`…).
+
+**Les commentaires du code** qui désignent ces classes ou ces fichiers C# (`documents.py`, `documents.log`) :
+- `Emu8000.Materiel.cs:7` (« appelées par les gardes de sound_emu8k.cs » → « d'Emu8000.cs ») et
+  `SierraSC1502x.Materiel.cs:7` (« de vid_unk_ramdac.cs » → « de SierraSC1502x.cs ») ;
+- `Video/vid_et4000.cs:14` (« le RAMDAC SC1502x (vid_unk_ramdac.cs) » → « (SierraSC1502x.cs) ») ;
+- `tools/iXtal26.Diff/Oracle.cs:349` (« harness_emu8k.c, Sound/sound_emu8k.cs Probe » → « Ics/Emu8000.cs Probe »).
+
+Les commentaires et les chaînes qui citent le C ne changent pas : tout `sound_emu8k.c:N`, `sound_emu8k.h`, `emu8k.h:N`,
+`vid_unk_ramdac.c`, `vid_tkd8001_ramdac.h`, les `// pcem:`, et les chaînes de R9 (`Diag.R9.Garde("sound_emu8k.c:2019")`,
+`pc.cs:1190` ; `R9Awe.cs:40-43`, `:97-98`). Aucun `.cfg` ne cite ces fichiers ni ces classes (`git grep` : les
+commentaires d'`ixtal26-486-awe32.cfg:8` et `tools/gates/cfg/ami486-awe32-ram28.cfg:2` citent `sound_emu8k.c`).
+Aucune globale de ces fichiers ne portait le nom de son conteneur : pas de collision CS0542, et les « Collisions
+conteneur/membre » de `TRANSCRIPTION.md` n'ont rien à recevoir.
+
+**Les documents vivants** (`documents.log`) :
+- `oracle.tsv` : les sept `csharp_path` (`Sound/sound_emu8k.cs` trois fois, `sound_emu8k.c`, `sound_emu8k.h` et
+  `harness_emu8k.c` ; `Video/vid_unk_ramdac.cs` deux fois, `.c` et `.h` ; `Video/vid_tkd8001_ramdac.cs` deux fois) ;
+  les `.Materiel.cs` n'y sont pas ;
+- `PCEM_BUGS.md` : 15 chemins (`Sound/sound_emu8k.cs` 8 : PB-158, PB-159, PB-160 deux fois, PB-161, PB-162, PB-163,
+  PB-164 ; `Sound/sound_emu8k.Materiel.cs` 5 ; `Video/vid_unk_ramdac.cs` et `.Materiel.cs`, PB-229), dans leurs lignes,
+  qui raccourcissent toutes ; les marqueurs que `Recensement.cs` lit (`*Reproduit*`, `*Corrigé en mode matériel*`)
+  restent en tête de leur ligne ;
+- `Docs/ibm5150/` : ne cite aucun de ces fichiers ni de ces types (`git grep -i 'emu8k|ramdac|tkd8001|sc1502'` :
+  0 ligne) ; rien n'y change ;
+- `TRANSCRIPTION.md` : ne nomme aucun de ces fichiers ni de ces classes ; rien n'y change (249 lignes).
+
+`VERIFICATION.md`, les plans et les rapports de reconnaissance sont des journaux datés : non touchés (décision n° 10) ;
+leurs renvois aux anciens fichiers y restent (`renvois-decales.log` : trois de `Docs/GR-reconnaissance/R1-g9.md`,
+`vid_unk_ramdac.cs:84`, `:118`, `:120`, aujourd'hui `SierraSC1502x.cs:96`, `:130`, `:132`, et ceux des rapports de G13
+et de G14 vers `sound_sb.cs` et `EmuTablesCheck.cs`, que le script ne lit pas). Le harnais n'est pas touché (décision n°
+9) : trois de ses commentaires désignent la classe renommée, `harness_emu8k.c:67` (« pendant de sound_emu8k.VoiceFnv »),
+`:126` (« pendant de sound_emu8k.CombFnv ») et `:143` (« dans l'ordre de sound_emu8k.Probe côté C# ») : ils **s'ajoutent
+à la liste de § G14.5** (les textes des plans, `textes-plans.md`, la complètent) ; aucun autre ne nomme
+`Sound.sound_emu8k`, `Video.vid_tkd8001_ramdac`, `Video.vid_unk_ramdac`, leurs fichiers, ni leurs types d'état
+(`git grep` sur `tools/oracle/`, `grep-anciens.log`).
+
+**Les lignes longues.** Le journal de l'outil n'en compte aucune que le renommage porte au-delà de 120 caractères ou
+allonge (`sound_emu8k` → `Emu8000` raccourcit, `vid_unk_ramdac` → `SierraSC1502x` et `vid_tkd8001_ramdac` →
+`TridentTKD8001` ne touchent que deux `using static`). Mais sept des lignes qu'il touche dépassaient déjà 120 à HEAD et
+y restent, raccourcies de quatre caractères : `tools/iXtal26.Diff/EmuTablesCheck.cs:53-57`, `:60` et `:61` à HEAD (les
+`Cmp` des tables d'`emu8k_init` : 126, 154, 152, 152, 149, 159 et 127 caractères ; 122 à 155 après l'outil). Ce sont des
+lignes ajoutées au sens de la règle : recoupées à la main (`outils/recoupes.py`, `recoupes.log`, le 03/11 à 12 h 04),
+chacune en deux, après le premier tableau, le second aligné sous le premier argument, dans le style des deux lignes
+voisines de `cubic_table` (`:62-63` à HEAD) ; l'outil vérifie que le code, les blancs près, ne change pas. Le premier
+compte de `longues.py` (avant la recoupe ; `longues.log` a été réécrit par le second, la sortie du premier est recopiée
+de la console dans `essais/longues-1-avant-recoupe.log`) en sortait 14, ces sept et les sept enregistrements
+d'`oracle.tsv` ; après, 7.
+
+**Ce que l'outil a fait, ce que la main a fait.** Deux juges indépendants de l'outil, sans Roslyn.
+- *Le diff inverse* (`outils/diff_inverse.py`, celui de G14.2), sur `rp2-g143`, la sortie de l'outil seul, avec la carte
+  `outils/carte-inverse.txt` (les cinq espaces de fichier, `Emu8000.cs` et `.Materiel.cs` ← `iXtal26.Sound`, les trois
+  RAMDAC ← `iXtal26.Video`, puis `iXtal26.Sound.sound_emu8k=>iXtal26.Ics.Emu8000` … `vid_unk_ramdac=>SierraSC1502x`) :
+  53 morceaux, 60 lignes changées, 9 `using` ajoutés ; **0 écart** et **0 caractère hors du code**
+  (`diff-inverse-rp2.log`). Les témoins (`diff-inverse-temoins.log`) : la carte sans ses entrées par fichier sort les
+  cinq lignes `namespace iXtal26.Ics;` en écart ; la carte à l'envers, 44 écarts.
+- *L'écart de la main*, `rp2-g143` → `g143` (`outils/delta_main.py`, celui de G14.2, `delta-main.log`) : 10 fichiers
+  (8 `.cs` et 2 documents, `PCEM_BUGS.md` et `oracle.tsv`), 9 morceaux dans les `.cs`, 0 fichier d'un seul côté ;
+  **7 ne touchent que des commentaires** (les trois blocs, les deux en-têtes des `.Materiel.cs`, `vid_et4000.cs:14`,
+  `Oracle.cs:349`) ; **2 sont des recoupes**, des blancs du code seuls (`EmuTablesCheck.cs`, les sept lignes en deux
+  morceaux) ; **0 autre**. Le premier passage, avant la recoupe, sortait 7 morceaux, tous des commentaires
+  (`essais/delta-main-1-avant-recoupe.log`).
+- *Les documents* (`outils/documents_inverse.py`, `diff-inverse-documents.log`) : `oracle.tsv` et `PCEM_BUGS.md`, les
+  chemins ramenés, redonnent HEAD à l'octet ; `Docs/ibm5150/` et `TRANSCRIPTION.md` : `git diff` vide.
+- *Aucune chaîne ni aucun commentaire de PCem* : aucune ligne retirée ne porte `// pcem:` ni « pcem bug » (deux
+  contiennent « PCem », les en-têtes des deux `.Materiel.cs`, « Les corrections des défauts de PCem dans sound_emu8k.c,
+  appelées par les gardes de sound_emu8k.cs », dont seul le nom du fichier C# change ; le bloc de
+  `Emu8000.cs` s'insère après le `STATUS`, ceux des RAMDAC après le `STATUS` et le paragraphe de G9.3 ; le commentaire
+  de PCem au-dessus de `SierraSC1502x` est intact). Les chaînes (`negatif-bootdiff.log`, `outils/chaines.py`, le lexeur
+  du diff inverse sur chaque `.cs` touché, HEAD contre l'arbre) : les mêmes morceaux de chaîne, dans le même ordre, dans
+  les 15 fichiers (1 483 morceaux), les « sound_emu8k.c:… » de R9 compris ; aucun `nameof`, `typeof`, `GetType("…")` ni
+  accès par réflexion ne vise ces types (`git grep`) ; `[CallerFilePath]` ne sert qu'aux `BenchmarkAttribute` du banc,
+  que l'étape ne touche pas.
+
+**L'étape, en tout** : 17 fichiers, 143 lignes ajoutées et 86 retirées (`git diff -M --stat HEAD~1 HEAD`),
+5 déplacements (similarité de 70 à 99 %), 12 modifiés : 10 `.cs` et 2 documents.
+
+### Les portes
+
+- **La construction** (`construction-apres.log`, `--no-incremental`, SDK 10.0.114, le 03/11 à 12 h 23) :
+  `iXtal26.csproj`, `tools/perfbanc` et `tools/iXtal26.Diff`, **0 avertissement, 0 erreur** chacun (les projets
+  traitent les avertissements en erreurs). `iXtal26.dll` de C : `19c9c47a…19b8da581` ; `iXtal26.Diff.dll` :
+  `77c109bf…e93be23b7` ; `iXtal26.SoftFloat.dll` : `91910906…4511738a`, celui du parent construit dans `g143`. Une
+  première construction (11 h 58, `essais/construction-apres-1-avant-recoupe.log`) précédait la recoupe
+  d'`EmuTablesCheck.cs` : elle rendait le même `iXtal26.dll` à l'octet (`19c9c47a…`), un autre `iXtal26.Diff.dll`
+  (`58cdcc3f…`) ; l'IL a été rejoué sur la seconde (ci-dessous ; le premier passage est gardé sous `essais/`), et la
+  capture du JIT, faite entre les deux sur `iXtal26.dll` seul, vaut pour les deux. L'IL, la copie figée des séries et le
+  banc ont été faits sur la construction de 12 h 23 ; la construction finale (`construction-finale.log`, le 03/11 à
+  16 h 28, après les séries, `--no-incremental`) rend ces DLL à l'octet (iXtal26, iXtal26.Diff, PerfBanc, SoftFloat), 0
+  avertissement, et `git diff HEAD` est vide après le commit (`apres-commit.log`).
+- **`check-oracle.sh`** (`check-oracle-doc.log`) : « 217 transcrit(s) verifie(s), 41 fichier(s) hote ignore(s), 0
+  derive(s), 0 absent(s), arbre vendore OK » ; retour 0, les comptes de R (`cmp-R` : les mêmes).
+- **`check-doc5150.sh`** : « 4 fichiers, renvois justes », retour 0 ; `--couverture` sort 31 fichiers non cités, les
+  31 de R une fois ses chemins portés aux noms de G14.1 à G14.3, rien de plus (aucun des fichiers de l'étape n'y est :
+  la couverture est la même avant et après l'édition des documents).
+- **L'IL par la table** (`il-portes.log`, `il/`, `outils/il-portes.sh` : `ildump comparer --noms tools/noms/g14.txt
+  --jusqua G14.3`, R = les DLL de bin/ de `ref-R`, iXtal26.Diff de `S-g14r`) :
+  - iXtal26 : 5 738 entrées (617 types, 5 120 méthodes, 423 653 instructions), **0 changée, 0 disparue, 0 apparue** ;
+    6 240 noms réécrits dans le vidage de R (« 40 types et 15 fichiers ») ;
+  - iXtal26.Diff : 3 331 entrées, **0** ; 556 noms réécrits ;
+  - SoftFloat : 90 entrées, 0, avec ou sans la table ;
+  - le banc : 297 entrées, 35 changées, 0 disparue, 0 apparue : les 35 `BenchmarkAttribute` de G14.1 et G14.2, et
+    elles seules ; le rapport est celui de G14.2 à l'arbre près, `g142` → `g143`, dans le texte et dans le blob
+    hexadécimal (`67313432` → `67313433`), hors des trois lignes d'en-tête (`il/banc-attributs.log`) : 34 par le seul
+    chemin de `[CallerFilePath]`, `Machine::Fenetre` aussi par `[CallerLineNumber]` 84 → 85, la ligne que le `using
+    iXtal26.Ics;` de G14.1 a décalée. G14.3 ne touche aucun fichier de `tools/perfbanc/`.
+  - `ildump` compare un `ldstr` par sa chaîne, non par son jeton : le tas des chaînes (#US) a bougé (ci-dessous), l'IL
+    est le même.
+- **Les listings du JIT par la table** (`jit-portes.log`, `outils/jit-portes.sh`) : la capture de C
+  (`outils/capture-C.sh`, le 03/11 de 12 h 02 à 12 h 18, par le script et le bac à sable de `g143`, `os/` copié de
+  `ser-R/os/` par `prep-g143.sh` ; `runtime.txt` : 10.0.14, `dll 19c9c47a0ff8e84c`) : 30 scénarios, 1 512 méthodes,
+  les comptes par scénario de R, 0 mention de MinOpts. Contre `ref-R-captures-10.0.14/jit`, `compare --noms
+  tools/noms/g14.txt --jusqua G14.3` : **4 changées, 0 disparue, 0 apparue** (retour 1), 606 noms réécrits ; « 40 types
+  (23 vus, 17 que les scénarios ne compilent pas : `PIC`, `PIT_nr`, `dma_t`, `emu8k_mem_internal_t`,
+  `emu8k_envelope_t` et les douze unions) ». Contre la capture de 10.0.13 (`ref-R-captures/jit`), les mêmes 4.
+  - *Les quatre* : `Emu8000:emu8k_init` (scénario `ami486-awe32`), `scsi_aha1540:process_scsi`,
+    `scsi_hd_c:scsi_hd_command`, `scsi_zip_c:scsi_zip_command`. Chaque ligne qui diffère est un `mov edi, 0xT` suivi de
+    `call [CORINFO_HELP_STRCNS]` : le chargement paresseux d'une chaîne littérale, sur un chemin froid (l'argument d'un
+    `pc.fatal`, ou d'une `InvalidOperationException` dans `emu8k_init`), par son jeton, `0x70000000` | son décalage dans
+    le tas #US des métadonnées ; les listings n'en montrent que le décalage (`0xDC2E` pour `0x7000DC2E`), et
+    `jetons_chaines.py` le lit donc par `& 0xFFFFFF`. 16 jetons en tout (1 dans `emu8k_init`,
+    `0xDC2E` → `0x11531`, « AWE32.RAW not found » ; 7 dans `process_scsi` ; 4 dans chacune des deux commandes SCSI,
+    `0xF058` → `0xEF98`…). Le contrôle (`outils/jetons_chaines.py`, `jit-jetons-chaines.log`, les listings extraits par
+    `listings-jit.sh methode` dans `essais/jit-changees/`) lit le tas #US des deux DLL (R : `ref-R/iXtal26/bin`, C :
+    `g143/iXtal26/bin`) : **chaque jeton de R et son pendant de C désignent la même chaîne, 16 sur 16, et aucune autre
+    ligne ne diffère**. Ses deux témoins (`jit-jetons-temoins.log`) : un jeton de C remplacé par celui d'une autre
+    chaîne sort « CHAÎNES DIFFÉRENTES » ; une instruction changée hors d'un jeton (`ret` → `nop`) sort « AUTRE ».
+  - *La cause* : l'ordre des fichiers compilés a changé (`ordre-compilation.log`, `dotnet msbuild -getItem:Compile`) :
+    à R, `Sound/sound_emu8k.cs` était le 186e des 226, après `Scsi/` (172-180) ; à C, `Ics/Emu8000.cs` est le 115e,
+    avant `Scsi/` (177-185). Le compilateur range les chaînes littérales dans le tas #US dans l'ordre où il émet les
+    corps de méthode : à C, le tas a les mêmes 2 533 chaînes que celui de R, répétitions comprises, et la même taille
+    (157 988 octets), mais 1 493 d'entre elles ont changé de décalage (`tas-us.log` ; « AWE32.RAW not found » `0xDC2E` →
+    `0x11531`, « scsi_add_data -1\n » `0xF058` → `0xEF98`). `ildump`, qui lit un `ldstr` par sa chaîne
+    (`tools/ildump/Program.cs:750`, `GetUserString`), n'y voit rien ; le JIT, qui inscrit le jeton dans le code des
+    chemins froids, si. Le risque que PLAN-G14 nomme (« L'ordre des statiques : un déplacement de fichier peut changer
+    l'ordre de compilation ») se montre ici, non par les statiques, mais par les jetons de chaîne. G14.2 l'avait déjà
+    fait sans qu'on le voie : son `iXtal26.dll` (`S-g142`) a 1 039 chaînes déplacées contre R, celui de G14.1 (`S-g141`)
+    1 (`tas-us-g141-g142.log`), mais aucune des méthodes capturées qui chargent une chaîne par jeton n'y avait vu son
+    jeton bouger (leurs listings, 0 changée).
+  - *Ce n'est pas un 0/0/0*. La porte écrite (« 0 changée ») n'est pas tenue à la lettre : le code machine diffère, en
+    16 immédiats de chemins froids, tous des jetons de la même chaîne. Posé à Julien (Q39, ci-dessous) : admis pour
+    G14.3 sur cette preuve, la porte outillée avant G14.4.
+  - L'extraction par `listings-jit.sh methode` a d'abord reçu un fichier de capture au lieu de son répertoire
+    (`NotADirectoryError`), reprise avec le répertoire ; ce premier essai n'a pas de journal (ses fichiers ont été
+    remplacés).
+
+- **Le banc contre R** : `compare-ref.sh --empreintes-r /var/tmp/ixtal-g14/gel-R-10.0.14/empreintes-r.sha256
+  --lancees-r /var/tmp/ixtal-g14/gel-R-10.0.14/lancees-r.txt /var/tmp/ixtal-g14/ref-R /var/tmp/ixtal-g14/g143 banc-C`
+  (`outils/bancs.sh`, le `compare-ref.sh` de `g143`, celui de `g142` à l'octet, `compare_ref.py` aussi), C construit en
+  Release (la construction de 12 h 23), les 14 groupes, 65 cas, la règle des trois passes, après cinq minutes calmes de
+  suite (`calme.log`, de 12 h 25 à 12 h 29). Le 03/11 de 12 h 29 à 13 h 34 : **vert, 65 cas sur 65**, en 65,2 min
+  (3 911,8 s ; `banc-C/rapport.txt`, `rapport.tsv`, `banc-C-synthese.txt`).
+  - *Une passe 2*, sans passe 3 : en passe 1, `Machine.Fenetre(Modele: "ami386", Mode: "tout")` est sorti rouge par la
+    statistique, C/R − 1 = +0,08 % [+0,00 % ; +0,19 %], la borne basse au-dessus de zéro de moins de 0,005 point ; la
+    passe 2 de sa classe (C R R C, `Machine386`, de 13 h 21 à 13 h 34) ne le confirme pas : +0,01 % [−0,06 % ; +0,08 %].
+    Il est vert par la règle (G14.0b, Q37). Le cas fait tourner une tranche de `pc.runpc` sur l'ami386, dont la
+    configuration ne nomme que le modèle (`MachineBanc.cs:107`) : ce qu'y font les puces de l'étape n'est pas établi.
+  - Aucun refus. Le gel est vérifié sur les 30 passages de R (60 passages en tout) ; bin/ de R intact après
+    (`sha256sum -c`), le manifeste de fin conforme, `git status` vide, aucun répertoire de job, ni dans `ref-R` ni dans
+    `g143`.
+  - Aucun rouge exact : les allocations égales à l'octet sur les 65 cas, aucune instable ; les états et les
+    empreintes de Machine égaux.
+  - C/R − 1 va de −0,32 % (Exec486, « tout », `memoire`) à +0,43 % (SonAweVoix, « aucun »), médiane +0,02 % ; par
+    groupe, de −0,04 % (Exec8088) à +0,14 % (Exec386). La borne basse la plus haute est +0,00 % (Machine ami386,
+    « tout », ci-dessus), la borne haute la plus basse +0,02 % (Machine ibmxt, « aucun ») ; l'intervalle le plus large,
+    4,53 points, VideoEgaPb99 [−2,54 ; +1,99].
+  - La sonde a noté deux relevés de plus de 0,3 UC sur les 60 passages, sans refus : Rider (0,95 UC, passe 1, Exec386,
+    après 1-R) et la séance (0,31 UC, passe 1, Machine808x, avant 2-C).
+  - *La dérive de l'hôte* : R de ce banc contre R du banc de G14.2 (`g14-2/banc-C/rapport.tsv`) : 65 cas, médiane
+    −0,04 %, de −0,78 % (Son) à +0,29 % (Exec486) ; contre R de la porte du réancrage (`g14-1/porte-R`) : médiane
+    −0,04 %, de −0,72 % (Exec386) à +0,54 % (Exec486).
+  - Les rapports nomment C « `g143` (49827154c610) » : le banc a mesuré l'arbre renommé avant son commit ; l'arbre
+    commité est celui-là (ci-dessus, la construction).
+  C'est le quatrième renommage pur mesuré. Le banc fait passer l'EMU8000 lui-même : SonAweVoix (30 voix, le chorus et
+  la réverbération, PB-162 et PB-163) et SonAweWc (les lectures de WC, PB-158), « aucun » et « son », +0,43 % et
+  moins, verts ; l'ET4000 en texte (VideoEt4Pcem, VideoEt4Pb226) et la 8900D en 8 bpp (Rendu8bpp, `tvga8900d`) ne
+  passent pas par leur RAMDAC dans la fenêtre mesurée (non établi), et le 0 % des deux RAMDAC repose sur l'IL, les
+  listings et les séries. Le banc ne voit rien qui sorte du bruit A/A de G14.0b.
+
+- **Les séries entières dans les deux modes** (`outils/series-g143.sh`, `series-g143.log`), jouées comme `g14r`, `g141`
+  et `g142` : la copie figée `S-g143` (la construction de 12 h 23 : `iXtal26.dll` `19c9c47a…`, `iXtal26.Diff.dll`
+  `77c109bf…`, et la `.so` de `S-g14r`, `fe905731…` ; `S-g143.sha256`, `prep-serie-g143.log`), les portes copiées de
+  `g143` (`gates-g143`, `gates-g143-tout` ; `tools/gates/` de `g143` est celui de `ser-R` à l'octet, `diff -r` vide),
+  `MALLOC_PERTURB_=85`, dix voies, l'ordre tiré des durées de `g14r`, `TMPDIR_SERIE` par défaut
+  (`/var/tmp/ixtal-par/g143`, un nom de la longueur de `g14r`). `REPO` = `g143`, préparé comme `ser-R`
+  (`outils/prep-g143.sh`, `prep-g143.log`) : `os/` copié de `ser-R/os/` fichier par fichier (161 fichiers, le disque
+  386 de `gr1i2`, `9ce09889…`, compris ; 0 lien ; le `sha256sum -c` d'`os.sha256` y sort `386-HDD-C.img` et
+  `486-HDD-C.img` en « FAILED », comme en G14.1 et G14.2 : les deux images réécrites par des séances du 23 et du 24/10,
+  laissées telles quelles depuis G14.0d, les mêmes à l'octet que celles de `ser-R`), `vectors/` lié entrée par entrée
+  (les mêmes entrées que `ser-R`), `roms/` lié entrée par entrée. Le WORK est neuf, fait par la recette de `g143`
+  (`recette-g143.log`, les « Cannot open file '' » de la recette de `g14r`) : `/var/tmp/ixtal-g14/g14-3/g5w-g14-3`,
+  conforme à `g5w.sha256` (30 empreintes) avant la première série (12 h 02, `prep-serie-g143.log`) et après la
+  seconde (`series-g143.log`), rien entre les deux, au chemin de la longueur de
+  `g14-0d/g5w-g14r` (34 caractères). Avant chaque série, cinq minutes calmes de suite (`calme.log`).
+  - `g143`, le 03/11 de 13 h 39 à 15 h 33 (1 h 54) : **827 vertes**, aucune rouge ; `banc-atapibanc-vide`, que le
+    délai d'horloge de `Banc.cs:166-169` avait frappée en G14.0d et en G14.1, est passée.
+  - `g143-tout`, sous `MATERIEL=tout`, le 03/11 de 15 h 38 à 16 h 27 (49 min) : **549 vertes, 267 refusées par le
+    mode, 11 « pcem »**, aucune rouge : les comptes de `g14r-tout`.
+  - *Les comparaisons* (`compare-series.py --racine /var/tmp/ixtal-g14/ser-R /var/tmp/ixtal-g14/g143 --work
+    /var/tmp/ixtal-g14/g14-0d/g5w-g14r /var/tmp/ixtal-g14/g14-3/g5w-g14-3`, le 03/11 à 16 h 28) :
+    - `g143` contre `g14r` : 827 portes communes, **0 écart** (`g143-contre-g14r.log`) ; bruit retiré : 1 654 durées,
+      70 répertoires, 68 PID, 0 texte coupé, 12 temps de l'hôte, 38 racines et WORK, 0 longueur de séance ;
+    - `g143-tout` contre `g14r-tout` : 827 communes, **0 écart** (`g143-tout-contre-g14r-tout.log`) ; 1 654 durées,
+      52 répertoires, 50 PID, 12 temps de l'hôte, 0 texte coupé, 0 racine et WORK, 0 longueur de séance.
+    Les comptes de bruit de G14.2, hors les « 2 textes coupés » de `g142`, 0 ici. Les tsv sont doublés dans
+    `/var/tmp/ixtal-g13/series/` (`g143.tsv`, `g143-tout.tsv`) ; les journaux sont dans `g14-3/series/`.
+  - *Les portes des cartes* (`portes-cartes.txt`), dans les deux séries et identiques à R : SB16BANC et AWEBANC
+    (`banc-sb16banc`, `banc-awebanc` et leurs `-materiel`), ET4BANC (`banc-et4banc`, `banc-et4hbanc`,
+    `banc-et4banc-materiel`), vertes dans les deux modes ; les boot-diffs de la 8900D (`bd-pc-tvga8900d`,
+    `bd-pcdos-…`, `bd-xt-…`, `bd-xtdos-…`), de l'ET4000 (`bd-*-et4000ax`, `bd-ami486-et4000`…) et de l'AWE32
+    (`bd-ami486-awe32`, `-banc`…), `emu8k-tables-check` et `emu8k-kernel-check`, verts en mode « aucun » et refusés
+    par le mode « tout », comme à R ; `r9-emu8k` et `r9-awecfg`, verts dans les deux. SonBanc n'est pas une porte des
+    séries : c'est une classe du banc (ci-dessus, SonAweVoix et SonAweWc).
+  - *Runtime ou renommage ?* `g14r` et `g14r-tout` ont été jouées sous 10.0.13, `g143` et `g143-tout` sous 10.0.14.
+    Aucune porte n'est en écart : rien à départager.
+
+- **La `.so` de l'oracle** : `git diff HEAD -- tools/oracle/ pcem-dev/` vide dans `g143`, et `git diff f15e11f HEAD`
+  aussi ; les séries jouent la `.so` de `S-g14r`, copiée dans `S-g143`, conforme à `gel-R/S-g14r.sha256`
+  (`fe905731…a2bc03ae` ; `prep-serie-g143.log`).
+- **Les anciens noms** (`outils/grep-anciens.sh`, `grep-anciens.log`), dans le code compilé (`*.cs` d'`iXtal26/`,
+  `tools/iXtal26.Diff/`, `tools/perfbanc/`) : `iXtal26.Sound.(sound_emu8k|emu8k_t|…|emu8k_*_u|emu8k_voice_t)`,
+  `iXtal26.Video.(vid_tkd8001_ramdac|tkd8001_ramdac_t|vid_unk_ramdac|unk_ramdac_t)` : **0** ; les mêmes, relatifs
+  (`Sound.sound_emu8k`…) : **0** ; `using static iXtal26.(Sound.sound_emu8k|Video.vid_tkd8001_ramdac|
+  Video.vid_unk_ramdac)` : **0** ; `class (sound_emu8k|vid_tkd8001_ramdac|vid_unk_ramdac)` : 0 ; les trois noms hors
+  d'un commentaire, `.c` et `.h` exceptés : 0 ; ceux de G14.1 et de G14.2 : 0 encore. Aucun `sound_emu8k.*`,
+  `vid_tkd8001_ramdac.*`, `vid_unk_ramdac.*` sous `Sound/` ni `Video/` ; les fichiers restés gardent leur espace
+  (`Sound/` 14, `Video/` 24) ; `Ics/` a 15 fichiers, tous `namespace iXtal26.Ics`, aucun `using iXtal26.Ics;`. Hors du
+  code compilé, les anciens noms ne restent que dans les blocs `// noms:` (« avant G14, Sound/sound_emu8k.cs »), la
+  table, les trois commentaires du harnais et les journaux datés.
+- **Les lignes neuves** (`outils/longues.py`, `git diff -M -U0 HEAD`, en caractères, fichiers neufs en entier) : 143
+  lignes ajoutées, aucune de plus de 120 caractères dans les `.cs` ni dans la prose neuve. Sept restent au-delà, qui
+  l'étaient déjà à HEAD et ne se coupent pas : les sept enregistrements d'`oracle.tsv` que l'étape touche (`:113`
+  596 → 590, `:114` 263 → 257, `:115` 257 → 251, `:167` 195 → 192, `:168` 182 → 179, `:185` 234 → 228, `:186`
+  203 → 197 ; 221 des 273 lignes du tsv dépassent 120 à HEAD). Les sept lignes d'`EmuTablesCheck.cs`, ci-dessus,
+  recoupées.
+- **Aucun champ statique neuf** : l'IL d'iXtal26 est celui de R par la table, champs, constantes et constructeurs
+  statiques compris.
+
+### Les contrôles négatifs
+
+Chacun a son journal, gardé.
+- *Sans la table de l'étape, les types de G14.3 sortent disparus et apparus.* La référence est R, d'avant G14.1 : le
+  contrôle propre à l'étape est la table arrêtée à G14.2 (`--jusqua G14.2`), qui renomme ce que G14.1 et G14.2 ont
+  renommé et rien de G14.3.
+  - `ildump comparer --noms … --jusqua G14.2` (`il-negatif.log`, `il/iXtal26-jusqua-G14.2.txt`) : iXtal26, 16
+    changées, **108 disparues, 108 apparues** ; les 108 de chaque côté sont des trois conteneurs et de leurs types
+    imbriqués (`sound_emu8k` 67, `vid_unk_ramdac` 4, `vid_tkd8001_ramdac` 3), des types d'état (`emu8k_t` 3,
+    `emu8k_reverb_eng_t` 3, `unk_ramdac_t` 2, `tkd8001_ramdac_t` 2, `emu8k_voice_t`, `emu8k_slide_t`,
+    `emu8k_reverb_combfilter_t`, `emu8k_envelope_t`, `emu8k_chorus_eng_t` 2 chacun, `emu8k_mem_internal_t` et les
+    douze unions 1 chacun), leurs pendants `iXtal26.Ics.*` apparus, plus une méthode de `iXtal26.BootTest` dont la
+    signature nomme `emu8k_voice_t` (le lambda `<TypeAndDump>b__1_0`) ; aucune autre. Les 16 changées appellent ou
+    lisent ces types (`sound_sb::sb_awe32_init`, `et4000_t::.ctor`, `tvga_t::.ctor`, `vid_svga::Probe`…).
+    iXtal26.Diff, 16 changées, 11 disparues, 11 apparues (les méthodes dont la signature nomme un type de l'EMU8000 :
+    `EmuKernelCheck::FabChorus`, `R9Awe::Amorce`, `MaterielCas::Emu`…).
+  - Sans aucune table (`il/iXtal26-sans.txt`), G14.1 à G14.3 ensemble : 121 changées, 297 disparues, 297 apparues
+    (106 de G14.1, 83 de G14.2, 108 de G14.3).
+  - `listings-jit.sh compare --noms … --jusqua G14.2` (`jit-jusqua-G14.2.txt`) : **9 changées, 23 disparues,
+    23 apparues** : `Sound.sound_emu8k` 14, `emu8k_t` 2, `emu8k_reverb_eng_t` 2, `emu8k_voice_t` 1,
+    `Video.vid_unk_ramdac` 2, `Video.vid_tkd8001_ramdac` 2 disparues, leurs pendants `Ics.*` apparus ; les 9 changées,
+    les trois méthodes SCSI des jetons de chaîne et six qui nomment ces types (`sb_awe32_init`, `sb_get_buffer_emu8k`,
+    `et4000_in`, `et4000_out`, `tvga_in`, `tvga_out`). Sans aucune table (`jit-sans-table.txt`) : 47 changées,
+    99 disparues, 99 apparues (les 43 de G14.1, les 33 de G14.2 et ces 23).
+- *`oracle.tsv` laissé à l'ancien chemin* (`negatif-oracle.log`, le 03/11 à 11 h 53, après le renommage et avant
+  l'édition des documents : l'`oracle.tsv` de `4982715`, sha256 `2c8dc6eb…`, `git diff` vide) : sept « ABSENT C# »
+  (`Sound/sound_emu8k.cs` trois fois, `Video/vid_unk_ramdac.cs` deux, `Video/vid_tkd8001_ramdac.cs` deux), « 210
+  transcrit(s) … 41 fichier(s) hote … 7 absent(s) », retour 1. Après l'édition : 217, 41, 0, retour 0.
+- *`check-doc5150.sh` avant l'édition des documents* (`negatif-doc5150.log`, le 03/11 à 11 h 54) : **sans objet** :
+  `Docs/ibm5150/` ne cite aucun des fichiers ni des types de l'étape (`git grep -i 'emu8k|ramdac|tkd8001|sc1502'` :
+  0 ligne) ; il sort « 4 fichiers, renvois justes », retour 0, avant comme après, et sa couverture est la même
+  (`couverture-avant-documents.txt` = `couverture-g143.txt`). Ce contrôle ne peut pas rougir ici, et c'est dit.
+- *Les étiquettes de boot-diff* (`negatif-bootdiff.log`, `outils/chaines.py`) : `BootDiff.cs` n'est touché qu'au site
+  qualifié (`git diff -U0 HEAD -- tools/iXtal26.Diff/BootDiff.cs` : `Sound.sound_emu8k.Probe(emuCsharp);` →
+  `Ics.Emu8000.Probe(emuCsharp);`, une ligne) ; ses 948 morceaux de chaîne sont ceux de HEAD ; et dans chacun des 15
+  `.cs` touchés, les morceaux de chaîne de HEAD, dans le même ordre (1 483 en tout).
+- *Le diff inverse* (`diff-inverse-temoins.log`) : sans les entrées par fichier, 5 écarts ; à l'envers, 44 (ci-dessus).
+- *La preuve des jetons de chaîne* (`jit-jetons-temoins.log`) : un jeton faux sort « CHAÎNES DIFFÉRENTES », une
+  instruction changée « AUTRE » (ci-dessus).
+
+### La durée
+
+Le 03/11 de 11 h 50 à 16 h 30, environ 4 h 40, dont environ 4 h de machine : la capture du JIT (15 min), la recette
+(2 min), le banc de C (65 min, dont la passe 2 de Machine386, 13 min), `g143` (1 h 54), `g143-tout` (49 min), les
+guets du calme (cinq minutes chacun), les constructions (quatre, de 10 à 14 s). Ce que les journaux montrent de la
+machine : chaque guet a conclu en cinq relevés de suite (`calme.log`), la sonde du banc a noté deux relevés de plus de
+0,3 UC (Rider, la séance), sans refus, et aucune porte n'a passé le délai de l'hôte ; aucun journal ne couvre la
+machine pendant les séries, la capture et les constructions. Ni réancrage ni rejeu de série ou de banc n'ont été
+nécessaires ; une seule porte a été rejouée, l'IL, après la seconde construction (la recoupe d'`EmuTablesCheck.cs`), en
+quelques minutes (`essais/il-portes-1-avant-recoupe.log`).
+
+Contre-lecture en deux relectures, le code et la preuve : aucune erreur dans le code (le message de commit précisé :
+les vingt types `emu8k_*`, `emu8k_t` compris) ; dans la preuve, deux erreurs (42 noms simples dans iXtal26.Diff et non
+43, 273 lignes d'`oracle.tsv` et non 271) et huit imprécisions reprises, dont le suffixe du sha256 de la `.so`
+(`…a2bc03ae`, faux depuis G14.0d dans VERIFICATION.md, corrigé aux trois endroits) et deux phrases sans journal.
+
+### Les risques
+
+- *Le runtime, encore.* Aucune mise à jour depuis le réancrage de G14.1 ; une mise à jour d'apt de .NET avant G14.4
+  demandera le réancrage de § G14.1.
+- *Les jetons de chaîne* (ci-dessus) : G14.4 déplace quatre fichiers de `Models/` dans `Ics/`, dont `opti495.cs` et
+  `neat.cs` ; le tas #US bougera encore, et les listings le montreront si une méthode capturée charge une chaîne par
+  jeton. La réponse à la question ci-dessous vaut pour G14.4.
+- *Les renvois de ligne décalés* : l'étape décale peu (les blocs `// noms:` dans trois fichiers, neuf `using` ajoutés,
+  sept recoupes) ; `renvois.py` (`renvois-decales.log`) : 70 renvois vers les 15 fichiers modifiés, 3 à recaler, tous
+  des rapports clos (`Docs/GR-reconnaissance/R1-g9.md`), non touchés ; 0 vers une ligne changée. Les rapports de G13 et
+  de G14 (`Docs/G1*`), que le script ne lit pas, ont des renvois vers `sound_sb.cs`, `EmuTablesCheck.cs`, `BootDiff.cs`…
+  qu'un `using` ajouté décale d'une ligne : journaux datés, non touchés.
+- *La machine partagée* : le guet attend le calme, et le banc refuse une passe dès qu'un processus lourd paraît.
+- *L'outil de renommage* lie le Roslyn privé du SDK (inchangé sous 10.0.114) ; il ne sait appliquer qu'un cumul
+  d'étapes (« Hors de la portée »).
+
+### Q39, les jetons de chaîne dans le code machine
+
+PLAN-G14 demande, à chaque commit de G14.1 à
+G14.4, « le code machine identique, à la table des noms près ». À G14.3, les listings du JIT sortent 4 méthodes
+changées par la table : 16 immédiats `mov edi, 0xT` devant `call [CORINFO_HELP_STRCNS]`, sur des chemins froids
+(`pc.fatal`, une exception), chacun le jeton d'une chaîne littérale dont le décalage dans le tas #US a bougé, parce que
+le déplacement de `sound_emu8k.cs` dans `Ics/` a changé l'ordre des fichiers compilés. Chaque jeton de R et son pendant
+de C désignent la même chaîne (16 sur 16, `jit-jetons-chaines.log`) ; aucune autre ligne ne diffère ; l'IL est le même
+(`ildump` lit un `ldstr` par sa chaîne). PLAN-G14 ne dit pas si un tel écart passe la porte. Trois voies :
+- *a.* l'admettre comme il est prouvé ici (un écart de jetons de chaîne, chacun vers la même chaîne, est « à la table
+  des noms près »), pour G14.3 et pour G14.4, chaque fois avec `jetons_chaines.py` ;
+- *b.* outiller la porte : `listings-jit.sh compare` résout chaque jeton de `CORINFO_HELP_STRCNS` par le tas #US de
+  sa DLL et compare les chaînes (un changement de `tools/`, dans G14.4 ou une étape d'outillage avant elle, avec son
+  contrôle négatif) ; la porte redevient 0/0/0 ;
+- *c.* refuser l'écart : il faudrait garder l'ordre de compilation de R (un ordre explicite des `Compile` dans
+  `iXtal26.csproj`), ce qui touche la construction de tout le dépôt.
+*Proposé : b, et a pour G14.3 en attendant.* Rien de ce qui est mesuré ne dépend de la réponse (le code ne change
+pas).
+*Tranchée par Julien le 03/11 : « Outiller, admettre pour G14.3 ».* G14.3 passe la porte sur la preuve des 16 jetons ;
+`listings-jit.sh compare` lira les jetons de `CORINFO_HELP_STRCNS` par le tas #US de sa DLL avant G14.4, avec son
+contrôle négatif (PLAN-G14, Q39).
+
+### Hors de la portée
+
+Trouvé en route, non corrigé (règle du 18/10) :
+- **Les bornes des unions du canal, décalées d'une ligne** : `Emu8000.cs` (`// pcem: sound_emu8k.h:165-171, :173-179,
+  :181-186, :189-194, :202-209, :211-218, :220-226, :279-284, :286-291, :293-298, :300-305, :307-312 — les unions du
+  canal.`) : la première borne de onze des douze unions est en retard d'une ligne sur le C, où chacune commence par
+  `union {` en `:172`, `:180`, `:188`, `:201`, `:210`, `:219`, `:278`, `:285`, `:292`, `:299`, `:306` (la première,
+  `:165-171`, est juste ; les fins le sont toutes). Un commentaire `// pcem:` de G12.2 ; le bloc `// noms:` cite les
+  unions par leur étendue, `:165-312`, juste.
+- **« Les unions anonymes du C (emu8k.h:14-35, :164-312) »** (`Emu8000.cs`, LES UNIONS) : `:14-35` couvre
+  `emu8k_mem_internal_t` (`:14-23`, une structure en C#) et `emu8k_mem_pointers_t` (`:26-35`), qui n'a pas de type en
+  C# (`EMU8K_READ` en tire les champs) ; le paragraphe dit « deviennent des structures », ce qui ne vaut que pour la
+  première. Le bloc `// noms:` dit ce qu'il en est.
+- **SonBanc n'est pas une porte des séries** : PLAN-G14.md § G14.3 range SonBanc avec SB16BANC et AWEBANC « dans les
+  séries » ; c'est une classe du banc (`tools/perfbanc/SonBanc.cs`). Les textes des plans le corrigent.
+- **Trois commentaires du harnais** (`harness_emu8k.c:67`, `:126`, `:143`) nomment `sound_emu8k.VoiceFnv`,
+  `.CombFnv` et `.Probe` : la liste de § G14.5 s'allonge d'autant (les textes des plans).
+- **Des renvois des rapports clos** vers les fichiers renommés ou décalés (`Docs/GR-reconnaissance/R1-g9.md`,
+  `R1-contre.md`, `Docs/G13-reconnaissance/D5-son.md`…, `Docs/G14-reconnaissance/R1-*.md`) : journaux datés, non
+  touchés (décision n° 10).
+- **`tools/renommage` ne sait toujours pas jouer une étape seule** (« Hors de la portée » de § G14.2) : l'étape a passé
+  un extrait de la table, `noms-g143-seule.txt` ; G14.4 fera de même.
+- **Des lignes longues pré-existantes non touchées** : `Emu8000.cs` a 96 lignes de plus de 120 caractères à HEAD que
+  l'étape ne touche pas (`init1 = new uint16_t[32], …`) ; la règle ne compte que les lignes ajoutées.

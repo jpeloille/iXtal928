@@ -12,6 +12,7 @@
 // d'abord remplies des deux côtés par le vrai emu8k_init (h_emu8k_tables, emu8k-tables-check).
 
 using iXtal26.Sound;
+using iXtal26.Ics;
 
 namespace iXtal26.Diff;
 
@@ -35,7 +36,7 @@ internal static class EmuKernelCheck
             Console.WriteLine("ROUGE : roms/awe32.raw absente — rien n'est comparé.");
             return 1;
         }
-        sound_emu8k.tables_init();
+        Emu8000.tables_init();
 
         var bad = 0;
         var o = new ulong[3];
@@ -93,7 +94,7 @@ internal static class EmuKernelCheck
     {
         var r = Sm(ref s);
         var b = Sm(ref s);
-        c.bufsize = 1 + (int)((r >> 8) % sound_emu8k.MAX_REFL_SIZE);
+        c.bufsize = 1 + (int)((r >> 8) % Emu8000.MAX_REFL_SIZE);
         c.read_pos = (int)((r >> 24) % (ulong)c.bufsize);
         var v = (int)(r & 0xFF);
         if ((b & 1) != 0)
@@ -109,7 +110,7 @@ internal static class EmuKernelCheck
         c.damp1 = (float)(v / 255.0);
         c.damp2 = (float)((0xFF - v) / 255.0);
         c.filterstore = Val(ref s);
-        for (var i = 0; i < sound_emu8k.MAX_REFL_SIZE; i++)
+        for (var i = 0; i < Emu8000.MAX_REFL_SIZE; i++)
             c.reflection[i] = Val(ref s);
     }
 
@@ -117,7 +118,7 @@ internal static class EmuKernelCheck
     private static void FabChorus(emu8k_chorus_eng_t e, ref ulong s)
     {
         var r = Sm(ref s);
-        e.write = (int)(r % sound_emu8k.EMU8K_LFOCHORUS_SIZE);
+        e.write = (int)(r % Emu8000.EMU8K_LFOCHORUS_SIZE);
         e.feedback = (int)((r >> 16) & 0xFF);
         e.delay_samples_central = (int)((r >> 24) & 0x1FFF);
         e.lfodepth_multip = ((int)((r >> 40) & 0xFF) * e.delay_samples_central) >> 8;
@@ -128,7 +129,7 @@ internal static class EmuKernelCheck
         osc *= 65536.0 * 65536.0;
         e.lfo_inc.addr = Cpu._386.CvtU64(osc);
         e.lfo_pos.addr = Sm(ref s) & 0xFFFFFFFFFFFFUL;
-        for (var i = 0; i < 2 * sound_emu8k.EMU8K_LFOCHORUS_SIZE; i++)
+        for (var i = 0; i < 2 * Emu8000.EMU8K_LFOCHORUS_SIZE; i++)
             e.chorus_buffer[i] = Val(ref s);
     }
 
@@ -165,12 +166,12 @@ internal static class EmuKernelCheck
         h = Mot(h, (ulong)(long)e.link_return_type);
         h = Mot(h, e.refl_in_amp);
         for (var c = 0; c < 6; c++)
-            h = Mot(h, sound_emu8k.CombFnv(e.reflections[c]));
+            h = Mot(h, Emu8000.CombFnv(e.reflections[c]));
         for (var c = 0; c < 8; c++)
-            h = Mot(h, sound_emu8k.CombFnv(e.allpass[c]));
-        h = Mot(h, sound_emu8k.CombFnv(e.tailL));
-        h = Mot(h, sound_emu8k.CombFnv(e.tailR));
-        return Mot(h, sound_emu8k.CombFnv(e.damper));
+            h = Mot(h, Emu8000.CombFnv(e.allpass[c]));
+        h = Mot(h, Emu8000.CombFnv(e.tailL));
+        h = Mot(h, Emu8000.CombFnv(e.tailR));
+        return Mot(h, Emu8000.CombFnv(e.damper));
     }
 
     /// <summary>Pendant de h_emu8k_kernel : les sorties, l'état final, le nombre de sorties à INT_MIN.</summary>
@@ -197,17 +198,17 @@ internal static class EmuKernelCheck
                     var x = Val(ref s);
                     x = kind switch
                     {
-                        0 => sound_emu8k.emu8k_reverb_comb_work(rv.tailL, x),
-                        1 => sound_emu8k.emu8k_reverb_diffuser_work(rv.tailL, x),
-                        2 => sound_emu8k.emu8k_reverb_tail_work(rv.tailL, rv.allpass, 0, x),
-                        _ => sound_emu8k.emu8k_reverb_damper_work(rv.tailL, x),
+                        0 => Emu8000.emu8k_reverb_comb_work(rv.tailL, x),
+                        1 => Emu8000.emu8k_reverb_diffuser_work(rv.tailL, x),
+                        2 => Emu8000.emu8k_reverb_tail_work(rv.tailL, rv.allpass, 0, x),
+                        _ => Emu8000.emu8k_reverb_damper_work(rv.tailL, x),
                     };
                     n += x == int.MinValue ? 1UL : 0UL;
                     h = Mot(h, (ulong)(long)x);
                 }
-                o[1] = sound_emu8k.CombFnv(rv.tailL);
+                o[1] = Emu8000.CombFnv(rv.tailL);
                 for (var c = 0; c < 4; c++)
-                    o[1] = Mot(o[1], sound_emu8k.CombFnv(rv.allpass[c]));
+                    o[1] = Mot(o[1], Emu8000.CombFnv(rv.allpass[c]));
                 break;
             case 4:
             {
@@ -217,7 +218,7 @@ internal static class EmuKernelCheck
                     @in[c] = Val(ref s);
                 for (var c = 0; c < 2 * N; c++)
                     @out[c] = Val(ref s);
-                sound_emu8k.emu8k_work_chorus(@in, 0, @out, 0, ch, N);
+                Emu8000.emu8k_work_chorus(@in, 0, @out, 0, ch, N);
                 o[1] = Mot(Mot(Seed, (ulong)(long)ch.write), ch.lfo_pos.addr);
                 o[1] = Octets(o[1], System.Runtime.InteropServices.MemoryMarshal.AsBytes(ch.chorus_buffer.AsSpan()));
                 break;
@@ -228,7 +229,7 @@ internal static class EmuKernelCheck
                     @in[c] = Val(ref s);
                 for (var c = 0; c < 2 * N; c++)
                     @out[c] = Val(ref s);
-                sound_emu8k.emu8k_work_reverb(@in, 0, @out, 0, rv, N);
+                Emu8000.emu8k_work_reverb(@in, 0, @out, 0, rv, N);
                 o[1] = ReverbFnv(rv);
                 break;
             default:
@@ -236,7 +237,7 @@ internal static class EmuKernelCheck
                 var sl = new emu8k_slide_t { last = (int)(Sm(ref s) & 0x3FFFF) - 0x20000 };
                 for (var c = 0; c < N; c++)
                 {
-                    var x = sound_emu8k.emu8k_vol_slide(sl, (int)(Sm(ref s) & 0x3FFFF) - 0x20000);
+                    var x = Emu8000.emu8k_vol_slide(sl, (int)(Sm(ref s) & 0x3FFFF) - 0x20000);
                     h = Mot(h, (ulong)(long)x);
                 }
                 o[1] = (ulong)(long)sl.last;

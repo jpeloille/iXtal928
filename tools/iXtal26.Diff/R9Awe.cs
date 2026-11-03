@@ -18,6 +18,7 @@
 
 using iXtal26.Diag;
 using iXtal26.Sound;
+using iXtal26.Ics;
 
 namespace iXtal26.Diff;
 
@@ -49,10 +50,10 @@ internal static class R9Awe
                     Reverberer(e, liee, canal, val);
                     var t = tampon(e.reverb_engine);
                     var ecrites = 0;
-                    for (var i = sound_emu8k.MAX_REFL_SIZE; i < t.bufsize; i++)
+                    for (var i = Emu8000.MAX_REFL_SIZE; i < t.bufsize; i++)
                         if (t.reflection[i] != 0)
                             ecrites++;
-                    return t.bufsize > sound_emu8k.MAX_REFL_SIZE && ecrites > 0 ? null
+                    return t.bufsize > Emu8000.MAX_REFL_SIZE && ecrites > 0 ? null
                         : $"ATTENDU un tampon de plus de 7 744 entrées, écrit au-delà (lu {t.bufsize}, {ecrites} entrée(s) écrites au-delà)";
                 });
             bad += Survie("init2[14h] = 0D00h : 31 et 32 × 242, la dernière taille qui tienne", ref n, () =>
@@ -60,8 +61,8 @@ internal static class R9Awe
                 var e = Amorce(romsPath, cfg);
                 Reverberer(e, false, 0x14, 0x0D00);
                 var r = e.reverb_engine;
-                return r.reflections[5].bufsize == 31 * 242 && r.tailL.bufsize == sound_emu8k.MAX_REFL_SIZE &&
-                       r.tailR.bufsize == sound_emu8k.MAX_REFL_SIZE ? null
+                return r.reflections[5].bufsize == 31 * 242 && r.tailL.bufsize == Emu8000.MAX_REFL_SIZE &&
+                       r.tailR.bufsize == Emu8000.MAX_REFL_SIZE ? null
                     : $"ATTENDU 7 502, 7 744, 7 744 (lu {r.reflections[5].bufsize}, {r.tailL.bufsize}, {r.tailR.bufsize})";
             });
         }

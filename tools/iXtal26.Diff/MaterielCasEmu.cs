@@ -13,6 +13,7 @@
 // et traversent les machines : chaque cas les remet à zéro.
 
 using iXtal26.Sound;
+using iXtal26.Ics;
 
 namespace iXtal26.Diff;
 
@@ -29,7 +30,7 @@ internal static partial class MaterielCas
     private static int UnAwe(string nom, Func<string> corps, string pcem, string mat, bool hw, bool temoin = false) =>
         AvecSb("sbawe32", _ =>
         {
-            sound_emu8k.dmareadbit = sound_emu8k.dmawritebit = 0;
+            Emu8000.dmareadbit = Emu8000.dmawritebit = 0;
             var v = corps();
             var att = temoin || hw ? mat : pcem;
             return Voir(nom, v == att, v, att, hw);
@@ -107,7 +108,7 @@ internal static partial class MaterielCas
     // droite à un retard d'un demi-échantillon de plus que la gauche : la fraction seule. Témoin : un retard entier.
     private static int Pb162(bool hw)
     {
-        sound_emu8k.tables_init(); // la table du LFO (chortable), que remplit l'initialisation de la carte
+        Emu8000.tables_init(); // la table du LFO (chortable), que remplit l'initialisation de la carte
         string Chorus(int central, int profondeur, ushort lfo, int hwcf4)
         {
             var e = new emu8k_chorus_eng_t
@@ -117,14 +118,14 @@ internal static partial class MaterielCas
                 delay_offset_samples_right = ((double)hwcf4) / 256.0,
             };
             e.lfo_pos.int_address = lfo;
-            const int N = sound_emu8k.EMU8K_LFOCHORUS_SIZE;
+            const int N = Emu8000.EMU8K_LFOCHORUS_SIZE;
             for (var i = 0; i < N; i++)
             {
                 e.chorus_buffer[i] = i * 256;
                 e.chorus_buffer[N + i] = 0x1000000 + i * 256;
             }
             var sortie = new int[2];
-            sound_emu8k.emu8k_work_chorus([0], 0, sortie, 0, e, 1);
+            Emu8000.emu8k_work_chorus([0], 0, sortie, 0, e, 1);
             return $"G={sortie[0]} D={sortie[1]}";
         }
         var bad = Voir("chorus extrême : délai 1FFFh, profondeur FFh, LFO au sommet, HWCF4 1FFFFFh",
@@ -159,7 +160,7 @@ internal static partial class MaterielCas
             e.damper.damp1 = e.reflections[0].damp1 = damp1;
             e.tailL.reflection[0] = queue;
             var sortie = new int[2];
-            sound_emu8k.emu8k_work_reverb([0], 0, sortie, 0, e, 1);
+            Emu8000.emu8k_work_reverb([0], 0, sortie, 0, e, 1);
             return $"amortisseur={e.damper.filterstore} peigne={e.reflections[0].filterstore} " +
                    $"diffuseur={e.allpass[1].reflection[0]}";
         }

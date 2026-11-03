@@ -3575,11 +3575,11 @@ tampon de son entre les deux : ΔWC = 0 chez PCem, 220 ou 221 sur la carte. A23h
 chez PCem, ses bits 8 à 15 sur la carte (déduit).
 *G13* : mixte — (a) pour WC et les registres courants ; (b) pour l'octet impair ; (c) pour l'écriture par octet et les
 effets de bord par octet. AWEBANC ne discrimine pas WC : ses deux lectures se suivent à moins d'une microseconde.
-*Reproduit* en mode PCem : `Sound/sound_emu8k.cs`, marqueur PB-158 (`emu8k_inw`) ; AWEBANC lit par octets aux ports
+*Reproduit* en mode PCem : `Ics/Emu8000.cs`, marqueur PB-158 (`emu8k_inw`) ; AWEBANC lit par octets aux ports
 pairs et impairs, écrit deux octets par SMLD, et relit WC deux fois sans écriture entre. La part (b), l'octet impair,
 marqueur PB-158 (`emu8k_inb`, G13.8f2) ; la part inconnue (c), l'accès par octet, la même dans les deux modes, porte un
 commentaire (`emu8k_outb` ; G13.8f).
-*Corrigé en mode matériel* (G13.8f), la part (a) : sous `if (materiel.pb_158)` — `Sound/sound_emu8k.Materiel.cs`.
+*Corrigé en mode matériel* (G13.8f), la part (a) : sous `if (materiel.pb_158)` — `Ics/Emu8000.Materiel.cs`.
 Chaque lecture (`lit_materiel`, en tête d'`emu8k_inw`) fait d'abord avancer la puce jusqu'à l'instant présent
 (`emu8k_update`), comme PCem le fait à chaque écriture : WC, CPF, CVCF et CCCA relus sont courants, au tic de sortie
 près (48 kHz, la résolution de `sound_pos_global`). Le son produit ne change pas : la puce avance par les mêmes
@@ -3610,9 +3610,9 @@ Documenté pour le bit et le masque ; inconnu pour la durée du drapeau.
 A22h relu (pointeur 37h) 0100h chez PCem (le bit 24), les bits 30-24 à 0 sur la carte.
 *G13* : (a) pour la visibilité au bit 31 et le masque de 24 bits ; (c) pour la durée du drapeau et l'attente, non
 décrites ou non modélisées.
-*Reproduit* en mode PCem : `Sound/sound_emu8k.cs`, marqueurs PB-159 (la lecture de A22h, SMARW) ; AWEBANC relit SMALR
+*Reproduit* en mode PCem : `Ics/Emu8000.cs`, marqueurs PB-159 (la lecture de A22h, SMARW) ; AWEBANC relit SMALR
 et SMARW en A22h après leurs écritures.
-*Corrigé en mode matériel* (G13.8f), la part (a) : sous `if (materiel.pb_159)` — `Sound/sound_emu8k.Materiel.cs`.
+*Corrigé en mode matériel* (G13.8f), la part (a) : sous `if (materiel.pb_159)` — `Ics/Emu8000.Materiel.cs`.
 SMALR, SMARR, SMALW et SMARW relus en A22h (`dram_lu_materiel`, en tête de chacun des quatre cas) rendent le drapeau
 de PCem au bit 31 (le bit 15 du mot haut) et les bits 30 à 24 à zéro : le masque de 24 bits se fait à la lecture, la
 seule à voir les bits hauts de SMARW (l'écriture en mémoire masque déjà). Restent ceux de PCem, la part (c) : le
@@ -3661,14 +3661,14 @@ arrêté : PCem pose VTFT, la carte le laisse (déduit). Les autres points : rap
 *G13* : mixte — (a) pour la rustine de hwcf3 (décision n° 13) ; (b) pour celle d'IFATN, la fin du maintien, le
 relâchement en `>> 9`, la sortie et la répétition à 48 kHz ; (c) pour les délais, les pas d'initialisation,
 l'interpolation, les effets, les glissements et HWCF1 à HWCF3 relus ; (d) pour l'attaque 0 et le pointeur.
-*Reproduit* en mode PCem : `Sound/sound_emu8k.cs`, marqueur PB-160 (la rustine de hwcf3). AWEBANC redéclenche une
+*Reproduit* en mode PCem : `Ics/Emu8000.cs`, marqueur PB-160 (la rustine de hwcf3). AWEBANC redéclenche une
 note sans réécrire ses enveloppes, remet hwcf3 à 0 avant un allumage, et écrit IFATN sur un canal intact ; il relit
-aussi HWCF1 à HWCF3 (`awebanc.S:77-85`), que la puce ne rend pas. Les vingt-deux autres sites (`Sound/sound_emu8k.cs`,
+aussi HWCF1 à HWCF3 (`awebanc.S:77-85`), que la puce ne rend pas. Les vingt-deux autres sites (`Ics/Emu8000.cs`,
 `Sound/sound_sb.cs`), les mêmes dans les deux modes, portent un commentaire qui dit leur part (G13.8f) : (b), Q13 —
 IFATN, la fin du maintien, le relâchement en `>> 9`, la sortie, la répétition à 48 kHz ; (c) — les délais, les pas
 d'initialisation, l'interpolation, le chorus, la réverbération, l'égaliseur, les glissements, HWCF1 à HWCF3 relus ;
 (d) — l'attaque 0, le pointeur.
-*Corrigé en mode matériel* (G13.8f), la part (a) : sous `if (materiel.pb_160)` — `Sound/sound_emu8k.Materiel.cs`.
+*Corrigé en mode matériel* (G13.8f), la part (a) : sous `if (materiel.pb_160)` — `Ics/Emu8000.Materiel.cs`.
 HWCF3 n'est que ce que le programme y écrit : au premier allumage d'un moteur d'enveloppe (DCYSUSV bit 7 de 1 à 0),
 HWCF3 autre que 0004h, l'écriture est rejouée par le chemin de PCem (`dcysusv_materiel`, en tête du cas de DCYSUSV),
 puis HWCF3 rendu à sa valeur : la voix s'allume comme chez PCem, et la sortie reste fermée tant que le programme n'a
@@ -5378,10 +5378,10 @@ documenté ; la puce exacte de la carte modélisée (« SC1502x », `vid_unk_ram
 *Cas qui discrimine* : ET4000, six lectures de 3C6h de suite, sans autre accès : à la sixième, PCem rend le masque des
 points, la Sierra encore le registre de commande. L'ERPF : aucun cas tant que la puce n'est pas établie.
 *G13* : (b), (c) — (b) l'IPF, documenté ; (c) l'ERPF, ses registres et D3, sur une puce dont l'identité est inconnue.
-*Reproduit* : l'IPF, en mode PCem, `Video/vid_unk_ramdac.cs`, `unk_ramdac_in`, marqueur `fixed in hardware mode:
+*Reproduit* : l'IPF, en mode PCem, `Ics/SierraSC1502x.cs`, `unk_ramdac_in`, marqueur `fixed in hardware mode:
 PB-229` ; l'ERPF, ses registres et D3 (c), dans les deux modes, `unk_ramdac_out`, commentaire de part.
 *Corrigé en mode matériel*, l'IPF (G13.9e) : sous `if (materiel.pb_229)`, en tête de la lecture de 3C6h
-(`Video/vid_unk_ramdac.Materiel.cs`, `ipf_materiel`) : armé, l'IPF rend le registre de commande à chaque lecture, sans
+(`Ics/SierraSC1502x.Materiel.cs`, `ipf_materiel`) : armé, l'IPF rend le registre de commande à chaque lecture, sans
 retomber ; une écriture ou la lecture de 3C7h à 3C9h le fait retomber, comme chez PCem. `materiel-cas PB-229` : six
 lectures de suite (la sixième, le masque des points chez PCem, le registre de commande sur la Sierra) ; 3C8h lu avant
 la sixième en témoin.
@@ -7595,7 +7595,7 @@ Eh donne 33 × 242 aux queues, Fh 33 × 242 à la réflexion et 34 × 242 aux qu
 *Trouvé par* : reconnaissance de G12 (lectures de l'EMU8000, contre-lecture D10).
 *G13* : hors du mode — déjà corrigé dans les deux modes (R9) ; rien n'y bascule.
 *NON reproduit* (R9) : des tampons de 34 × 242 = 8 228 entrées, qui tiennent la taille demandée, et une garde aux
-quatre affectations (`Sound/sound_emu8k.cs`, gardes `sound_emu8k.c:1164`, `:1165`, `:1167`, `:1173` ; décision n° 15
+quatre affectations (`Ics/Emu8000.cs`, gardes `sound_emu8k.c:1164`, `:1165`, `:1167`, `:1173` ; décision n° 15
 de PLAN-G12.md). La sonde ne hache que les 7 744 premières entrées. Aucune porte comparée n'y va : AWEBANC s'arrête au
 quartet Dh, la dernière taille qui tienne. Survie : `r9-emu8k`, chaque garde atteinte, les entrées au-delà de
 7 744 écrites.
@@ -7617,11 +7617,11 @@ d'elle-même, et chaque voie interpole à sa propre position.
 linéaire en entrée : PCem lit à droite des indices jusqu'à −8 158 et interpole avec la fraction gauche ; attendu : des
 indices dans [0, 4000h) et la sortie droite égale à la rampe interpolée au retard droit.
 *G13* : (b) — l'effet lui-même est inconnu ; seule sa cohérence se vérifie.
-*Reproduit en mode PCem* : `Sound/sound_emu8k.cs`, marqueur PB-162 : les deux tampons en un seul, gauche puis droite —
+*Reproduit en mode PCem* : `Ics/Emu8000.cs`, marqueur PB-162 : les deux tampons en un seul, gauche puis droite —
 la contiguïté du C est mesurée (décalages 48 et 65 584) — et la fraction du gauche. AWEBANC pose le chorus extrême ;
 `emu8k-kernel-check` le passe sur des états fabriqués.
 *Corrigé en mode matériel* (G13.8f2 ; Q13 tranchée le 16/10) : sous `if (materiel.pb_162)`, en tête
-d'`emu8k_work_chorus`, le travail d'un tampon (`chorus_materiel`, `Sound/sound_emu8k.Materiel.cs`) : chaque voie lit
+d'`emu8k_work_chorus`, le travail d'un tampon (`chorus_materiel`, `Ics/Emu8000.Materiel.cs`) : chaque voie lit
 dans sa ligne, l'indice replié modulo 4000h autant de fois qu'il faut, et interpole à sa propre fraction ; les positions
 se calculent dans l'ordre de PCem. L'effet lui-même reste celui de PCem (PB-160 (c)). `materiel-cas PB-162`, le
 moteur joué seul : le chorus extrême, la droite à 2 105 856 chez PCem (la rampe gauche), 18 883 073 ; la droite un
@@ -7641,11 +7641,11 @@ comportement indéfini ; GCC sur x86-64 émet `cvttss2si`, qui rend INT_MIN, mê
 l'écho et l'entrée nuls : `filterstore` devient INT_MIN chez PCem (2^31 hors bornes), 2^31 − 1 en conversion saturante.
 `materiel-cas PB-163` le joue par `emu8k_work_reverb` (le premier peigne), avec l'amortisseur et un diffuseur.
 *G13* : (b) — l'effet est inconnu ; seule la saturation se vérifie.
-*Reproduit en mode PCem* : `Sound/sound_emu8k.cs`, marqueurs PB-163 (le peigne, le diffuseur, l'amortisseur), par
+*Reproduit en mode PCem* : `Ics/Emu8000.cs`, marqueurs PB-163 (le peigne, le diffuseur, l'amortisseur), par
 l'aide de conversion du C (`Cpu._386.CvtI32`) ; .NET saturerait. Aucun invité n'y arrive en temps de porte :
 `emu8k-kernel-check` compare les sept noyaux sur des états fabriqués, des milliers de sorties à INT_MIN comprises.
 *Corrigé en mode matériel* (G13.8f2 ; Q13 tranchée le 16/10) : sous `if (materiel.pb_163)`, en tête
-d'`emu8k_work_reverb`, le travail d'un tampon (`reverb_materiel`, `Sound/sound_emu8k.Materiel.cs`) : la réverbération
+d'`emu8k_work_reverb`, le travail d'un tampon (`reverb_materiel`, `Ics/Emu8000.Materiel.cs`) : la réverbération
 de PCem, les mêmes calculs dans le même ordre, ses conversions saturantes et `-in` calculé en float, sans débordement.
 Les sommes entières restent celles de PCem. `materiel-cas PB-163`, le moteur joué seul : l'amortisseur et le premier
 peigne à 2^31, INT_MIN chez PCem, 2^31 − 1 ; le diffuseur qui reçoit INT_MIN, INT_MIN chez PCem, 2^31 − 1 ; témoin, dans
@@ -7661,7 +7661,7 @@ d'au plus `attack_amount >> 5`.
 *Source* : sans objet : la valeur lue hors table est aussitôt écrasée.
 *Cas qui discrimine* : aucun.
 *G13* : (d) — sans effet ; le C# borne déjà l'indice, au résultat identique.
-*Reproduit* : `Sound/sound_emu8k.cs`, marqueur PB-164 — DEVIATION de forme : l'indice borné à 10000h, le résultat
+*Reproduit* : `Ics/Emu8000.cs`, marqueur PB-164 — DEVIATION de forme : l'indice borné à 10000h, le résultat
 identique (décision n° 15 de PLAN-G12.md). Ce n'est pas un site R9.
 *Non corrigé en mode matériel* : sans objet, (d), comme le dit le champ *G13*.
 

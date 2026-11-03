@@ -11,7 +11,7 @@
 //
 // G9.3 (PLAN-G9.md). La Tseng ET4000AX : le socle SVGA (vid_svga.cs), 1 Mo fixe, ROM et4000.bin,
 // les banques en 3CDh, les registres étendus du CRTC (CR33-CR35, masque crtc_mask) et le RAMDAC
-// SC1502x (vid_unk_ramdac.cs). Une carte ISA : elle équipe aussi les machines sans VLB.
+// SC1502x (SierraSC1502x.cs). Une carte ISA : elle équipe aussi les machines sans VLB.
 
 // CS8600/CS8602/CS8604 : `(et4000_t)p` part du `object?` des delegates d'io.cs et de vid_svga.cs.
 #pragma warning disable CS8600, CS8602, CS8604
@@ -24,7 +24,7 @@ using static iXtal26.Flash.rom;
 using static iXtal26.Memory.mem;
 using static iXtal26.Video.video;
 using static iXtal26.Video.vid_svga;
-using static iXtal26.Video.vid_unk_ramdac;
+using static iXtal26.Ics.SierraSC1502x;
 using static iXtal26.io;
 using iXtal26.Ics;
 

@@ -17,6 +17,7 @@ using System.Runtime.CompilerServices;
 using static iXtal26.PluginApi.device;
 using static iXtal26.Sound.sound_opl;
 using static iXtal26.Sound.sound_sb_dsp;
+using iXtal26.Ics;
 
 namespace iXtal26.Sound;
 
@@ -280,7 +281,7 @@ internal static partial class sound_sb
         int c;
 
         opl3_update2(sb.opl);
-        sound_emu8k.emu8k_update(emu);
+        Emu8000.emu8k_update(emu);
         sb_dsp_update(sb.dsp);
         for (c = 0; c < len * 2; c += 2) {
                 int32_t out_l, out_r, in_l, in_r;
