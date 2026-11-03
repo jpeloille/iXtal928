@@ -169,7 +169,7 @@ int romset = 0; /* ROM_IBMPC */
  * M16 : models[] est peuplé sur le chemin de h_boot, donc « elles plantent » n'est plus
  * le motif. cpu_get_speed et cpu_set_turbo ne sont plus enveloppées depuis le levier A
  * (étape 4) : ce sont les vraies. Reste cpu_set_edx, DÉVIATION déclarée des deux
- * côtés : DX est gardé au reset là où PCem pose edx_reset (keyboard_at.cs, x86seg.cs).
+ * côtés : DX est gardé au reset là où PCem pose edx_reset (Intel8042.cs, x86seg.cs).
  *
  * Sur les quarante-deux symboles retirés, ces quatre sont les seuls à être des
  * fonctions ; les trente-huit autres sont des données, que cpu.c fournit aux mêmes

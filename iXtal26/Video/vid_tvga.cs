@@ -7,7 +7,7 @@
 //         tvga_close, tvga_speed_changed, tvga_force_redraw, tvga_add_status_info,
 //         tvga_config, tvga8900d_device et tvga9000b_device.
 
-// CS8600/CS8602/CS8604 : même raison qu'à vid_svga.cs et vid_cga.cs:9-17.
+// CS8600/CS8602/CS8604 : même raison qu'à vid_svga.cs et vid_cga.cs:13-21.
 #pragma warning disable CS8600, CS8602, CS8604
 
 using System.Text;

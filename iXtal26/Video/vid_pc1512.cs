@@ -6,6 +6,10 @@
 //         pc1512_recalctimings, pc1512_poll, pc1512_init, pc1512_close,
 //         pc1512_speed_changed, pc1512_config, pc1512_device. Le fichier entier.
 //         Omis : les pclog et les blocs commentés, sortie pure. PB-89 borné en mode matériel.
+//
+// noms: le CRTC n'a pas de module (Q36, PLAN-G14.md) : ses registres, `crtc` et `crtcreg`, et leur code sont en
+//   ligne dans la carte, comme chez PCem, qui les sert comme ceux de la CGA, avec le masque de vid_cga.c:16 recopié
+//   (vid_pc1512.c:45) ; la puce de la carte n'a pas été lue. Le conteneur et les fonctions gardent les noms de PCem.
 
 /*PC1512 CGA emulation
 
@@ -17,7 +21,7 @@
   and 46 cycles. PCem currently always uses the lower number.*/
 
 // CS8600/CS8602/CS8604 : `pc1512_t pc1512 = (pc1512_t)p;` — même raison qu'à
-// vid_cga.cs:9-16 : les delegates déclarent `object?`, pc1512_init enregistre
+// vid_cga.cs:13-20 : les delegates déclarent `object?`, pc1512_init enregistre
 // toujours `pc1512`.
 #pragma warning disable CS8600, CS8602, CS8604
 

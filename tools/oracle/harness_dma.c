@@ -21,7 +21,7 @@ static uint64_t h_dma_fnv(const uint8_t *p, int n) {
         return h;
 }
 
-/* La sonde du DMA (H_DMA_PROBE_N champs), dans l'ordre de Models.dma.ProbeState côté C#. */
+/* La sonde du DMA (H_DMA_PROBE_N champs), dans l'ordre de Ics.Intel8237.ProbeState côté C#. */
 void h_dma_probe(uint64_t *o) {
         int c;
 

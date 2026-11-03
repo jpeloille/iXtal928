@@ -24,7 +24,7 @@
 #   l'image (@image, ce que @shot écrirait : xsize × ysize en haut à gauche de Buffer32) : les rangées 22 à 347 sont
 #     les mêmes dans les trois ; les rangées 0 à 21 changent. Le mode graphique compte 370 lignes (R4 = 5Bh, R9 = 3,
 #     R5 = 2 : 92 × 4 + 2) dont 348 affichées (R6 = 57h). Le retour vertical remet displine à 0
-#     (vid_hercules.cs:360) et ses 22 lignes passent sans dessin : l'affichage commence à la rangée 22 (firstline),
+#     (vid_hercules.cs:364) et ses 22 lignes passent sans dessin : l'affichage commence à la rangée 22 (firstline),
 #     d'où PCem présente l'image. Les rangées 0 à 21 de Buffer32 sont des restes des trames d'avant le passage au
 #     graphique (le texte), et ce qu'il en reste dépend de l'instant du passage ; en mode matériel, le caractère du
 #     6845 dure 1 µs en graphique et non 1/2,032125 µs comme chez PCem (PB-102), et l'instant change : ces rangées

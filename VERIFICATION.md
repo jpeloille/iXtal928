@@ -19421,3 +19421,312 @@ Trouvé en route, non corrigé (règle du 18/10) :
   Un commentaire de PCem, gardé tel quel.
 - **Des renvois des plans et des rapports clos** vers les fichiers renommés (`PLAN-G3.md`, `VERIFICATION.md`,
   `Docs/G14-reconnaissance/R1-*.md` et `R2-*.md`) : journaux datés, non touchés (décision n° 10).
+
+## G14 — la clôture : nommer les puces
+
+Du 23 octobre au 4 novembre 2026 (PLAN-G14.md, sur la reconnaissance de `iXtal26/Docs/G14-reconnaissance/`). Les classes
+qui modélisent une puce en portent le nom, dans `Ics/` et l'espace de noms `iXtal26.Ics` : douze puces, dix-huit
+fichiers ; leurs membres et leurs types d'état gardent les noms de PCem (décision n° 1). Le code, lui, n'a pas changé :
+l'IL et le code machine sont ceux du commit R, à la table des noms près (et, en G14.3, aux 16 jetons de chaîne près,
+chacun vers la même chaîne, Q39) ; les séries le sont à l'unité ; le banc est vert contre le binaire figé R. Chaque
+étape a sa section ci-dessus ; celle-ci les rassemble, et dit ce que G14.5 a fait.
+
+### Les chemins
+
+La table des anciens et des nouveaux chemins (décision n° 10) : les sections de `VERIFICATION.md` d'avant G14, les plans
+clos et les rapports de reconnaissance gardent les anciens, tels qu'écrits. La même table est lue par les outils
+(`tools/noms/g14.txt`), et le bloc `// noms:` de chaque conteneur le redit (« avant G14, … », ses `.Materiel.cs`
+compris).
+
+| Avant G14, sous `iXtal26/` | Depuis, sous `iXtal26/Ics/` | La puce | Étape |
+|---|---|---|---|
+| `Models/pic.cs`, `.Materiel.cs` | `Intel8259A.cs`, `.Materiel.cs` | Intel 8259A | G14.1 |
+| `Models/pit.cs`, `.Materiel.cs` | `Intel8253.cs`, `.Materiel.cs` | Intel 8253-5 | G14.1 |
+| `Models/dma.cs`, `.Materiel.cs` | `Intel8237.cs`, `.Materiel.cs` | Intel 8237A | G14.1 |
+| `Keyboard/keyboard_at.cs`, `.Materiel.cs` | `Intel8042.cs`, `.Materiel.cs` | Intel 8042 | G14.2 |
+| `Devices/nvr.cs` | `Motorola146818.cs` | Motorola MC146818 | G14.2 |
+| `Models/serial.cs` | `National8250.cs` | National 8250, 16450, 16550 | G14.2 |
+| `Sound/sound_emu8k.cs`, `.Materiel.cs` | `Emu8000.cs`, `.Materiel.cs` | E-mu EMU8000 | G14.3 |
+| `Video/vid_tkd8001_ramdac.cs` | `TridentTKD8001.cs` | Trident TKD8001 | G14.3 |
+| `Video/vid_unk_ramdac.cs`, `.Materiel.cs` | `SierraSC1502x.cs`, `.Materiel.cs` | Sierra SC1502x, la famille | G14.3 |
+| `Models/opti495.cs` | `Opti82C495.cs` | OPTi 82C495 | G14.4 |
+| `Models/neat.cs` | `ChipsCS8221.cs` | Chips and Technologies CS8221 | G14.4 |
+| `Models/headland.cs` | `HeadlandHT18.cs` | Headland HT18 | G14.4 |
+| `Models/ali1429.cs` | (inchangé, sous `Models/`) | aucune fiche publique | G14.4 |
+
+Le conteneur suit son fichier, l'espace de noms étant le répertoire : `iXtal26.Models.pic` devient
+`iXtal26.Ics.Intel8259A`, `iXtal26.Keyboard.keyboard_at` devient `iXtal26.Ics.Intel8042`, et ainsi de suite. Les
+types d'état et les rappels suivent leur conteneur dans `iXtal26.Ics`, sous leur nom (`PIC`, `PIT`, `PIT_nr`,
+`set_out_func_t`, `dma_t`, `keyboard_at_t`, `mouse_write_fn`, `SERIAL`, `serial_rcr_fn`, les vingt `emu8k_*`,
+`tkd8001_ramdac_t`, `unk_ramdac_t`) : 43 types et 18 fichiers dans la table. `git diff -M --name-status f15e11f
+38c59c7 -- iXtal26/` compte les dix-huit déplacements, de 69 à 99 % de similarité.
+
+### Les étapes
+
+| Étape | Commit | Ce qu'elle livre |
+|---|---|---|
+| le plan | `e350e6c`, `053391f` | PLAN-G14.md sur trois lectures contre-lues ; Q36 tranchée (pas de `Motorola6845`) |
+| G14.0a | `1edebb4` | les bancs que la référence demande : 44 cas neufs, `MachineBanc` sur les neuf modèles |
+| G14.0b | `eea86a8` | `compare-ref.sh` : R et C côte à côte, 65 cas, la résolution mesurée ; Q37 (la troisième passe) |
+| G14.0c | `f15e11f` | la table des noms, `ildump`, `listings-jit.sh --noms`, `compare-series.py`, Q38 |
+| G14.0d | `651d5f7` | le gel : R = `f15e11f`, `ref-R`, les captures, `g14r` et `g14r-tout` |
+| G14.1 | `d561881` | `Intel8259A`, `Intel8253`, `Intel8237` ; le réancrage sous .NET 10.0.14 |
+| G14.2 | `4982715` | `Intel8042`, `Motorola146818`, `National8250` |
+| G14.3 | `e5d51e0` | `Emu8000`, `TridentTKD8001`, `SierraSC1502x` ; Q39 posée et tranchée |
+| Q39 | `5643228` | la porte du JIT lit les jetons de chaîne dans le tas #US de chaque DLL |
+| G14.4 | `38c59c7` | `Opti82C495`, `ChipsCS8221`, `HeadlandHT18` ; `ali1429` sans fiche ; quatre fiches au manifeste |
+| G14.5 | celui de cette section | le harnais, le 6845 nommé dans ses cartes, cette synthèse, les plans |
+
+Chaque étape de G14.1 à G14.4 a été faite dans son worktree (`/var/tmp/ixtal-g14/g141` à `g144`), sur sa branche, par
+`tools/renommage` avec la table de l'étape seule et la préversion de Rider en contre-compte (Q38) ; la main n'a écrit
+que des commentaires et des recoupes, et ôté deux `using` en G14.2, comptés par le diff inverse. Chacune a eu sa
+contre-lecture en deux relectures, le code et la preuve, avant son commit.
+
+### L'IL et le code machine
+
+Contre R (`ref-R`, `f15e11f`), à chaque étape, par la table jusqu'à l'étape, puis par la table arrêtée à l'étape
+d'avant (le contrôle négatif : les classes de l'étape sortent disparues et apparues) :
+
+| Étape | IL, la table jusqu'à l'étape | IL, la table d'avant | JIT, la table jusqu'à l'étape | JIT, la table d'avant |
+|---|---|---|---|---|
+| G14.1 | 0 / 0 / 0 | 106 disparues et apparues (sans table) | 0 / 0 / 0 | 43 (sans table) |
+| G14.2 | 0 / 0 / 0 | 83 | 0 / 0 / 0 | 33 |
+| G14.3 | 0 / 0 / 0 | 108 | 4 changées : 16 jetons de chaîne, chacun vers la même chaîne (Q39) | 23 |
+| G14.4 | 0 / 0 / 0 | 32 | 0 / 0 / 0, 16 jetons lus par la porte de Q39 | 4 |
+
+(changées / disparues / apparues.) Les listings comptent 1 512 méthodes, l'IL 5 738 entrées. Les 16 jetons de G14.3
+sont ceux de `CORINFO_HELP_STRCNS`, sur des chemins froids (`pc.fatal`, une exception) : le déplacement de fichiers
+dans `Ics/` a changé l'ordre de compilation, donc les décalages du tas #US ; l'IL, qui lit un `ldstr` par sa chaîne,
+ne bouge pas. Q39 l'a admis pour G14.3 et fait outiller la porte (`5643228`) : depuis, `listings-jit.sh compare
+--dll-ref --dll-autre` lit chaque jeton qui change dans la DLL de sa capture, vérifiée par son empreinte.
+
+À la fin de G14 (`il-portes.sh`, `il.log`, sur la construction de G14.5) :
+- `iXtal26`, la table jusqu'à G14.4 : 5 738 entrées, **0 changée, 0 disparue, 0 apparue** ; sans la table : 124
+  changées, 329 disparues, 329 apparues ;
+- `iXtal26.Diff` (contre `S-g14r`) : 3 331 entrées, 0 / 0 / 0 par la table ; 52, 11 et 11 sans elle ;
+- `iXtal26.SoftFloat` : 90 entrées, 0 écart avec ou sans la table ;
+- le banc : 297 entrées, 35 changées par la table, toutes des `BenchmarkAttribute` : 34 par le seul chemin de l'arbre
+  que `[CallerFilePath]` leur donne (`ref-R` → `g145`), la 35ᵉ, `Machine::Fenetre`, aussi par son `[CallerLineNumber]`,
+  84 → 85, comme en G14.1 ; aucun corps de méthode (la limite de § G14.0c).
+
+Les listings du JIT ne sont pas recapturés en G14.5 : l'IL d'`iXtal26` y est celui de la DLL des portes de G14.4, entrée
+pour entrée (ci-dessous), et le runtime n'a pas changé ; la comparaison de R contre G14.4 (0 / 0 / 0, les 16 jetons
+comptés) est donc celle de la fin de G14.
+
+### Les séries
+
+Les séries entières dans les deux modes, à chaque étape, contre celles du commit R (827 portes chacune, comparées par
+`compare-series.py` après normalisation, SST et fuzzeurs compris) :
+
+| Série | Contre | Écarts | Rejouées seules |
+|---|---|---|---|
+| `g14r`, `g14r-tout` (R) | `gr1i2`, `gr1i2-tout` | 0, 0 | les SST de `g14r`, faute de `vectors/` ; `banc-atapibanc` |
+| `g141`, `g141-tout` | `g14r`, `g14r-tout` | 0, 0 | `banc-atapibanc-vide`, dans les deux |
+| `g142`, `g142-tout` | id. | 0, 0 | aucune |
+| `g143`, `g143-tout` | id. | 0, 0 | aucune |
+| `g144`, `g144-tout` | id. | 0, 0 | `banc-atapibanc-materiel`, de `g144-tout` |
+
+Les `banc-atapibanc*` rejouées l'ont été sur le délai d'horloge de l'hôte (`Banc.cs:166-169`), les SST de `g14r` faute
+du corpus. Chaque rejeu est dit à côté de son tsv (`.notes`), et sa première tentative gardée. Les séries ont joué la
+`.so` de `S-g14r`, copiée : le harnais n'a pas bougé de G14.0d à G14.4 (décision n° 9).
+
+### Le banc
+
+Contre le binaire figé R, jamais contre l'étape d'avant (décision n° 7), par `compare-ref.sh` : 14 groupes, 65 cas,
+ABBA par groupe sous `setarch -R taskset` sur quatre cœurs P, le gel du lancé vérifié à chaque passage de R, la règle
+des trois passes (Q37).
+
+| Passe | Le | Durée | Verdict |
+|---|---|---|---|
+| R contre `cmp-R` (le même commit), la porte du gel (G14.0d) | 25/10 | 52,8 min | vert, 65 sur 65 dès la passe 1 |
+| R contre `cmp-R` sous 10.0.14, le réancrage (G14.1) | 02/11 | 52,7 min | vert, 65 sur 65 dès la passe 1 |
+| G14.1 | 02/11 | 65,2 min | vert, 65 sur 65 ; un « à confirmer » de passe 1, vert en passe 2 |
+| G14.2 | 03/11 | 52,7 min | vert, 65 sur 65 dès la passe 1 |
+| G14.3 | 03/11 | 65,2 min | vert, 65 sur 65 ; un rouge de passe 1, non confirmé en passe 2 |
+| G14.4 | 03/11 | 52,7 min | vert, 65 sur 65 dès la passe 1 |
+
+Les deux passes 2 : en G14.1, Machine ami386dx « tout », +0,13 % [+0,05 ; +0,25] en passe 1, +0,10 % [−0,02 ;
++0,20] en passe 2 ; en G14.3, Machine ami386 « tout », +0,08 % [+0,00 ; +0,19], puis +0,01 % [−0,06 ; +0,08]. Dans les
+passes retenues, aucun refus, aucun rouge exact, le gel du lancé vérifié à chaque passage de R. Quatre lancements ont
+été refusés avant elles, et gardés sous `essais/` : deux essais de la porte du gel (G14.0d, `banc/` et `banc2/`), et
+deux de la porte du réancrage (G14.1, `porte-R-1-refusee/`, `porte-R-2-refusee-personnalite/`).
+
+La résolution (§ G14.0b, la plus petite injection vue rouge et confirmée, une borne haute) : de +0,18 à +2,88 % sur
+Machine selon le cas ; +0,28 % sur Exec8088 ; +1,32 % sur MemoireLente ; de +1,42 à +5,01 % sur Exec286, Exec386 et
+Exec486 ; +3,75 % sur Fetch. RenduCga, Rendu8bpp, Video, Son et SonOplPro n'ont pas été injectés en temps : leur
+résolution ne se lit que dans la largeur de l'intervalle A/A, de 0,3 à 0,9 point, sauf Video (0,9 à 4,8) et RenduCga
+(1,2 et 2,1). Le bruit : 9 passes A/A et un no-op, 1 rouge confirmé sans cause sur 326 verdicts, d'où la troisième passe
+de Q37. Là où la résolution est plus grossière que le « 0 % » de la règle (le décodage en « tout », Fetch, RenduCga,
+Video, les trois boucles d'Exec jamais rouges), le 0 % repose sur les listings du JIT, identiques à la table près.
+
+### Le sort du 6845
+
+Q36, tranchée par Julien le 23/10 : « ok pour ta proposition, pas de Motorola6845 en G14 ». Il n'existe aucun module
+CRTC, ni chez PCem ni ici : chacune des cinq cartes (CGA, MDA, Hercules, PC1512, M24) porte ses registres du 6845
+(`crtc[32]`, `crtcreg`) et le code qui les sert, et PCem recopie le masque d'écriture de la CGA (`vid_cga.c:16`),
+entre autres dans `vid_pc1512.c:45` et `vid_olivetti_m24.c:41` ; la MDA et l'Hercules écrivent sans masque (PB-97), et
+leur mode matériel prend la largeur de chaque registre du MC6845 dans `vid_mda.Masque6845`. En faire un module serait
+une extraction, l'IL changerait : ce n'est pas un renommage. G14.5 fait ce que la proposition validée disait : les
+cinq cartes nomment le 6845 dans un bloc `// noms:` (ci-dessous). `PLAN.md` § G14 garde « le CRTC → `Motorola6845` »
+tel qu'écrit le 03/10 ; ce paragraphe dit ce qu'il en est advenu.
+
+### G14.5, ce que la clôture a fait
+
+Le 4 novembre 2026 (PLAN-G14.md § G14.5 ; feu vert de Julien : « feu vert pour G14.5 »). Dans le worktree
+`/var/tmp/ixtal-g14/g145`, sur la branche `g14-5` au parent `38c59c7` (`master` = `origin/master`) ; les journaux
+sous `/var/tmp/ixtal-g14/g14-5/`, les outils jetables sous `outils/` (`worktree-g145.sh`, `verif-avant.sh`,
+`blocs6845.py`, `so-avant-apres.sh`, `il-portes.sh`, `prep-g145.sh`, `sous-serie-g145.sh`, `grep-anciens.sh`).
+
+**Avant l'étape** (`verif-avant.log`, le 04/11 à 6 h 00) : le runtime est toujours 10.0.14 (SDK 10.0.114), apt n'a
+rien changé de .NET depuis le 31/10 ; `ref-R` à `f15e11f`, `git status` vide, les trois DLL de bin/ conformes au gel,
+le manifeste de fin conforme (1 894 fichiers) ; aucun commit hors `g14:` depuis R sur ce que la série et le banc
+lisent (le pathspec de § G14.0d), `git diff f15e11f 38c59c7 -- tools/oracle/ pcem-dev/` vide.
+
+**Les commentaires du harnais** (la liste de PLAN-G14.md § G14.5, décision n° 9) : huit commentaires de
+`tools/oracle/` nommaient un fichier ou une classe C# d'avant G14 ; ils nomment le nouveau, ligne pour ligne (aucune
+ligne ajoutée ni ôtée, 9 lignes changées dans 5 fichiers) :
+- `harness.c:2092-2093` : « nvr.cs (Ics/Motorola146818.cs depuis G14.2) disait » ; la phrase est un historique (ce que
+  disait le fichier en B1a), le nouveau chemin y est ajouté sans la récrire ;
+- `harness_stubs.c:172` : `keyboard_at.cs` → `Intel8042.cs` (la déviation de `cpu_set_edx`, `Intel8042.cs:739`) ;
+- `harness.c:2757` et `harness.h:458` : `Models.pit.Probe()` → `Ics.Intel8253.Probe()` (`Intel8253.cs:757`) ;
+- `harness_dma.c:24` : `Models.dma.ProbeState` → `Ics.Intel8237.ProbeState` (`Intel8237.cs:97`) ;
+- `harness_emu8k.c:67`, `:126`, `:143` : `sound_emu8k.VoiceFnv`, `.CombFnv`, `.Probe` → `Emu8000.VoiceFnv`, `.CombFnv`,
+  `.Probe` (`Emu8000.cs:2307`, `:2364`, `:2379`).
+
+G14.4 n'en ajoutait aucun ; le balayage de la fin (`grep-anciens.log`) n'en trouve pas d'autre dans `tools/oracle/`.
+
+**`oracle.tsv` réancré** : `check-oracle.sh` voit six dérives, les six lignes qui ancrent `harness.c` (deux),
+`harness_stubs.c`, `harness.h`, `harness_emu8k.c` et `harness_dma.c` (le contrôle négatif, `check-oracle-avant-fix.log`,
+retour 1) ; `--fix` réécrit ces six empreintes ; puis 217 transcrits vérifiés, 41 fichiers de l'hôte, **0 dérive**,
+l'arbre vendoré OK (`check-oracle-apres.log`, retour 0).
+
+**La `.so` reconstruite** (`so-avant-apres.sh`, `so-avant-apres.log`) : deux fois dans `g145`, au même chemin (la `.so`
+porte le chemin de son arbre, § G14.0d) : A au parent `38c59c7`, les modifications de l'étape remisées (`git stash`),
+B avec elles, `make clean` avant chacune. **A et B sont identiques à l'octet** (`a868a447…`), débogage compris : les
+commentaires changent ligne pour ligne, aucun numéro de ligne ne bouge. Sans débogage ni `.note.gnu.build-id`, A, B et
+la `.so` de R (`S-g14r`, `fe905731…`) ont la même empreinte, `32dfa4d5…`, celle de GR.4e ; `objdump -d` et `.rodata`
+de R égaux à ceux de A. (§ G14.0d disait que la `.so` de R n'était pas celle de `c0c` ni de `gr1i2`, « même dépouillée
+de ses symboles de débogage » : c'était sans ôter `.note.gnu.build-id`, que le chemin de l'arbre change aussi.)
+
+**Le 6845 dans ses cartes** (`blocs6845.py`, `blocs6845.log`). Un bloc `// noms:` à la fin du premier bloc de
+commentaires de chacune des cinq cartes, quatre lignes (cinq pour la MDA) : le CRTC n'a pas de module (Q36), ses
+registres et leur code sont en ligne dans la carte, comme chez PCem ; ce que chaque carte en fait (le masque de la
+CGA, `vid_cga.c:16`, que PCem recopie pour le PC1512 et la M24, avec ses lignes ; l'écriture sans masque de la MDA
+et de l'Hercules, PB-97, et `Masque6845` pour leur mode matériel ; la puce du PC1512 et de la M24 non lue, comme le
+disent déjà `vid_pc1512.cs:76` et `vid_olivetti_m24.cs:69`) ; le conteneur et les fonctions gardent les noms de
+PCem. Chaque affirmation relue sur le code : `crtc = new uint8_t[32]` et `crtcreg` dans les cinq `_t` ; `crtcmask`
+aux trois lignes du C citées ; `vid_mda.c:28` et `vid_hercules.c:54` sans masque ; `Masque6845.largeur` lu par
+`vid_mda.Materiel.cs:59` et `vid_hercules.Materiel.cs:45`.
+
+Les lignes insérées décalent la suite de chaque carte : les 24 renvois `vid_X.cs:N` des fichiers vivants qui pointent
+au-delà sont recalés de 4 (5 pour la MDA), et le script vérifie, renvoi par renvoi, que la ligne citée a le même texte
+avant et après. Ils sont dans le code (`fdc.cs`, `SdlHost.cs`, `vid_cl5429.cs`, `vid_olivetti_m24.cs`,
+`vid_pc1512.cs`, `vid_s3.cs`, `vid_svga.cs`, `vid_tvga.cs`, `vid_vga.cs`), `PCEM_BUGS.md` (10), `plan-affichage.md`
+(1) et deux attendus de banc, en commentaire (`hercbanc.attendus:27`, `mdabanc.attendus:12`). Restent tels quels,
+journaux datés : `VERIFICATION.md`, les plans, les reconnaissances et l'audit du 26/09
+(`audit-performance-2026-09-26.md:125`). Un renvoi qui visait déjà une ligne voisine avant G14.5 la vise encore :
+le recalage ne corrige pas les renvois, il les garde.
+
+**Les anciens noms, à la fin** (`grep-anciens.log`) : dans le code compilé, 0 nom qualifié d'avant G14, 0 `using
+static`, aucun des 18 anciens fichiers ; `Ics/` a 18 fichiers, tous dans `iXtal26.Ics`. Hors du code, les seuls
+restes sont voulus : la table (`tools/noms/g14.txt`), les blocs `// noms:` (« avant G14, … »), l'exemple de
+`tools/renommage/Program.cs:18`, l'historique de `mouse_ps2.cs:46` et celui de `harness.c:2092`.
+
+**Ce qui est vérifié** :
+- la construction Release des trois projets dans `g145`, `--no-incremental` (`construction.log`, SDK 10.0.114) : 0
+  erreur, 0 avertissement ;
+- l'IL d'`iXtal26` contre la DLL des portes de G14.4 (`g14-4/apres-cl/dll-portes/iXtal26.dll`, `155a7d90…`), sans
+  la table (`il-negatif.log`) : 5 738 entrées, **0 changée, 0 disparue, 0 apparue** ; l'étape ne change que des
+  commentaires ; contre R, la table arrêtée à G14.3 : 3 changées, 32 disparues, 32 apparues (le contrôle négatif de
+  G14.4, rendu le même) ;
+- l'IL contre R, par la table jusqu'à G14.4 : 0 / 0 / 0 (ci-dessus, « L'IL et le code machine ») ;
+- `check-oracle.sh` : 0 dérive ; `check-doc5150.sh` : « renvois justes », 4 fichiers (`check-doc5150.log`) ;
+- le sous-ensemble ciblé de la série (`sous-serie-g145.sh`, `sous-serie.log`), puisque le harnais, cinq cartes et deux
+  attendus changent : 31 portes, `PORTES` posé, dans `g145` avec la copie figée `S-g145` (iXtal26.Diff de `g145`, la
+  `.so` B), les portes copiées, `MALLOC_PERTURB_=85`, dix voies, après deux minutes calmes ; REPO = `g145` (`os/`
+  copié de `ser-R/os/`, `vectors/` lié, `prep-g145.log`), WORK = `g5w-g14-5`, fait par la recette, conforme à
+  `g5w.sha256` avant et après :
+  - les portes de l'outillage : `abi`, `recensement` (qui lit `PCEM_BUGS.md`), `config-check`, `cpu-config-check`,
+    `nvr-check` ;
+  - les cinq cartes : `bd-pc-cga`, `bd-pc-mda`, `bd-pc-hercules`, `bd-ibmat-mda`, `bd-ibmat-hercules`, `bd-m24`,
+    `bd-pc1512`, `r9-cga`, `r9-m24`, et leurs bancs dans les deux modes (`banc-hercbanc`, `banc-mdabanc`,
+    `banc-cgabanc`, `banc-cgabanc-m24`, chacun avec sa forme `-materiel`) ;
+  - les sondes dont le commentaire change : les boot-diffs de l'IBM AT, de l'ami286, de l'ami386, de l'ami486 (DX2),
+    `bd-ami486-awe32` (l'EMU8000), `r9-emu8k`, `bd-xt-picbanc`, `banc-picbanc-xt` et `banc-dmabanc-at` ;
+
+  `g145`, le 04/11 de 6 h 12 à 6 h 13 (1 min 28 s) : 31 vertes ; `g145-tout` sous `MATERIEL=tout`, de 6 h 13 à 6 h 15
+  (1 min 17 s) : 16 vertes, 15 refusées par le mode. Comparées sous `--sous-ensemble` (`--racine` `ser-R` et `g145`,
+  `--work` `g5w-g14r` et `g5w-g14-5`) : `g145` contre `g14r`, 31 communes, **0 écart** ; `g145-tout` contre
+  `g14r-tout`, 31 communes, **0 écart** ;
+- aucune ligne neuve au-delà de 120 caractères (comptées en caractères, `python3`), hors des six enregistrements
+  d'`oracle.tsv` que `--fix` réécrit, de la même longueur qu'à HEAD (de 154 à 251), qu'un tsv ne coupe pas.
+
+**La contre-lecture**, en deux relectures, le code et la preuve, avant le commit :
+- le code : aucune erreur ; une imprécision reprise, « ses registres, ceux d'un 6845 chez PCem » dans les blocs du
+  PC1512 et de la M24 (PCem ne nomme pas le 6845 dans ces fichiers) ; une remarque reprise, `vid_cga.c:16` est
+  l'original du masque et non une copie, et PCem le recopie dans d'autres cartes encore. Les trois blocs sont récrits
+  à nombre de lignes égal, les 24 renvois recalés revérifiés sur leur texte (80 lignes citées, 0 écart) ;
+- la preuve : une erreur reprise, un défaut candidat attribué à G14.4 qui était un constat de G14.0a, et compté deux
+  fois ; huit imprécisions reprises (l'incise de Q39 en tête, « de chaque conteneur », les deux `using` ôtés en
+  G14.2, la colonne des rejeux, les quatre lancements refusés du banc, « injectés en temps », « entrée pour entrée »,
+  ce qui pèse sur G15 et `MachineBanc`) ; une réfutée : `TRANSCRIPTION.md:234` nomme `keyboard_at.c`, de PCem, et non
+  un fichier C# ;
+- après les reprises du code, la construction de `g145` (`construction-apres-cl.log`) : 0 avertissement ; l'IL
+  d'`iXtal26` contre celui de la DLL du sous-ensemble (`S-g145`), sans la table (`il-apres-cl.log`) : 5 738 entrées,
+  0 changée, 0 disparue, 0 apparue. Le sous-ensemble n'est pas rejoué.
+
+Ni série entière ni banc : l'émulateur ne change que par des commentaires, et son IL est celui de G14.4, entrée
+pour entrée ; le harnais aussi, et sa `.so` est la même à l'octet.
+
+### Ce que ce vert ne dit pas
+
+- **Les noms sont ceux des fiches, pas une preuve que le code est la puce.** Le code est celui de PCem. Les blocs
+  `// noms:` disent où PCem s'écarte de la fiche quand une lecture l'a vu (la relecture du 8254 de `Intel8253`, la
+  famille de `National8250`, les réserves du HT18) ; ils ne valent pas une relecture du modèle contre la fiche.
+- **`ChipsCS8221` et `HeadlandHT18` n'ont aucun scénario dans les listings du JIT** : pour elles, la preuve tient à
+  l'IL, aux séries et au banc (§ G14.4).
+- **Le banc est moins fin que la règle** sur le décodage en « tout », Fetch, RenduCga, Video et trois boucles d'Exec
+  (ci-dessus) : le 0 % y repose sur les listings.
+- **Un jeton d'un autre module qui change** n'est pas distingué d'un jeton d'iXtal26 par la porte de Q39 (dit en tête
+  de `listings-jit.sh`) ; il n'en est apparu aucun.
+- **`MachineBanc` ne mesure pas les puces de l'étape à part** : ses cas font tourner une tranche de `pc.runpc`, et ce
+  qu'y font les puces renommées n'est pas établi (§ G14.3, § G14.4).
+- **`ali1429` garde le nom de PCem**, faute de fiche publique ; le jeu de puces de l'ami386 reste inconnu (le bloc
+  22h/23h n'est pas du HT18, son identifiant vaut 0).
+
+### Ce qui reste, dit et non fait
+
+- **Les défauts candidats de PCem**, hors des étapes (règle du 18/10), à proposer à Julien :
+  - les bits 3 et 4 de CR0 du HT18, à l'envers de la fiche (`headland.c:211-214`, G14.4) ;
+  - la valeur de 22h de l'OPTi au reset, E4h selon la fiche et 80h chez PCem (G14.4) ;
+  - les bits d'extension du NEAT, que la fiche et PCem lisent différemment (G14.4) ;
+- **les constats hors étape** (§ G14.0a, ses « Constats en route » et « Hors de la portée ») :
+  - `initpc` n'est pas la mise sous tension : sur l'ami286 et l'ami386dx, la première fenêtre d'un processus n'est pas
+    celle des suivantes ; les registres du NEAT et de l'OPTi sont des statiques (`ChipsCS8221.cs:52`,
+    `Opti82C495.cs:52` ; `neat.cs:37` et `opti495.cs:36` en G14.0a) que leur `_init` ne remet pas, et le POST
+    précédent les a programmés (déduit) ;
+  - sur la M24 en « tout », les trois premières fenêtres de `MachineBanc` diffèrent ; sur le PC1512, une fenêtre
+    trop longue alterne entre deux empreintes : ce qui passe d'une fenêtre à l'autre n'est pas identifié ;
+  - VideoBanc laisse son fichier de configuration temporaire si la machine ne se monte pas ;
+- **ce qui pèse sur G15** (les « Hors de la portée » et « Les risques » de G14.0c à G14.4) :
+  - trois `using` devenus inutiles, que le compilateur ne signale pas (`Mouse/mouse_serial.cs`, `Ics/Intel8042.cs`,
+    `tools/iXtal26.Diff/MaterielCas.cs`, § G14.2) : un nettoyage que § G14.2 renvoyait à G14.5 ou G15 ; G14.5 ne
+    l'a pas fait, il reste à G15, avec l'IL pour juge ;
+  - `tools/renommage` lie le Roslyn privé du SDK (5.0.26.52326 sous 10.0.114), qui n'est pas une API publiée, et ne
+    joue pas une étape seule (chaque étape a passé un extrait de la table) ;
+  - le runtime n'est pas épinglé : une mise à jour d'apt de .NET demande le réancrage de § G14.1, et `ref-R` doit
+    tenir jusqu'à la fin de G15 ;
+  - le délai de 1 200 s de `Banc.cs:166-169`, une horloge de l'hôte dans une porte déterministe, a frappé trois fois
+    (§ G14.0d, G14.1, G14.4) ;
+  - les 197 renvois `fichier.cs:N` décalés d'une ou deux lignes en G14.1 par les recoupes et les blocs `// noms:`
+    (§ G14.1), non recalés : ils se lisent justes à une ligne près ; G14.5 n'a recalé que les siens ;
+  - la Portée de `TRANSCRIPTION.md` (`:99-101`) ne liste ni `Sound/` ni `Devices/` (§ G14.0c) ;
+  - quelques renvois inexacts relevés en route, non corrigés (§ G14.1 à G14.4, « Hors de la portée ») ;
+- **les questions d'outillage** (§ G14.4, « Hors de la portée ») : les enregistrements de tsv au-delà de 120
+  caractères (`oracle.tsv`, `sources/MANIFEST.tsv`), admis comme en G14.3, une autre forme du manifeste si Julien la
+  veut ;
+- **les images `os/386-HDD-C.img` et `os/486-HDD-C.img`**, réécrites par des séances du 23 et du 24/10 : leur
+  empreinte dans `os.sha256` attend la décision de Julien (§ G14.0d) ;
+- **la branche `g14-4-avant-cl`** et les worktrees de G14 sous `/var/tmp/ixtal-g14/` (`aa1`, `c0c`, `cmp-R`, `g141`
+  à `g145`, `noop`, `ref-R`, `rep`, `rp2-g143`, `rp2-g144`, `ser-R`, `wt`), laissés en place ; `ref-R`, `cmp-R` et
+  `ser-R` ne bougent pas jusqu'à la fin de G15 (§ G14.0d).

@@ -455,7 +455,7 @@ uint64_t h_trace_hash_now(void);
 int h_mem_size(void);
 int64_t h_ram_cmp(const uint8_t *autre, uint32_t n, uint8_t *octet);
 
-/* Sonde PIT — 19 champs du canal t, dans l'ordre de Models.pit.Probe() côté C#.
+/* Sonde PIT — 19 champs du canal t, dans l'ordre de Ics.Intel8253.Probe() côté C#.
  * `pit` est une globale de pit.c et le harnais est lié avec : on lit l'arbre
  * vendoré, on ne l'instrumente pas. */
 #define H_PIT_PROBE_N 19

@@ -31,7 +31,7 @@ Les choix retenus, écran et son, sont consignés dans
 ## Reste à faire, du moins cher au plus cher
 
 ### 1. Lignes de balayage fidèles au CGA
-Le CGA double ses 200 lignes (`vid_cga.cs:491`, `(ysize << 1) + 16`). `--crt` assombrit
+Le CGA double ses 200 lignes (`vid_cga.cs:495`, `(ysize << 1) + 16`). `--crt` assombrit
 chaque ligne de la trame, donc donne 400 lignes visibles là où le moniteur 5153 en
 montrait 200. Il faudrait connaître le doublement : un champ posé par la carte vidéo
 à côté de `updatewindowsize`, lu par l'hôte. À ne pas deviner depuis la hauteur.

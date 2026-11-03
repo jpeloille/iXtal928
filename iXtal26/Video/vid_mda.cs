@@ -8,6 +8,11 @@
 //
 // G9.0 (PLAN-G9.md). La MDA d'IBM : un 6845 aux ports 3B0-3BF, 4 Ko de VRAM vus en B0000 sur
 // 32 Ko, texte 80×25 en caractères de 9 points, police `fontdatm` (mda.rom, video.cs).
+//
+// noms: le 6845, le CRTC, n'a pas de module (Q36, PLAN-G14.md) : ses registres, `crtc` et `crtcreg`, et leur code
+//   sont en ligne dans la carte, comme chez PCem, qui les écrit sans masque (vid_mda.c:28, PB-97) ; le mode
+//   matériel prend la largeur de chaque registre du MC6845 dans `Masque6845` (vid_mda.Materiel.cs), que la Hercules
+//   prend aussi. Le conteneur et les fonctions gardent les noms de PCem.
 
 // CS8600/CS8602/CS8604 : `(mda_t)p` part du `object?` des delegates de mem.cs, io.cs et timer.cs,
 // comme à vid_cga.cs.

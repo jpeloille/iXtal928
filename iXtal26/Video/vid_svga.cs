@@ -6,7 +6,7 @@
 //         svga_close, svga_write/read et leurs variantes w/l, svga_doblit. Omis : les
 //         chemins *_linear, qu'aucune carte du dépôt n'enregistre.
 
-// CS8600/CS8602/CS8604 : `svga_t svga = (svga_t)p;` — même raison qu'à vid_cga.cs:9-17.
+// CS8600/CS8602/CS8604 : `svga_t svga = (svga_t)p;` — même raison qu'à vid_cga.cs:13-21.
 // Le `void *p` des handlers est déclaré `object?` par les delegates de mem.cs et
 // timer.cs, et svga_init enregistre toujours `svga` : l'analyse de nullabilité ne peut
 // pas le savoir.

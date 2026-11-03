@@ -40,11 +40,11 @@ ramène. À partir de G11, chaque bloc livre :
 
 G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
 
-## Où on en est — 4 novembre 2026, GR fait (l'écoute de GR.3i attendue) ; G14 en cours, G14.4 faite
+## Où on en est — 4 novembre 2026, GR fait (l'écoute de GR.3i attendue) ; G14 fait
 
 ```
 8088 ✅ ── 286 ✅ ── G2 ✅ ── G3 ✅ ── G4 ✅ ── G5 ✅ ── G6 ✅ ── G7 ✅ ── G1 ✅ ── G8 ✅ ── PS2 ✅ ── G9 ✅
-     ── G10 ✅ ── G11 ✅ ── G12 ✅ ── G13 ✅ ── GR ✅ ──▶ [ICI] G14 ── G15 ── G16 ── G17
+     ── G10 ✅ ── G11 ✅ ── G12 ✅ ── G13 ✅ ── GR ✅ ── G14 ✅ ──▶ [ICI] G15 ── G16 ── G17
 ```
 
 - **Derrière** : les générations 8088 et 286, jusqu'à M21 ; **G2**, le cœur 386 (D0 à D7,
@@ -179,9 +179,9 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
   mode testé, le stockage sondé et ses bancs en table dans les deux modes, les profils, les témoins, la couverture
   comptée, la relecture contradictoire, la dette de G1, G7 et G8. Reste l'écoute de GR.3i, préparée, que Julien
   fera ; et, dits sans étape, quatre trous de la couverture et quatre défauts candidats de PCem.
-- **G14, en cours** : feu vert du 23/10 ; `PLAN-G14.md`, sur reconnaissance (`iXtal26/Docs/G14-reconnaissance/`).
-  G14.0a-d (la référence figée, les outils de la preuve) et G14.1 à G14.4 (douze puces dans `Ics/`, `ali1429` sans
-  fiche) sont faits ; reste la clôture, G14.5, sur feu vert ; Q36 tranchée (pas de 6845), Q39 outillée.
+- **G14, fait** : du 23/10 au 04/11 (`PLAN-G14.md`, VERIFICATION.md § G14 et sa synthèse). Douze puces dans `Ics/`
+  (`ali1429`, sans fiche, garde son nom) ; l'IL et le code machine de R à la table des noms près, les séries identiques
+  à l'unité, le banc vert contre R ; Q36 (le 6845 reste dans ses cinq cartes), Q37 à Q39 tranchées.
 - **G15 à G17** attendent chacun un feu vert.
 
 ## Les générations
@@ -466,9 +466,9 @@ G11 SCSI : AHA-1542C                    ✅
 G12 les autres Sound Blaster, AWE32     ✅
 G13 défauts de PCem, « mode matériel »  ✅ le mode matériel, par défaut
 GR  reprise de G9 et G10, en profondeur  ✅ (l'écoute de GR.3i attendue)
-G14 nommer les puces (Ics/)             ┐ décisions utilisateur du 03/10 ;
+G14 nommer les puces (Ics/)             ✅ douze puces ; le 6845 reste dans ses cartes (Q36)
+G15 normaliser le C#, 0 % de perte      ┐ décisions utilisateur du 03/10 ;
                                         │ chacun attend un feu vert
-G15 normaliser le C#, 0 % de perte      │
 G16 robustesse et confort               │
 G17 usage avancé, publication           ┘
 ```
@@ -542,7 +542,7 @@ qu'elle laisse (`PLAN-G10.md`, « Les risques »).
 **Porte** : toutes les portes vidéo vertes, pixels compris, et une panne qui rougit chaque sonde ;
 les tableaux de couverture ; les constats de la relecture corrigés ; les témoins.
 
-## G14 — Nommer les puces  *(décision utilisateur du 03/10 ; feu vert du 23/10 ; `PLAN-G14.md`)*
+## G14 — Nommer les puces  ✅ *(décision utilisateur du 03/10 ; feu vert du 23/10 ; `PLAN-G14.md`, fait le 04/11)*
 
 Après GR, seulement quand tout ce qui précède est vert : plus aucun fichier PCem ne reste à
 transcrire.

@@ -50,7 +50,7 @@
 
 // CS8600/CS8602 : `FDC fdc = (FDC)p;` dans fdc_watchdog_poll — le `void *p` des
 // timers est déclaré `object?` ; ici il vaut toujours &fdc (fdc.c:1265). Même cas
-// qu'à vid_cga.cs:16.
+// qu'à vid_cga.cs:20.
 #pragma warning disable CS8600, CS8602
 
 using System.Runtime.CompilerServices;

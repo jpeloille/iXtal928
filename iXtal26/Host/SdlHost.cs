@@ -45,7 +45,7 @@ public sealed class SdlHost : IDisposable
     private const int DefaultWindowHeight = 416;
 
     /// <summary>
-    /// vid_cga.cs:413 arrête le balayage à « displine >= 360 », et la hauteur demandée
+    /// vid_cga.cs:417 arrête le balayage à « displine >= 360 », et la hauteur demandée
     /// au blit vaut (lastline - firstline) + 8, donc 368 lignes au pire. La VGA monte à
     /// 480 : svga_doblit demande ysize = lastline - firstline + 1, soit 400 lignes en
     /// texte et 480 en mode 12h. M19 : les Trident montent à 600 (5Eh), 768 (62h) et
@@ -290,7 +290,7 @@ public sealed class SdlHost : IDisposable
         _sdlInitialised = true;
 
         // video_width / video_height sont posés par updatewindowsize (video.cs:543),
-        // appelée depuis vid_cga.cs:491 avec (xsize, (ysize << 1) + 16) : le doublement
+        // appelée depuis vid_cga.cs:495 avec (xsize, (ysize << 1) + 16) : le doublement
         // vertical de l'aspect CGA est déjà dans la valeur, l'hôte ne recalcule rien.
         // Ils valent zéro avant le premier balayage, d'où le repli.
         _windowWidth = video.video_width > 0 ? video.video_width : DefaultWindowWidth;
@@ -1034,7 +1034,7 @@ public sealed class SdlHost : IDisposable
         // précédente — à un autre pas si w avait changé — ou une bande noire. La texture,
         // elle, persiste d'une image à l'autre, comme `screen` chez PCem.
         //
-        // Le CGA passe y = cga->firstline - 4 (vid_cga.cs:494), qui peut être négatif :
+        // Le CGA passe y = cga->firstline - 4 (vid_cga.cs:498), qui peut être négatif :
         // les lignes hors de Buffer32 sont écartées, comme par le test de PCem.
         var first = Math.Max(Math.Max(y1, 0), -y);
         // Et pas au-delà de h : ces lignes ne sont pas montrées (Render lit 0..h), et la

@@ -5,11 +5,15 @@
 // STATUS: transcribed — m24_t, m24_out/m24_in, m24_write/m24_read,
 //         m24_recalctimings, m24_poll, m24_init, m24_close, m24_speed_changed,
 //         m24_device. Omis : les pclog, sortie pure. Déviation R9 : PB-88 ; PB-89 borné en mode matériel.
+//
+// noms: le CRTC n'a pas de module (Q36, PLAN-G14.md) : ses registres, `crtc` et `crtcreg`, et leur code sont en
+//   ligne dans la carte, comme chez PCem, qui les sert comme ceux de la CGA, avec le masque de vid_cga.c:16 recopié
+//   (vid_olivetti_m24.c:41) ; sa puce n'a pas été lue. Le conteneur et les fonctions gardent les noms de PCem.
 
 /*Olivetti M24 video emulation
   Essentially double-res CGA*/
 
-// CS8600/CS8602/CS8604 : `m24_t m24 = (m24_t)p;` — même raison qu'à vid_cga.cs:9-16 :
+// CS8600/CS8602/CS8604 : `m24_t m24 = (m24_t)p;` — même raison qu'à vid_cga.cs:13-20 :
 // les delegates déclarent `object?`, m24_init enregistre toujours `m24`.
 #pragma warning disable CS8600, CS8602, CS8604
 

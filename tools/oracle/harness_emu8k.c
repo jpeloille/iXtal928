@@ -64,7 +64,7 @@ static uint64_t h_env(uint64_t h, const emu8k_envelope_t *e) {
         return h;
 }
 
-/* Un canal, champ par champ, dans l'ordre du struct (sound_emu8k.h:164-341) ; pendant de sound_emu8k.VoiceFnv. */
+/* Un canal, champ par champ, dans l'ordre du struct (sound_emu8k.h:164-341) ; pendant de Emu8000.VoiceFnv. */
 static uint64_t h_voice(const emu8k_voice_t *v) {
         uint64_t h = H_FNV_SEED;
         int c;
@@ -123,7 +123,7 @@ static uint64_t h_voice(const emu8k_voice_t *v) {
 }
 
 /* Un peigne de la réverbération : ses scalaires, puis les MAX_REFL_SIZE premières entrées de son tampon (au-delà, le
- * C déborde : PB-161) ; pendant de sound_emu8k.CombFnv. */
+ * C déborde : PB-161) ; pendant de Emu8000.CombFnv. */
 static uint64_t h_comb(const emu8k_reverb_combfilter_t *r) {
         uint64_t h = H_FNV_SEED;
         int c;
@@ -140,7 +140,7 @@ static uint64_t h_comb(const emu8k_reverb_combfilter_t *r) {
         return h;
 }
 
-/* La sonde de l'EMU8000 (H_EMU8K_PROBE_N champs), dans l'ordre de sound_emu8k.Probe côté C# : l'état de la puce, la
+/* La sonde de l'EMU8000 (H_EMU8K_PROBE_N champs), dans l'ordre de Emu8000.Probe côté C# : l'état de la puce, la
  * mémoire entière (la ROM, le bloc vide, la RAM), le chorus, la réverbération (ses dix-sept peignes), les trente-deux
  * canaux. Tout à zéro sans AWE32 montée. */
 void h_emu8k_probe(uint64_t *o) {

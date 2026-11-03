@@ -9,6 +9,10 @@
 // G9.1 (PLAN-G9.md). La Hercules Graphics Card : la MDA (vid_mda.cs), plus le graphique 720×348 en
 // deux pages de 32 Ko (3BF bit 0 l'autorise, bit 1 ouvre B8000), 64 Ko de VRAM. Comme chez PCem,
 // deux fichiers et deux `mdacols` statiques distincts.
+//
+// noms: le 6845, le CRTC, n'a pas de module (Q36, PLAN-G14.md) : ses registres, `crtc` et `crtcreg`, et leur code
+//   sont en ligne dans la carte, comme chez PCem, qui les écrit sans masque (vid_hercules.c:54, PB-97) ; le mode
+//   matériel prend `vid_mda.Masque6845`. Le conteneur et les fonctions gardent les noms de PCem.
 
 // CS8600/CS8602/CS8604 : `(hercules_t)p` part du `object?` des delegates de mem.cs, io.cs et
 // timer.cs, comme à vid_cga.cs.

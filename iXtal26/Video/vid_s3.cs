@@ -14,7 +14,7 @@
 //         la RAMDAC SDAC de la Vision864, le fil FIFO (G7 n° 3 : accélérateur synchrone),
 //         le câblage PCI des IRQ (PB-83).
 
-// CS8600/CS8602/CS8604 : même raison qu'à vid_svga.cs et vid_cga.cs:9-17.
+// CS8600/CS8602/CS8604 : même raison qu'à vid_svga.cs et vid_cga.cs:13-21.
 #pragma warning disable CS8600, CS8602, CS8604
 
 // CS1717 : `dest_dat = dest_dat;` (vid_s3.c:1723), mix 0x3 de la macro MIX — une

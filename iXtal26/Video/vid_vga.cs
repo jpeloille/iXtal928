@@ -6,7 +6,7 @@
 //         vga_available, vga_close, vga_speed_changed, vga_force_redraw,
 //         vga_add_status_info, vga_device. Omis : ps1vga_init et ps1vga_device.
 
-// CS8600/CS8602/CS8604 : même raison qu'à vid_svga.cs et vid_cga.cs:9-17.
+// CS8600/CS8602/CS8604 : même raison qu'à vid_svga.cs et vid_cga.cs:13-21.
 #pragma warning disable CS8600, CS8602, CS8604
 
 using System.Text;

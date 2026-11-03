@@ -5,6 +5,10 @@
 // STATUS: partial — cga_t, cga_out/cga_in, cga_write/cga_read (neige comprise),
 //         cga_recalctimings, cga_poll, cga_init, cga_standalone_init, cga_close,
 //         cga_speed_changed, cga_config, cga_device. Omis : le chemin composite.
+//
+// noms: le 6845, le CRTC, n'a pas de module (Q36, PLAN-G14.md) : ses registres, `crtc` et `crtcreg`, et leur code
+//   sont en ligne dans la carte, comme chez PCem ; son masque, `crtcmask` (vid_cga.c:16), PCem le recopie entre
+//   autres dans vid_pc1512.c:45 et vid_olivetti_m24.c:41. Le conteneur et les fonctions gardent les noms de PCem.
 
 // CS8600/CS8602/CS8604 : `cga_t cga = (cga_t)p;` — le `void *p` des handlers est
 // déclaré `object?` par les delegates de mem.cs, timer.cs et device.cs, parce que

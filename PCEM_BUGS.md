@@ -5431,8 +5431,8 @@ qui en résulte : inconnu, à mesurer (R10 = 46h puis 66h, le curseur relevé su
 *Cas qui discrimine* : CGA, R10 = 46h : PCem fait clignoter le curseur comme avec 06h ; le 6845 y ajoute son propre
 clignotement — aucun attendu documenté.
 *G13* : (c) — le combiné des deux clignotements n'est pas documenté ; reproduit jusqu'à une mesure.
-*Reproduit* : marqueurs PB-231 : `Video/vid_cga.cs:548`, `Video/vid_mda.cs:318`, `Video/vid_hercules.cs:347`,
-`Video/vid_olivetti_m24.cs:476`, `Video/vid_pc1512.cs:488`.
+*Reproduit* : marqueurs PB-231 : `Video/vid_cga.cs:552`, `Video/vid_mda.cs:323`, `Video/vid_hercules.cs:351`,
+`Video/vid_olivetti_m24.cs:480`, `Video/vid_pc1512.cs:492`.
 *Non corrigé en mode matériel* : inconnu, reproduit dans les deux modes (décision n° 14), comme le dit le champ *G13*.
 
 ### PB-232 — En 40 colonnes, la M24 et le PC1512 éteignent le caractère sous le curseur
@@ -5454,7 +5454,7 @@ curseur, une inversion, n'y montre qu'un pavé uni.
 *Cas qui discrimine* : M24, 3D8h = 28h (40 colonnes), caractère 41h d'attribut 87h sous le curseur, trame où
 `blink & 16` ≠ 0 : sur les lignes du curseur, PCem un pavé uni (le fond inversé) ; avec l'exemption, le glyphe inversé.
 *G13* : (b) — l'intention de PCem est claire, le matériel inconnu ; une vérification par image seulement.
-*Reproduit* : marqueurs PB-232 : `Video/vid_olivetti_m24.cs:289`, `Video/vid_pc1512.cs:319`.
+*Reproduit* : marqueurs PB-232 : `Video/vid_olivetti_m24.cs:293`, `Video/vid_pc1512.cs:323`.
 *Non corrigé en mode matériel* : (b), reste reproduit, par la réponse de Julien à Q17 (14/10) : l'intention de PCem
 seule pour source.
 
@@ -7526,7 +7526,7 @@ la ligne 0 du caractère 42h (`fontdatm_plat(41h, 16)`), la carte la ligne 0 du 
 *G13* : (a), (b) — (a) la MDA, par son schéma ; (b) l'Hercules, dont le schéma n'a pas été lu.
 *Reproduit* en mode PCem : `Video/vid_mda.cs`, `fontdatm_plat`, marqueur `fixed in hardware mode: PB-96` — l'accès se fait à plat (`chr * 16 + sc`),
 l'adresse que le C calcule ; un accès `[chr, sc]` au tableau C# `[2048, 16]` lèverait.
-*G9.1* : l'Hercules aussi (`vid_hercules.c:173`, `:176`) ; même accès à plat (`Video/vid_hercules.cs:262`) ; sa part
+*G9.1* : l'Hercules aussi (`vid_hercules.c:173`, `:176`) ; même accès à plat (`Video/vid_hercules.cs:266`) ; sa part
 (b) reste celle de PCem dans les deux modes (Q17 : le schéma de la GB101 n'a pas été lu).
 *Corrigé en mode matériel*, la MDA (G13.9b) : sous `if (materiel.pb_96)`, en tête du dessin de la ligne de `mda_poll`
 (`Video/vid_mda.Materiel.cs`, `ligne_materiel`, la ligne de PCem) : la police lue à la rangée `sc & 15`. Le
@@ -7978,9 +7978,9 @@ l'instruction 36 899 042 avec l'ancienne conversion, et le laisse vert — 37 96
 instructions — avec la nouvelle.
 
 *G9.0* : la MDA fait de même (`vid_mda.c:74-83`) ; reproduit, `Video/vid_mda.cs` (`:170`). L'Hercules
-(`vid_hercules.c:110-119`, G9.1) et l'EGA (`vid_ega.c:236-249`, G9.2) aussi ; reproduits (`Video/vid_hercules.cs:188`,
+(`vid_hercules.c:110-119`, G9.1) et l'EGA (`vid_ega.c:236-249`, G9.2) aussi ; reproduits (`Video/vid_hercules.cs:192`,
 `Video/vid_ega.cs:404`).
-*G13.1* : la M24 aussi (`vid_olivetti_m24.c:104-121`), marquée depuis G1.1 (`Video/vid_olivetti_m24.cs:156`) ; le
+*G13.1* : la M24 aussi (`vid_olivetti_m24.c:104-121`), marquée depuis G1.1 (`Video/vid_olivetti_m24.cs:160`) ; le
 PC1512 non, ses temps sont des constantes (`vid_pc1512.c:143-155`).
 
 ### PB-38 — `svga_render_16bpp_lowres` avance `ma` deux fois

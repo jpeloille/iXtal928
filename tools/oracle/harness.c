@@ -2089,8 +2089,8 @@ int h_boot(const char *romspath) {
          * Not Set ». Ce qui change est qu'on prend le chemin que PCem prend, au lieu
          * d'un chemin que personne n'a ecrit. A appeler des DEUX cotes, au meme point.
          *
-         * Corrige une affirmation de B1a : nvr.cs disait « l'oracle n'appelle pas
-         * loadnvr du tout », et c'etait vrai — ca ne l'est plus. */
+         * Corrige une affirmation de B1a : nvr.cs (Ics/Motorola146818.cs depuis G14.2) disait « l'oracle
+         * n'appelle pas loadnvr du tout », et c'etait vrai — ca ne l'est plus. */
         /* pc.c:395 — resetide(), entre pc_reset et loadnvr. Elle charge les images des quatre
            lecteurs IDE si la carte est « ide » (ide.c:278), et ne fait sinon que refermer
            des fichiers jamais ouverts. Celle de pc.c:290 (initpc) ouvre les mêmes images, que
@@ -2754,7 +2754,7 @@ void h_disc_probe(uint64_t *out) {
 /* --- sonde PIT : diff de boot, phase 2 ------------------------------------
    Aucun accesseur n'expose l'état du PIT. pit est une globale de pit.c et le
    harnais est lié avec, donc un extern suffit : on n'instrumente pas le C, on
-   le lit. Ordre identique à Models.pit.Probe() côté C#. */
+   le lit. Ordre identique à Ics.Intel8253.Probe() côté C#. */
 extern PIT pit;
 void h_pit_probe(int t, uint64_t *out) {
         out[0] = pit.l[t];

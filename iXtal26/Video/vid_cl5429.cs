@@ -7,7 +7,7 @@
 //         verrous 8 octets, X8, blitter, cl_init, gd5429_device. Omis : MCA, PCI et les
 //         dix autres cartes de la famille.
 
-// CS8600/CS8602/CS8604 : même raison qu'à vid_svga.cs et vid_cga.cs:9-17.
+// CS8600/CS8602/CS8604 : même raison qu'à vid_svga.cs et vid_cga.cs:13-21.
 #pragma warning disable CS8600, CS8602, CS8604
 
 // CS1717 : `dst = dst;` (vid_cl5429.c:1484), ROP 0x06 du blitter — une auto-affectation chez

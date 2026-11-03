@@ -8,14 +8,15 @@
 
 ## Où on en est
 
-G14.0a à G14.0d sont faites : la référence est gelée au commit R = `f15e11f` (`/var/tmp/ixtal-g14/ref-R`, séries
-`g14r` et `g14r-tout`, VERIFICATION.md § G14.0d), les outils de la preuve sont en place. G14.1 à G14.4 sont faites :
-`pic`, `pit` et `dma` sont `Intel8259A`, `Intel8253` et `Intel8237` (VERIFICATION.md § G14.1), `keyboard_at`, `nvr`
-et `serial` sont `Intel8042`, `Motorola146818` et `National8250` (§ G14.2), `sound_emu8k`, `vid_tkd8001_ramdac` et
-`vid_unk_ramdac` sont `Emu8000`, `TridentTKD8001` et `SierraSC1502x` (§ G14.3), `opti495`, `neat` et `headland` sont
-`Opti82C495`, `ChipsCS8221` et `HeadlandHT18` (§ G14.4), dans `Ics/` ; `ali1429`, sans fiche, garde son nom. La porte
-du JIT lit les jetons de chaîne depuis Q39 (`5643228`). Le runtime est passé à 10.0.14 le 31/10 (§ G14.1, le
-réancrage) et n'a pas changé depuis. G14.5, la clôture, attend son feu vert.
+**G14 est fait** (le 4 novembre 2026 ; VERIFICATION.md § G14, « G14 — la clôture », la synthèse). G14.0a à G14.0d : la
+référence est gelée au commit R = `f15e11f` (`/var/tmp/ixtal-g14/ref-R`, séries `g14r` et `g14r-tout`,
+VERIFICATION.md § G14.0d), les outils de la preuve sont en place. G14.1 à G14.4 : `pic`, `pit` et `dma` sont
+`Intel8259A`, `Intel8253` et `Intel8237` (VERIFICATION.md § G14.1), `keyboard_at`, `nvr` et `serial` sont `Intel8042`,
+`Motorola146818` et `National8250` (§ G14.2), `sound_emu8k`, `vid_tkd8001_ramdac` et `vid_unk_ramdac` sont `Emu8000`,
+`TridentTKD8001` et `SierraSC1502x` (§ G14.3), `opti495`, `neat` et `headland` sont `Opti82C495`, `ChipsCS8221` et
+`HeadlandHT18` (§ G14.4), dans `Ics/` ; `ali1429`, sans fiche, garde son nom. La porte du JIT lit les jetons de chaîne
+depuis Q39 (`5643228`). G14.5 : les commentaires du harnais, le 6845 nommé dans ses cinq cartes, la synthèse. Le
+runtime est passé à 10.0.14 le 31/10 (§ G14.1, le réancrage) et n'a pas changé depuis.
 
 ### Ce que les lectures ont trouvé
 
@@ -249,20 +250,22 @@ aucune fiche publique : il garde le nom de PCem, dans `Models/`, et son entrée 
 portes, celle du JIT par les jetons (Q39) ; les boot-diffs de l'ami286, de l'ami386, de l'ami386dx et de l'ami486 sont
 dans les séries.
 
-### G14.5 — La clôture
+### G14.5 — La clôture  ✅ *fait, VERIFICATION.md § G14 (« G14 — la clôture »)*
 
 `VERIFICATION.md` § G14 contient :
 - en tête, une fois, la table des anciens et des nouveaux chemins (décision n° 10) ;
 - les commits, les séries, les comparaisons d'IL et de listings avec et sans la table ;
 - les passes du banc et leurs résolutions ;
-- le sort du 6845 : aucun module en G14 (Q36, tranchée le 23/10).
+- le sort du 6845 : aucun module en G14 (Q36, tranchée le 23/10) ; les cinq cartes le nomment dans un bloc `// noms:`,
+  comme la proposition validée le disait, et les renvois de ligne qui les visent sont recalés.
 
-S'y ajoutent les commentaires du harnais qui citent un fichier ou une classe C# renommés : `nvr.cs` et
+S'y ajoutent les commentaires du harnais qui citaient un fichier ou une classe C# renommés : `nvr.cs` et
 `keyboard_at.cs` (`harness.c:2092`, `harness_stubs.c:172`), depuis G14.1 `Models.pit.Probe()` et
 `Models.dma.ProbeState` (`harness.c:2757`, `harness.h:458`, `harness_dma.c:24`), et depuis G14.3
 `sound_emu8k.VoiceFnv`, `sound_emu8k.CombFnv` et `sound_emu8k.Probe` (`harness_emu8k.c:67`, `:126`, `:143`), corrigés
-avec `check-oracle.sh --fix` ; G14.4 n'en ajoute aucun. La `.so` est reconstruite, égale
-hors débogage, comme en GR.4e. `PLAN.md` dit « G14 est fait » et met [ICI] avant G15.
+ligne pour ligne, `oracle.tsv` réancré par `check-oracle.sh --fix` ; G14.4 n'en ajoutait aucun. La `.so` reconstruite
+est égale à l'octet à celle de son parent, et à celle de R hors débogage. `PLAN.md` dit « G14 est fait » et met [ICI]
+avant G15.
 
 ## La vérification
 
@@ -281,7 +284,8 @@ hors débogage, comme en GR.4e. `PLAN.md` dit « G14 est fait » et met [ICI] av
   reconstruire ; l'IL n'en dépend pas.
 - **Rien d'autre ne change** : avant chaque étape, aucun commit hors `g14:` depuis R sur ce que la série et le banc
   lisent, et rien de non commité (la vérification de VERIFICATION.md § G14.0d).
-- **L'oracle** : sa `.so` inchangée de G14.0d à G14.4.
+- **L'oracle** : sa `.so` inchangée de G14.0d à G14.4 ; en G14.5, ses commentaires corrigés, égale à l'octet à celle de
+  son parent.
 
 ## Les décisions
 
