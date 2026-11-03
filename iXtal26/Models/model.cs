@@ -214,14 +214,14 @@ internal static partial class model_c
     internal static void at_headland_init()
     {
         at_init();
-        headland.headland_init();
+        HeadlandHT18.headland_init();
     }
 
     // pcem: model.c:492-495 — at_opti495_init : at_init puis le chipset (G3.2).
     internal static void at_opti495_init()
     {
         at_init();
-        opti495.opti495_init();
+        Opti82C495.opti495_init();
     }
 
     // pcem: model.c:502-505 — at_ali1429_init : at_init puis le chipset ALi 1429 (G6.3).
@@ -235,7 +235,7 @@ internal static partial class model_c
     internal static void at_neat_init()
     {
         at_init();
-        neat.neat_init();
+        ChipsCS8221.neat_init();
     }
 
     // pcem: model.c:986-995 — LE CLONE AMI 286, seconde machine à 286 du dépôt.
@@ -293,7 +293,7 @@ internal static partial class model_c
     // models[model] : il faut donc la machine dans la table, des deux côtés (l'oracle la
     // déclare dans harness_stubs.c). Mais son init, at_headland_init (model.c:482-485),
     // attend le chipset Headland, qui est le bloc G3 de PLAN.md. En G3.1, le chipset
-    // (headland.cs) et at_headland_init sont transcrits, et l'oracle lie headland.c.
+    // (Ics/HeadlandHT18.cs) et at_headland_init sont transcrits, et l'oracle lie headland.c.
     //
     // omitted: {"AMD", cpus_Am386SX} et {"Cyrix", cpus_486SLC} (model.c:1241) — la table
     //   Intel seule, des deux côtés, pour que le fuzzeur compare le même processeur.

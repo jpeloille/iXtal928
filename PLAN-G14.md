@@ -9,12 +9,13 @@
 ## Où on en est
 
 G14.0a à G14.0d sont faites : la référence est gelée au commit R = `f15e11f` (`/var/tmp/ixtal-g14/ref-R`, séries
-`g14r` et `g14r-tout`, VERIFICATION.md § G14.0d), les outils de la preuve sont en place. G14.1 à G14.3 sont faites :
+`g14r` et `g14r-tout`, VERIFICATION.md § G14.0d), les outils de la preuve sont en place. G14.1 à G14.4 sont faites :
 `pic`, `pit` et `dma` sont `Intel8259A`, `Intel8253` et `Intel8237` (VERIFICATION.md § G14.1), `keyboard_at`, `nvr`
 et `serial` sont `Intel8042`, `Motorola146818` et `National8250` (§ G14.2), `sound_emu8k`, `vid_tkd8001_ramdac` et
-`vid_unk_ramdac` sont `Emu8000`, `TridentTKD8001` et `SierraSC1502x` (§ G14.3), dans `Ics/`. Le runtime est passé à
-10.0.14 le 31/10 : la référence a été réancrée (§ G14.1, le réancrage), sans rien reconstruire ; il n'a pas changé
-depuis. G14.4 est lancée, sur le feu vert du 03/11 (« Feu vert pour g14.3 et g14.4 »).
+`vid_unk_ramdac` sont `Emu8000`, `TridentTKD8001` et `SierraSC1502x` (§ G14.3), `opti495`, `neat` et `headland` sont
+`Opti82C495`, `ChipsCS8221` et `HeadlandHT18` (§ G14.4), dans `Ics/` ; `ali1429`, sans fiche, garde son nom. La porte
+du JIT lit les jetons de chaîne depuis Q39 (`5643228`). Le runtime est passé à 10.0.14 le 31/10 (§ G14.1, le
+réancrage) et n'a pas changé depuis. G14.5, la clôture, attend son feu vert.
 
 ### Ce que les lectures ont trouvé
 
@@ -238,13 +239,15 @@ que PCem nomme (« a Sierra 1502x », `vid_unk_ramdac.c:4-7`) ; la puce exacte d
 Mêmes portes ; celles du son (SB16BANC, AWEBANC) et de la vidéo (ET4BANC, la 8900D) sont dans les séries, SonBanc
 (l'AWE32 : SonAweVoix, SonAweWc) au banc.
 
-### G14.4 — Les jeux de puces
+### G14.4 — Les jeux de puces  ✅ *fait, VERIFICATION.md § G14.4*
 
-`opti495` → `Opti82C495`, que PCem nomme (`opti495.c:1`). Les trois autres prennent la référence de leur fiche, si
-une fiche publique la confirme pour le code transcrit : `neat` → `ChipsCS8221`, `ali1429` → `AliM1429`, `headland` →
-`HeadlandHT18`. La fiche est rangée dans `sources/` et `MANIFEST.tsv`. Une référence que rien ne confirme garde le nom
-de PCem, et c'est dit. Les mêmes portes ; les boot-diffs de l'ami286, de l'ami386, de l'ami386dx et de l'ami486 sont
-ceux qui les exercent.
+`opti495` → `Opti82C495`, que PCem nomme (`opti495.c:1`) ; `neat` → `ChipsCS8221` ; `headland` → `HeadlandHT18`. Des
+fiches publiques, rangées dans `sources/MANIFEST.tsv`, les confirment pour le code transcrit : O1 (82C495XLC) et O2
+(82C493), deux puces de la famille du 82C495SX de l'ami386dx, qui n'a pas de fiche ; CT1 (CS8221) ; H1 (HT18, pour le
+code Headland du module ; le bloc 22h/23h de l'ami386 n'en est pas, et son bloc `// noms:` le dit). `ali1429` n'a
+aucune fiche publique : il garde le nom de PCem, dans `Models/`, et son entrée est sortie de la table. Les mêmes
+portes, celle du JIT par les jetons (Q39) ; les boot-diffs de l'ami286, de l'ami386, de l'ami386dx et de l'ami486 sont
+dans les séries.
 
 ### G14.5 — La clôture
 
@@ -258,14 +261,15 @@ S'y ajoutent les commentaires du harnais qui citent un fichier ou une classe C# 
 `keyboard_at.cs` (`harness.c:2092`, `harness_stubs.c:172`), depuis G14.1 `Models.pit.Probe()` et
 `Models.dma.ProbeState` (`harness.c:2757`, `harness.h:458`, `harness_dma.c:24`), et depuis G14.3
 `sound_emu8k.VoiceFnv`, `sound_emu8k.CombFnv` et `sound_emu8k.Probe` (`harness_emu8k.c:67`, `:126`, `:143`), corrigés
-avec `check-oracle.sh --fix`. La `.so` est reconstruite, égale
+avec `check-oracle.sh --fix` ; G14.4 n'en ajoute aucun. La `.so` est reconstruite, égale
 hors débogage, comme en GR.4e. `PLAN.md` dit « G14 est fait » et met [ICI] avant G15.
 
 ## La vérification
 
 - **L'IL et le code machine** : identiques, à la table des noms près, à chaque commit de G14.1 à G14.4. Un jeton de
   chaîne littérale qui change de valeur en désignant la même chaîne n'est pas un écart (Q39) : prouvé jeton par jeton
-  en G14.3, lu par `listings-jit.sh compare` dans le tas #US de chaque DLL à partir de G14.4.
+  en G14.3 ; depuis `5643228`, `listings-jit.sh compare --dll-ref --dll-autre` lit chaque jeton qui change dans le tas
+  #US de la DLL de sa capture, vérifiée par son empreinte (G14.4 : 0/0/0, les jetons comptés).
 - **Les séries** : entières, dans les deux modes, identiques à l'unité à celles du commit R après normalisation ;
   l'émulateur change à chaque renommage, la règle du dépôt les demande donc entières.
 - **Le banc** : contre le binaire figé R, jamais contre le commit précédent, selon le protocole de G14.0b ;
@@ -297,8 +301,8 @@ ont ouvert deux autres, Q37 et Q38, tranchées le 24/10 ; G14.3 une, Q39, tranch
    8259A : ICW4 et l'AEOI). Une référence qui porte déjà le fabricant ne le répète pas (`Emu8000`). *(Les exemples
    de Julien : `Intel8259A`, `Intel8253`, `Intel8237`, `Motorola6845`.)*
 4. **Les puces retenues** : les trois décidées, puis `Intel8042`, `Motorola146818`, `National8250`, `Emu8000`,
-   `TridentTKD8001`, `SierraSC1502x` et les quatre jeux de puces. Chacune est un module d'une puce, ou de deux
-   exemplaires d'une puce, qui se renomme sans découpage.
+   `TridentTKD8001`, `SierraSC1502x` et trois jeux de puces (`ali1429` n'a pas de fiche). Chacune est un module d'une
+   puce, ou de deux exemplaires d'une puce, qui se renomme sans découpage.
    - **Non retenus** : `ppi_c` (19 lignes ; le 8255 n'y est pas modélisé, ses ports sont dans les claviers) ;
      l'OPL (deux puces, trois modules, et une bibliothèque tierce nommée d'après elle) ; les mélangeurs (en ligne
      dans la carte) ; le DSP et le MPU-401 ; les cœurs UC (plusieurs puces chacun) ; le FDC et les cartes vidéo

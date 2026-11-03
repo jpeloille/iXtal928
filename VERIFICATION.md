@@ -18814,3 +18814,610 @@ Trouvé en route, non corrigé (règle du 18/10) :
   un extrait de la table, `noms-g143-seule.txt` ; G14.4 fera de même.
 - **Des lignes longues pré-existantes non touchées** : `Emu8000.cs` a 96 lignes de plus de 120 caractères à HEAD que
   l'étape ne touche pas (`init1 = new uint16_t[32], …`) ; la règle ne compte que les lignes ajoutées.
+
+## G14.4 — Les jeux de puces
+
+Le 3 novembre 2026 (PLAN-G14.md § G14.4, décisions n° 1 à 4, 7 à 11 et 13 ; Q37, Q38, Q39). Feu vert de Julien le
+03/11 : « Feu vert pour g14.3 et g14.4 ». Deux commits : la porte du JIT outillée (Q39), puis `opti495` → `Opti82C495`,
+`neat` → `ChipsCS8221`, `headland` → `HeadlandHT18`, dans `Ics/` et l'espace de noms `iXtal26.Ics` ; `ali1429`, sans
+fiche publique, garde le nom de PCem. Le worktree de l'étape est `/var/tmp/ixtal-g14/g144`, sur la branche locale
+`g14-4`, parti de `e5d51e0` ; les journaux sont sous `/var/tmp/ixtal-g14/g14-4/`, les outils jetables qui les ont
+produits sous `outils/` (recopiés de `g14-3/outils/` et adaptés : `verif-avant.sh`, `worktree-g144.sh`, `prep-g144.sh`,
+`avant-renommage.sh`, `construire.sh`, `il-portes.sh`, `capture-C.sh`, `attendre-calme.sh`, `bancs.sh`,
+`series-g144.sh`, `prep-serie-g144.sh`, `mesures.sh`, `carte-inverse.txt`, `documents_inverse.py`, `grep-anciens.sh` ;
+repris tels quels : `diff_inverse.py` et son lexeur, `delta_main.py`, `longues.py`, `renvois.py`, `chaines.py`,
+`jetons_chaines.py`, `sonde-lourds.py`, `synthese.py` ; `jit-portes.sh` récrit pour la porte de Q39 ; neufs :
+`q39-preuve.sh` et `complement-atapi-materiel-tout.sh`, sur le modèle de `complement-atapi-vide-tout.sh` ; recopiés avec
+les autres, et qu'aucun journal de l'étape ne nomme : `documents.py`, `documents-g142.py.orig`, `recoupes.py`,
+`reflue.py`, `reflue_md.py`, `complement-atapi-vide.sh`, `complement-atapi-vide-tout.sh`). La recherche des fiches,
+faite avant l'étape, est `fiches.md` et `fiches/`. Rien n'a été construit ni modifié dans le dépôt principal ; la
+préversion de Rider seule y a lu.
+
+**Les commits.** Sur la branche `g14-4`, non poussés ; `master` reste à `e5d51e0` :
+- `5643228`, « g14: Q39, la porte du JIT lit les jetons de chaîne — … », parent `e5d51e0` (ci-dessous, « Q39, la porte
+  outillée ») ; `5400c90` avant la contre-lecture, qui en a précisé trois commentaires ;
+- le commit de l'étape, « g14: G14.4, les jeux de puces — … », parent `5643228` : `6f2dd10`, rejoué par
+  `git cherry-pick` sur le commit 1 repris, puis repris avec les corrections de la contre-lecture, `VERIFICATION.md` et
+  les plans (« Après la contre-lecture », plus bas). La branche d'avant est gardée, `g14-4-avant-cl`.
+
+Auteur Julien Peloille pour les deux. Les messages sont dans `message-commit-1.txt` et `message-commit-2.txt` ; les
+textes des plans, dans `textes-plans.md`.
+
+| Ancien chemin | Nouveau chemin | Conteneur |
+|---|---|---|
+| `iXtal26/Models/opti495.cs` | `iXtal26/Ics/Opti82C495.cs` | `Models.opti495` → `Ics.Opti82C495` |
+| `iXtal26/Models/neat.cs` | `iXtal26/Ics/ChipsCS8221.cs` | `Models.neat` → `Ics.ChipsCS8221` |
+| `iXtal26/Models/headland.cs` | `iXtal26/Ics/HeadlandHT18.cs` | `Models.headland` → `Ics.HeadlandHT18` |
+| `iXtal26/Models/ali1429.cs` | (inchangé) | `Models.ali1429`, sans fiche |
+
+Chacun des trois fichiers ne déclare qu'un type, son conteneur : aucun type d'état ne suit (la table, étape G14.4 :
+3 types, 3 fichiers). Les membres, globales comprises (`optiregs`, `neat_regs`, `headland_regs_cr`…), ne changent pas.
+Aucun des trois n'a de `.Materiel.cs`.
+
+### Avant l'étape
+
+**Le runtime n'a pas changé** (`verif-avant.log`, le 03/11 à 18 h 50) : `dotnet --list-runtimes` ne donne que
+Microsoft.NETCore.App et AspNetCore.App 10.0.14, `--list-sdks` 10.0.114, `dotnet --version` 10.0.114. Depuis le
+réancrage de G14.1, `/var/log/apt/history.log` n'a qu'une entrée, `apt install hunspell-fr` du 01/11 à 7 h 27, déjà vue
+par G14.1 à G14.3 ; la dernière de `history.log.1.gz` est celle du 31/10 à 6 h 55 (10.0.14). `verif-avant.log` liste
+trois entrées (01/11, 28/10, 31/10) sous un en-tête « depuis le 02/11 » inexact : seule celle du 01/11 est dans
+`history.log`, les deux autres dans `history.log.1.gz`. Pas de réancrage : le gel `gel-R-10.0.14/` et la capture
+`ref-R-captures-10.0.14/jit` restent ceux de la porte.
+
+**ref-R n'a pas bougé** (même journal) : HEAD `f15e11f`, `git status --porcelain` vide, les trois DLL de bin/
+conformes à `gel-R-10.0.14/empreintes-r.sha256` (lui-même égal à `gel-R/empreintes-r.sha256`), les 1 894 fichiers du
+manifeste de fin conformes, 163 liens, aucun répertoire de job.
+
+**La vérification « hors G14 »** (§ G14.0d ; `verif-avant.log`), sur le pathspec de § G14.0d :
+- `git log --no-merges --invert-grep --grep='^g14:' f15e11f..e5d51e0 -- CHEMINS` : **vide**. Les quatre commits de
+  l'intervalle, `651d5f7`, `d561881`, `4982715` et `e5d51e0`, sont des `g14:`. Le témoin, la même commande sur
+  `1d49a7f..f15e11f`, sort `622b091` (« hote: un second disque dur sur l'ami486 »), le seul connu, d'avant R, déjà jugé
+  en G14.0d et depuis : rien après R ;
+- `git diff f15e11f e5d51e0 -- tools/oracle/ pcem-dev/` : 0 ligne ;
+- `master` = `origin/master` = `e5d51e0` (`worktree-g144.log`) ;
+- dans `g144`, avant le renommage (`avant-renommage.log`, au commit `5400c90`) : `git status --porcelain` vide ;
+  `nvr/default/` conforme à `gel-R/nvr-default.sha256` (7 fichiers), `S-g14r` conforme à `gel-R/S-g14r.sha256` (4) ;
+  `roms.sha256` : 34 OK (`worktree-g144.log`) ;
+- `ildump comparer` du parent construit (`g144` au commit `5400c90`, `construction-avant.log`, 0 avertissement, le
+  03/11 à 19 h 05) contre R, avec la table cumulée de l'étape d'avant (`--noms tools/noms/g14.txt --jusqua G14.3` ;
+  `il-parent.log`) : iXtal26 5 738 entrées, **0 changée, 0 disparue, 0 apparue** (6 240 noms réécrits) ; iXtal26.Diff
+  contre `S-g14r` : 3 331 entrées, 0 ; SoftFloat, sans table : 90 entrées, 0. Le premier commit n'a pas touché
+  l'émulateur : c'est l'IL de G14.3.
+
+Le dépôt principal a des fichiers non commités (`PLAN.md`, `tools/fetch-sources.sh`,
+`iXtal26/Docs/arbre-classes-cpu.html`, des `__pycache__/`) ; ils n'entrent pas dans le worktree, parti du commit, et
+`tools/fetch-sources.sh` n'est pas touché par l'étape.
+
+**Le worktree.** `git worktree add -b g14-4 /var/tmp/ixtal-g14/g144 e5d51e0` ; `roms/` lié entrée par entrée (163
+liens, `roms.sha256` : 34 OK ; `outils/worktree-g144.sh`, `worktree-g144.log`). `os/` copié de `ser-R/os/` fichier par
+fichier (161 fichiers, 0 lien) et `vectors/` lié entrée par entrée, les mêmes entrées que `ser-R`
+(`outils/prep-g144.sh os`, `prep-g144-os.log`) : le `sha256sum -c` d'`os.sha256` y sort `386-HDD-C.img` et
+`486-HDD-C.img` en « FAILED », comme en G14.1 à G14.3 : les deux images réécrites par des séances du 23 et du 24/10,
+laissées telles quelles depuis G14.0d, les mêmes à l'octet que celles de `ser-R` (le disque 386, `9ce09889…`, des deux
+côtés).
+
+### Les fiches
+
+La recherche a été faite avant l'étape (`fiches.md`, le 03/11 ; les PDF dans `fiches/`). Chaque affirmation reprise
+dans les blocs `// noms:` et dans ce texte a été relue sur la fiche (`pdftotext -layout` page par page, et, pour la
+page 75 du HT18, l'image du scan H1s) et sur le code ; les sha256 des six PDF téléchargés sont ceux de `fiches.md`.
+Les pages sont celles du PDF.
+
+| id | sha256 (début) | la fiche | verdict |
+|---|---|---|---|
+| O1 | `76a5e8a7…` | OPTi 82C495XLC/82C206 Data Book, Rev. 1.0, 912-3000-009, octobre 1994 | `Opti82C495`, confirmée |
+| O2 | `03494fd0…` | OPTi-486SXWB (82C493/82C392/82C206) Data Book, Preliminary, Version 1.1, 1991 | en appui de O1 |
+| CT1 | `ebd0b391…` | Chips and Technologies, CS8221 NEAT Data Book, REV 0, 10/87 | `ChipsCS8221`, confirmée |
+| H1 | `ec0c611f…` | Headland HT18 80386SX Single Chip, 751-0100-01 Rev.2, 9/91, océrisée | `HeadlandHT18` (Headland) |
+| — | — | ALi M1429 : aucune fiche publique | `ali1429` garde son nom |
+
+- *`Opti82C495`* : PCem nomme la puce (« OPTi 82C495 emulation », `opti495.c:1`) et recopie la description du 82C493
+  (`:52-54`, « the 82C495 seems similar except there is one more register (2C) »). O1 : « Port 22h contains the index
+  register and port 24h is the data register » (p. 25), 21h bit 4 « Cache Enable » (p. 26), 22h bit 7 « ROM
+  (F0000-FFFFFh) Enable », « 1 = read from ROM, write to DRAM », « 0 = read/write on DRAM and DRAM is write-protected »
+  (p. 26) : les deux états de `mem_set_mem_state` d'`opti495_write` ; les registres documentés vont de 20h à 29h (la
+  table des matières ; la fiche annonce « 12 configuration registers », p. 25, et n'en décrit que dix), le code mémorise
+  20h à 2Ch ; 22h vaut E4h par défaut (bits 7, 6, 5 et 2, p. 26), le code pose 80h. O2 dit les mêmes ports (p. 19), le
+  même bit 4 de 21h (p. 20), le même bit 7 de 22h (p. 21), et va jusqu'à 2Bh (p. 28). La ROM de l'ami386dx
+  (`roms/ami386dx/opt495sx.ami`) s'annonce `40-0101-001107-00001111-060692-OPWB4SXB` et dit « This option ONLY valid for
+  495 Rev. B. » (`strings`) : la puce exacte est le 82C495SX, dont `fiches.md` n'a trouvé aucune fiche ; le suffixe
+  tombe (décision n° 3). *Une erreur de `fiches.md`, reprise* : le bit 4 de 21h est à la page 26 du PDF, imprimée 18, et
+  non « impr. 17 » (la page 25 est la 17, qui porte 20h et le début de 21h).
+- *`ChipsCS8221`* : CT1 nomme le jeu (82C211, 82C212, 82C215, 82C206 ; p. 1-2), l'index en 22h et les données en 23h
+  (82C211, p. 29 ; 82C212, p. 46), RB9 « EMS Base Address » en 6Dh et RB10 « EMS Address Extension » en 6Eh (p. 46), les
+  bits d'extension de la page 3 en 1-0 jusqu'à la page 0 en 7-6 (p. 51-52), la base 208H/209H des registres de page pour
+  le code 0000 de RB9 (p. 51 ; la fiche ne dit pas que c'est celle par défaut). La fiche lit ces bits comme des blocs,
+  « 1 Mbyte to 2 Mbyte » à « 6 Mbyte to 8 Mbyte » (p. 51-52), PCem comme les bits 7-8 du numéro de page : aucune fenêtre
+  EMS n'est posée (`neat_readems`/`neat_writeems` sans appelant), sans effet. Elle ne dit ni le choix du registre de
+  page par A15-A14 (0208h, 4208h, 8208h, C208h) ni le format de ces registres.
+- *`HeadlandHT18`* : H1 donne la carte d'E/S de 1ECh à 1EFh (EMS Map Register, Control Register Index « Indexed 0 to 5H
+  for CR[0:5] Rev. A/B, 0-6H [0:6] for Rev.C », EMS Map Address Register, données des CR ; p. 26), 92h « System Control
+  Port » (p. 25 ; bit 1 A20, bit 0 le reset, p. 62), CRI et CR6 « Rev C Only » (p. 74), CR0 (p. 74-75), CR1 D6 « Mix
+  DRAM Type » (p. 76), CR4 « Chip Identification » D[7:4] 0001 Rev. A, 0010 Rev. B, 1000 Rev. C (p. 78), CR6 D0 « 4M
+  DRAM Select » (p. 79), le MAR (p. 83), les pages (40000-43FFF la page 0, C0000-C3FFF ; p. 84), le registre de page,
+  D9 « Map Enable » (p. 85). Les trois réserves, relues :
+  - le bloc 22h/23h que `headland_init` pose sur l'ami386 seul (`headland.c:445-447`, le `case ROM_AMI386SX`) n'est pas
+    du HT18 : la carte d'E/S de la fiche saute 0022H et dit « 0023H - 003FH Reserved » (p. 24) ; PCem lui-même :
+    « Previously distributed AMI386 BIOS doesn't seem to be for the Headland chipset. » (`headland.c:446`). La ROM de
+    l'ami386 (`ami386.bin`, `X0-0100-000000-00101111-060692-386SX`) a 41 `out 22h,al`, 35 `out 23h,al`, 20 `in al,23h`,
+    et aucun `mov dx, 1ECh` à `1EFh` (une recherche d'octets ; rien d'exécuté) ;
+  - l'identifiant de l'ami386 vaut 0 : `headland.c:440-441` met les huit CR à 0, et le `case ROM_AMI386SX` ne repose
+    pas CR4 (seul ROM_AMA932J le pose, à 20h, `:450`) ; 0 n'est aucune révision de la p. 78 ;
+  - les bits 3 et 4 de CR0 sont à l'envers : la fiche dit, pour D4 (F0000h) et D3 (E0000h), « 1 = Shadow Disable,
+    0 = Shadow Enable » (p. 75, lue à l'image du scan H1s, page 75) ; PCem lit la RAM quand le bit est à 1 (`val & 8 ?
+    MEM_READ_INTERNAL`, `val & 0x10 ? MEM_READ_INTERNAL`, `headland.c:211-214`). L'intitulé de la fiche (« Shadow
+    Enable … 1 = Shadow Disable ») se contredit lui-même : erreur de la fiche ou de PCem, non tranché (« Hors de la
+    portée »).
+- *`ali1429`* : la ROM de l'ami486 s'annonce `40-020F-001133-00101111-040493-ALI1429` (`strings`), un M1429 ; aucune
+  fiche publique (`fiches.md` : bitsavers, The Retro Web, datasheetarchive, DOS Days ; 86Box : « This chipset has no
+  datasheet »). L'ID d'un BIOS n'est pas une fiche : il ne dit rien des registres 13h et 14h. Le module garde son nom,
+  son fichier et son espace (`Models/ali1429.cs`, `iXtal26.Models`).
+
+**Le manifeste.** `sources/MANIFEST.tsv` reçoit les quatre lignes que propose `fiches.md` (CT1, H1, O1, O2 ; sept
+champs chacune, le sha256 de chacune égal à celui du PDF de `fiches/`), et son en-tête cite PLAN-G14.md (« Les
+sources primaires de iXtal26/Docs/ibm5150/, de PLAN-CARTE-IDE.md et de PLAN-G14.md (G14.4, les jeux de puces). »,
+coupé en deux lignes : l'ancienne faisait 126 caractères). H1s, le scan sans texte, n'y va pas ; le HT12, écarté par
+`fiches.md` (sa carte des registres contredit le code), non plus. Le nom de fichier de H1 est celui que propose
+`fiches.md` (`Headland_HT18_751-0100-01_Rev2.pdf`) et non celui du téléchargement
+(`headland-ht18-datasheet-6a5cfee3c32bd080574730.pdf`) : le pilote copie les PDF dans `sources/` du dépôt principal
+sous les noms du manifeste. `tools/fetch-sources.sh` n'est pas touché (une modification non commitée de Julien dans le
+dépôt principal) : il lit les lignes telles quelles (`'#'*` recopiées, sept champs par tabulation).
+
+### Q39, la porte outillée (le premier commit)
+
+**Le commit : `5643228`** (`5400c90` avant la contre-lecture), « g14: Q39, la porte du JIT lit les jetons de chaîne —
+… », auteur Julien Peloille, sur la branche `g14-4` du worktree `g144`, parent `e5d51e0`. Un seul fichier,
+`tools/listings-jit.sh` (125 lignes ajoutées, 11 retirées ; 128 et 11 après la contre-lecture) ; l'émulateur ne change
+pas, aucune série (la règle du dépôt : outillage, sous-ensemble ciblé ; aucune porte des séries n'appelle
+`listings-jit.sh`, `git grep` : des commentaires seulement). Le message est aussi dans `message-commit-1.txt`.
+
+**Ce qui change.** `listings-jit.sh compare` prend deux options, `--dll-ref DLL --dll-autre DLL`, l'une avec l'autre :
+- dans une méthode qui diffère après la table, chaque ligne qui diffère doit être, des deux côtés, l'immédiat d'un
+  chargement de chaîne : `mov edi, T` suivi de `call [CORINFO_HELP_STRCNS]`, au plus un `mov rsi, …` entre eux (la forme
+  des 185 appels des fichiers de la capture de R, tous `mov edi, T` / `mov rsi, 0xD1FFAB1E` / `call`) ; T est écrit en
+  hexadécimal ou en décimal (`mov edi, 553`, 30 fois dans R) ;
+- les deux jetons sont lus chacun dans le tas #US de la DLL de sa capture (le PE, l'en-tête CLI, les métadonnées et la
+  longueur compressée du blob, ECMA-335 § II.24, lus en python3 sans paquet : la logique de `jetons_chaines.py` de
+  G14.3), et doivent désigner la même chaîne : la méthode est alors « égale par ses jetons » ; une autre chaîne, un
+  jeton illisible, ou toute autre ligne changée la laissent « changée » ;
+- une ligne égale n'est pas lue. Le premier jet (une commande à la console, sans journal ; sa sortie est recopiée ici)
+  lisait tous les jetons des deux côtés et sortait 3 méthodes changées à tort (`BootImageCopies:Copy`, `:Purge`,
+  `paths:resolve_file_path`) : leurs jetons, égaux des deux côtés, sont ceux de méthodes de CoreLib inlinées (`0x1A399`
+  est « path » dans le tas #US de `System.Private.CoreLib.dll`, relu après la contre-lecture par un lecteur à part,
+  `apres-cl/corelib-1a399.log`, et tombe au milieu d'un blob dans celui d'iXtal26) ; le
+  listing ne dit pas le module (`mov rsi, 0xD1FFAB1E`, l'adresse masquée). Une chaîne changée sous un jeton égal
+  changerait l'IL, qu'`ildump` compare par ses chaînes ;
+- chaque DLL est vérifiée contre l'empreinte que sa capture a notée (`runtime.txt`, « dll », les 16 premiers chiffres),
+  avant la lecture des captures : une DLL absente, illisible (aucun tas #US), qui n'est pas celle de sa capture, ou une
+  capture qui ne note aucune DLL, est refusée, retour 2. La première version vérifiait après la table (36 s par refus,
+  `essais/q39-preuve-1-dll-verifiee-apres-table.log`) ; reprise avant le commit ;
+- `capture` note aussi la DLL entière (`dll-sha256`), qui fait foi quand elle est là ;
+- sans les options, rien n'est lu : la comparaison est celle d'avant Q39 (R contre G14.3 sans les DLL : les 4 changées
+  de G14.3, à l'identique).
+
+**La preuve** (`q39-preuve.log`, `outils/q39-preuve.sh`, le 03/11 de 19 h 01 à 19 h 04 ; les sorties dans `q39/`) :
+- R (`ref-R-captures-10.0.14/jit`, la DLL de bin/ de `ref-R`, `3aa61a85…`) contre G14.3 (`g14-3/jit-C`, la DLL de
+  `g143`, `19c9c47a…`, construite de l'arbre de `e5d51e0`), `--noms tools/noms/g14.txt --jusqua G14.3` et les deux DLL :
+  **0 changée, 0 disparue, 0 apparue**, retour 0 ; « 16 qui changent, 16 vers la même chaîne, 0 vers une autre, 0
+  illisibles ; 4 méthodes égales par leurs jetons » (`emu8k_init`, `process_scsi`, `scsi_hd_command`,
+  `scsi_zip_command`), en 36,3 s ;
+- la même sans les DLL : 4 changées, retour 1 (le comportement d'avant) ;
+- R contre R, avec les DLL et sans : 0, retour 0 (7,6 s et 7,5 s) ; G14.3 contre G14.3 avec les DLL : 0 ;
+- une capture neuve de `pc1512` par la DLL de G14.3 (586 méthodes, 0 MinOpts) : son `runtime.txt` porte `dll-sha256
+  19c9c47a0ff8e84ca712872505298650cd963e67211454228234bb019b8da581` ; contre le même scénario de `g14-3/jit-C` (l'ancien
+  format), avec les DLL : 0, retour 0.
+
+**Les témoins**, chacun avec son journal (`q39-preuve.log`, `q39-temoin-illisible.log`) :
+- *un jeton falsifié vers une autre chaîne* : dans une copie de `g14-3/jit-C`, le jeton d'`emu8k_init`
+  (`ami486-awe32.txt:237709`, `0x11531`, « AWE32.RAW not found ») remplacé par `0xEF98` (« scsi_add_data -1\n », un
+  autre jeton du même tas) : `Emu8000:emu8k_init` **changée**, « 16 qui changent, 15 vers la même chaîne, 1 vers une
+  autre », retour 1 ;
+- *une autre instruction changée* : dans une autre copie, le premier `ret` d'`emu8k_init` (`:237703`) devenu `nop`, son
+  jeton laissé : `emu8k_init` **changée**, retour 1 (ses jetons ne sont pas comptés : la méthode sort à la première
+  ligne qui n'est pas un jeton, « 15 qui changent ») ;
+- *une DLL absente* (`g143/absente.dll`) : « DLL refusée : … No such file or directory », retour 2 ;
+- *une DLL fausse* : celle de R pour la capture de G14.3, et celle de G14.3 pour la capture de R : refusées, retour 2
+  (« … (3aa61a85eb9a7d1d…) n'est pas la DLL de …/g14-3/jit-C (19c9c47a0ff8e84c…) ») ; la DLL de R pour la capture
+  neuve de `pc1512`, jugée par `dll-sha256` : refusée ;
+- *une capture sans empreinte* (`runtime.txt` sans ligne `dll`) : refusée, retour 2 ;
+- *un fichier qui n'est pas un PE*, noté comme DLL de sa capture : « aucun tas #US lisible », retour 2 ;
+- *une seule des deux options* : l'usage, retour 2.
+
+**Les lignes neuves** : 125 ajoutées, aucune de plus de 120 caractères (compte en caractères, condition du commit).
+
+### Le renommage
+
+**La table** (`tools/noms/g14.txt`, étape G14.4, relue avant l'étape comme elle le demandait) : les trois entrées
+confirmées perdent « SOUS RÉSERVE » ; les deux entrées d'`ali1429` (`iXtal26.Models.ali1429` → `iXtal26.Ics.AliM1429`,
+`iXtal26/Models/ali1429.cs` → `iXtal26/Ics/AliM1429.cs`) sortent ; la prose dit les fiches (O1 et O2, CT1, H1) et que le
+module d'`ali1429` garde le nom de PCem. Étape G14.4 : 3 types, 3 fichiers ; la table entière, 43 types et 18 fichiers.
+Les juges, `ildump` et `listings-jit.sh`, lisent la table éditée, `--jusqua G14.4`, contre R.
+
+**Le contre-compte de Rider** (`rider-preview.tsv`). Dans le dépôt principal, `rename_refactoring` en `preview=true`
+seulement, sur `opti495`, `neat` et `headland`, le 03/11 de 19 h 02 min 54 s à 19 h 03 min 00 s : `ok` vrai, `applied`
+faux, `touched` à 0, aucun conflit, `moreFiles` à 0 ; `git status` du dépôt principal identique avant et après
+(`depot-principal-status-avant-rider.txt`, `depot-principal-status-apres-rider.txt`, `cmp` : identiques).
+
+| Conteneur | Rider : fichiers, sites | Script, dans `iXtal26/` | Hors d'`iXtal26/` |
+|---|---|---|---|
+| `opti495` → `Opti82C495` | 2, 1 | 2, 1 | 0 |
+| `neat` → `ChipsCS8221` | 2, 1 | 2, 1 | 0 |
+| `headland` → `HeadlandHT18` | 2, 1 | 2, 1 | 0 |
+
+Les fichiers comptent celui de la déclaration et `Models/model.cs`, les sites non (le site est l'appel de l'init dans
+`model.cs`). Les comptes sont égaux, et les fichiers que Rider nomme sont ceux du script. Rider ne voit ni iXtal26.Diff
+ni le banc, qui ne nomment aucun de ces types.
+
+**La table de l'étape seule.** `tools/renommage` cumule les étapes du début jusqu'à `--jusqua` et refuse une étape déjà
+faite (« Hors de la portée » de § G14.2) : il reçoit un extrait, `g14-4/noms-g144-seule.txt`, deux lignes d'en-tête et
+les lignes 96 à 106 de la table éditée (l'étape G14.4), copiées telles quelles (`diff` vide contre la table).
+
+**L'outil** (`renommer.sh g144 noms-g144-seule.txt G14.4`, `renommage-g144.log`, `renommage-g144.tsv`, le 03/11 de
+19 h 05 min 51 s à 19 h 06 min 08 s) : 3 projets, 342 fichiers, la compilation de départ sans erreur ; **4 fichiers
+modifiés, 9 sites** : 3 déclarations, 3 espaces de noms de fichier, 3 noms simples (`model.cs:217`, `:224`, `:238`,
+`headland.headland_init()` → `HeadlandHT18.headland_init()`…) ; 0 `using` ajouté (`model.cs` a `using iXtal26.Ics;`
+depuis G14.1) ; 0 renvoi `cref` ; 0 ligne portée au-delà de 120 caractères ou allongée ; la recompilation en mémoire
+sans erreur. Trois `git mv`.
+
+*Reproductible* : le même renommage, refait par l'outil seul dans un worktree jetable `rp2-g144` (détaché à `5400c90`,
+sans l'édition de la table : l'extrait est hors de l'arbre), rend le même journal (les heures, la ligne du SDK et le
+chemin du journal près), le même tsv et le même `git diff -M` d'`iXtal26/` (`renommage-reproductible.log`).
+`rp2-g144` sert ensuite à séparer ce que l'outil a fait de ce qui a été fait à la main.
+
+**Les blocs `// noms:`.** Un par fichier, sur le modèle de `fdc.cs:10-49` et des blocs de G14.1 à G14.3, après le
+`STATUS` : `Opti82C495.cs:9-23`, `ChipsCS8221.cs:9-22`, `HeadlandHT18.cs:10-29` (`:10-27` avant la contre-lecture).
+Chacun donne le fichier C et le fichier C# (avant G14 : `Models/…`), le conteneur et son ancien nom, la puce et la fiche
+qui la confirme, page par page, et que les fonctions et les globales gardent leur nom. Ce qu'ils disent est ci-dessus
+(« Les fiches ») :
+- `Opti82C495` : le nom que PCem imprime, la ROM du 82C495SX sans fiche, le suffixe qui tombe, O1 et O2, les écarts de
+  plage (20h-29h, 2Bh, 2Ch) et de valeur initiale (E4h, 80h) ;
+- `ChipsCS8221` : CT1, ce qu'elle confirme, ce qu'elle ne dit pas, sa lecture des bits d'extension ;
+- `HeadlandHT18` : H1 pour le code Headland, et les trois réserves (le bloc 22h/23h de l'ami386, l'identifiant 0, les
+  bits 3 et 4 de CR0).
+
+**Les commentaires du code et des `.cfg`** qui désignent ces classes ou ces fichiers C# (à la main ; `delta-main.log`) :
+- `Models/model.cs:296` (« le chipset (headland.cs) » → « (Ics/HeadlandHT18.cs) ») ;
+- `ixtal26-286.cfg:18` (« neat.cs n'appelle jamais cpu_set(). » → « ChipsCS8221.cs … ») ;
+- `tools/perfbanc/MachineBanc.cs:28` (« (neat.cs:37, opti495.cs:36) » → « (ChipsCS8221.cs:52, Opti82C495.cs:52) » :
+  le chemin et la ligne recalés, `neat_regs` et `optiregs` après les blocs ; une ligne pour une ligne, aucune ligne du
+  banc ne bouge, donc aucun `[CallerLineNumber]`).
+
+Les commentaires et les chaînes qui citent le C ne changent pas : les `// pcem: opti495.c:N`, `neat.c`, `headland.c`,
+`nvr/.ami386dx_opti495.nvr` (`NvrImage.cs:261`, `Motorola146818.cs:419`, `:507`), les `pclog("headland…")` omis.
+Aucune globale de ces fichiers ne porte le nom de son nouveau conteneur : pas de collision CS0542 ; les « Collisions
+conteneur/membre » de `TRANSCRIPTION.md` n'ont rien à recevoir.
+
+**Les documents vivants** :
+- `oracle.tsv` : les trois `csharp_path` (`Models/neat.cs`, `Models/headland.cs`, `Models/opti495.cs`, lignes 90-92) ;
+- `sources/MANIFEST.tsv` : ci-dessus ;
+- `PCEM_BUGS.md` : ne cite aucun de ces fichiers (`git grep`) ; rien n'y change. Le défaut possible des bits 3 et 4
+  de CR0 n'y entre pas (règle du 18/10 : « Hors de la portée ») ;
+- `Docs/ibm5150/` : ne cite aucun de ces fichiers ni de ces types ; `git grep -i
+  'headland|neat|opti|82C49|CS8221|HT18'` y rend 3 lignes, toutes du mot « options » ; rien n'y change ;
+- `TRANSCRIPTION.md` : la règle d'`Ics/` (`:23`, `:133`, `:154-170`) vaut sans changement ; rien n'y change (249
+  lignes).
+
+`VERIFICATION.md`, les plans et les rapports de reconnaissance sont des journaux datés : non touchés (décision n° 10).
+`renvois.py` (`renvois-decales.log`) : 6 renvois vers les 5 fichiers `.cs` modifiés, 0 à recaler, 0 vers une ligne
+changée (le seul renvoi par ligne vers ces fichiers, `MachineBanc.cs:28`, est déjà recalé à la main ; les rapports de
+`Docs/G1*`, que le script ne lit pas, restent tels qu'écrits).
+
+**Le harnais n'est pas touché** (décision n° 9) : aucun de ses commentaires ne nomme `opti495`, `neat` ou `headland`
+comme fichier ou classe C# (`grep-anciens.log`, la dernière partie : 0 ligne) ; `harness.c:371-374` citent les en-têtes
+C (`neat.h`, `headland.h`, `opti495.h`, `ali1429.h`). La liste de § G14.5 ne s'allonge pas.
+
+**Les lignes longues.** Aucune ligne ajoutée de plus de 120 caractères dans les `.cs`, les `.cfg`, la table ni la
+prose (`longues.log`). Sept enregistrements de tsv dépassent, qu'un tsv ne coupe pas (un enregistrement par ligne,
+des champs séparés par des tabulations) : les trois d'`oracle.tsv` que l'étape touche (`:90` 214 → 218, `:91`
+228 → 229, `:92` 138 → 138 ; 221 des 273 lignes du tsv dépassent 120 à HEAD) et les quatre lignes neuves de
+`sources/MANIFEST.tsv` (305, 321, 312 et 341 caractères ; à HEAD, ses 17 enregistrements dépassent tous 120, comme les
+sept que `a39bf0d` a ajoutés le 20/10). La condition du commit compte les lignes ajoutées hors des enregistrements de
+tsv : 0.
+
+**Ce que l'outil a fait, ce que la main a fait.** Deux juges indépendants de l'outil, sans Roslyn.
+- *Le diff inverse* (`outils/diff_inverse.py`, celui de G14.3), sur `rp2-g144`, la sortie de l'outil seul, avec la carte
+  `outils/carte-inverse.txt` (les trois espaces de fichier, `iXtal26.Models=>iXtal26.Ics` par fichier, puis les noms
+  qualifiés et simples) : 9 morceaux, 9 lignes changées, 0 `using` ajouté ; **0 écart** et **0 caractère hors du
+  code** (`diff-inverse-rp2.log`). Les témoins (`diff-inverse-temoins.log`) : la carte sans ses entrées par fichier
+  sort les trois lignes `namespace iXtal26.Ics;` en écart ; la carte à l'envers, 9. (`diff_inverse.py` rend 0 dans
+  tous les cas : le verdict est son compte. Le premier passage des témoins journalisait le retour de `tail`, non le
+  sien : `essais/diff-inverse-temoins-1-retour-de-tail.log`, rejoué.)
+- *L'écart de la main*, `rp2-g144` → `g144` (`outils/delta_main.py`, `delta-main.log`) : 9 fichiers (5 `.cs` et 4
+  documents, `ixtal26-286.cfg`, `oracle.tsv`, `sources/MANIFEST.tsv`, `tools/noms/g14.txt`), 5 morceaux dans les `.cs`,
+  0 fichier d'un seul côté ; **5 ne touchent que des commentaires** (les trois blocs, `model.cs:296`,
+  `MachineBanc.cs:28`) ; 0 recoupe ; **0 autre**.
+- *Les documents* (`outils/documents_inverse.py`, `diff-inverse-documents.log`) : `oracle.tsv` et `ixtal26-286.cfg`,
+  les chemins ramenés, redonnent HEAD à l'octet ; `PCEM_BUGS.md`, `Docs/ibm5150/` et `TRANSCRIPTION.md` : `git diff`
+  vide.
+- *Aucune chaîne ni aucun commentaire de PCem* : aucune ligne retirée ne porte `// pcem:` ni une chaîne ; les blocs
+  s'insèrent après le `STATUS`, les en-têtes d'origine intacts. Les chaînes (`negatif-bootdiff.log`,
+  `outils/chaines.py`, HEAD contre l'arbre) : les mêmes morceaux, dans le même ordre, dans les 5 `.cs` touchés (189
+  morceaux) ; aucun `nameof`, `typeof`, `GetType("…")` ni accès par réflexion ne vise ces types (`git grep` : 0).
+
+**L'étape, en tout** : 9 fichiers, 79 lignes ajoutées et 25 retirées (`git diff -M --stat HEAD` ; 81 et 25 après la
+contre-lecture, hors `VERIFICATION.md` et les plans), 3 déplacements,
+6 modifiés : 2 `.cs` et 4 documents.
+
+### Les portes
+
+- **La construction** (`construction-apres.log`, `--no-incremental`, SDK 10.0.114, le 03/11 à 19 h 08) :
+  `iXtal26.csproj`, `tools/perfbanc` et `tools/iXtal26.Diff`, **0 avertissement, 0 erreur** chacun (les projets
+  traitent les avertissements en erreurs). `iXtal26.dll` de C : `155a7d90…d4bb34f3` ; `iXtal26.Diff.dll` :
+  `5ccef464…65558719` ; `iXtal26.PerfBanc.dll` : `c540141c…5a074752` ; `iXtal26.SoftFloat.dll` : `a2cf43b6…5a2b1a9e`,
+  celui du parent construit dans `g144` (`construction-avant.log`). L'IL, la capture du JIT, la copie figée des séries
+  et le banc ont été faits sur cette construction ; la construction finale la rend à l'octet (ci-dessous).
+- **`check-oracle.sh`** (`check-oracle-doc.log`, le 03/11 à 19 h 09) : « 217 transcrit(s) verifie(s), 41 fichier(s)
+  hote ignore(s), 0 derive(s), 0 absent(s), arbre vendore OK » ; retour 0, les comptes de G14.3.
+- **`check-doc5150.sh`** : « 4 fichiers, renvois justes », retour 0 ; `--couverture` sort 31 fichiers non cités, les
+  mêmes qu'à G14.3 (`couverture-g144.txt` = `couverture-avant-documents.txt` = `g14-3/couverture-g143.txt`, `diff`
+  vide) : aucun des fichiers de l'étape n'y est.
+- **L'IL par la table** (`il-portes.log`, `il/`, `outils/il-portes.sh` : `ildump comparer --noms tools/noms/g14.txt
+  --jusqua G14.4`, R = les DLL de bin/ de `ref-R`, iXtal26.Diff de `S-g14r`, le 03/11 à 19 h 09) :
+  - iXtal26 : 5 738 entrées (617 types, 5 120 méthodes, 423 653 instructions), **0 changée, 0 disparue, 0 apparue** ;
+    6 646 noms réécrits dans le vidage de R (« 43 types et 18 fichiers ») ;
+  - iXtal26.Diff : 3 331 entrées, **0** ; 556 noms réécrits (il ne nomme aucun des trois types) ;
+  - SoftFloat : 90 entrées, 0, avec ou sans la table ;
+  - le banc : 297 entrées, 35 changées, 0 disparue, 0 apparue : les 35 `BenchmarkAttribute` de G14.1 et G14.2, et
+    elles seules ; le rapport est celui de G14.3 à l'arbre près, `g143` → `g144`, dans le texte et dans le blob
+    hexadécimal (`67313433` → `67313434`), hors des trois lignes d'en-tête (`diff` vide). Le commentaire changé de
+    `MachineBanc.cs:28` ne décale aucune ligne.
+  - Sans la table : iXtal26, 124 changées, 329 disparues, 329 apparues (G14.1 à G14.4) ; iXtal26.Diff, 52, 11, 11.
+- **Les listings du JIT par la porte de Q39** (`jit-portes.log`, `outils/jit-portes.sh`) : la capture de C
+  (`outils/capture-C.sh`, `capture-C.log`, le 03/11 de 19 h 09 min 34 s à 19 h 24 min 43 s, par le script et le bac à
+  sable de `g144`, celui du commit `5400c90` ; `runtime.txt` : 10.0.14, `dll 155a7d901d91745c` et `dll-sha256`
+  entier) : 30 scénarios, retour 0 chacun, 1 512 méthodes, les comptes par scénario de R, 0 mention de MinOpts. Contre
+  `ref-R-captures-10.0.14/jit`, `compare --noms tools/noms/g14.txt --jusqua G14.4 --dll-ref ref-R/…/iXtal26.dll
+  --dll-autre g144/…/iXtal26.dll` : **0 changée, 0 disparue, 0 apparue**, retour 0 ; « 16 qui changent, 16 vers la
+  même chaîne, 0 vers une autre, 0 illisibles ; 4 méthodes égales par leurs jetons » ; « 43 types (24 vus, 19 que les
+  scénarios ne compilent pas) ». Contre la capture de 10.0.13 (`ref-R-captures/jit`, la même DLL de R) : les mêmes 0,
+  les mêmes 16.
+  - *Les quatre* sont celles de G14.3 : `Emu8000:emu8k_init`, `scsi_aha1540:process_scsi`, `scsi_hd_c:scsi_hd_command`,
+    `scsi_zip_c:scsi_zip_command`. Le détail, jeton par jeton, par `jetons_chaines.py` de G14.3 sur leurs listings
+    (`jit-jetons-chaines.log`, extraits dans `essais/jit-changees/`) : les 16 jetons de R et leurs pendants de C
+    désignent la même chaîne, aucune autre ligne ne diffère ; les mêmes 16 que l'outil. Les jetons SCSI de C ont les
+    valeurs de G14.3 (`0xF058` → `0xEF98`…) ; celui d'`emu8k_init`, « AWE32.RAW not found », passe de `0x11531`
+    (G14.3) à `0x114B5` : le tas a encore bougé.
+  - *La cause*, celle de Q39 : les trois fichiers déplacés passent avant (`ordre-compilation.log`, `dotnet msbuild
+    -getItem:Compile`) : à G14.3, `Models/headland.cs`, `neat.cs`, `opti495.cs` étaient les 160e, 163e et 166e des 226 ;
+    à C, `Ics/ChipsCS8221.cs`, `HeadlandHT18.cs` et `Opti82C495.cs` sont les 116e, 119e et 130e (`Ics/Emu8000.cs`
+    passe du 116e au 117e). Le tas #US de C a les mêmes 2 533 chaînes que ceux de R et de G14.3, répétitions comprises,
+    et la même taille (157 988 octets) ; 1 492 sont à d'autres décalages que dans R, 208 que dans G14.3 (`tas-us.log`).
+  - *Ce que les listings ne voient pas* : des trois conteneurs, seul `Opti82C495` est compilé par les scénarios (ceux
+    de l'ami386dx) ; `ChipsCS8221` et `HeadlandHT18` sont parmi les 19 types « que les scénarios ne compilent pas »
+    (aucun scénario sur l'ami286 ni sur l'ami386). Leur 0 % repose sur l'IL, les séries et le banc (`MachineBanc`,
+    l'ami286 et l'ami386 dans les deux modes).
+  - Sans les DLL, la porte d'avant Q39 sort les 4 changées (`jit-avec-sans-dll.txt`) : c'est l'écart de G14.3, qu'elle
+    ne savait pas lire.
+
+- **Le banc contre R** : `compare-ref.sh --empreintes-r /var/tmp/ixtal-g14/gel-R-10.0.14/empreintes-r.sha256
+  --lancees-r /var/tmp/ixtal-g14/gel-R-10.0.14/lancees-r.txt /var/tmp/ixtal-g14/ref-R /var/tmp/ixtal-g14/g144 banc-C`
+  (`outils/bancs.sh`, `bancs.log`, le `compare-ref.sh` de `g144`, celui de `g143` à l'octet, `compare_ref.py` aussi), C
+  construit en Release (la construction de 19 h 08), les 14 groupes, 65 cas, la règle des trois passes, après cinq
+  minutes calmes de suite (`calme.log`, de 19 h 31 à 19 h 35). Le 03/11 de 19 h 35 à 20 h 28 : **vert, 65 cas sur 65,
+  dès la passe 1**, en 52,7 min (3 160,6 s ; `banc-C/rapport.txt`, `rapport.tsv`, `banc-C-synthese.txt`) ; aucun cas à
+  confirmer, aucun à rejouer.
+  - Aucun refus. Le gel est vérifié à chaque passage de R (28 passages de R, 56 en tout) ; bin/ de R intact après
+    (`sha256sum -c`), le manifeste de fin conforme (1 894 fichiers), `git status` vide, aucun répertoire de job, ni
+    dans `ref-R` ni dans `g144`.
+  - Aucun rouge exact : les allocations égales à l'octet sur les 65 cas, aucune instable ; les états et les empreintes
+    de Machine égaux.
+  - C/R − 1 va de −0,61 % (Exec286, « tout », `memoire`) à +0,57 % (VideoEgaPcem), médiane −0,02 % ; par groupe, de
+    −0,25 % (Video) à +0,06 % (Fetch). La borne basse la plus haute est −0,02 % (SonSb16Sortie, « aucun »), la borne
+    haute la plus basse +0,03 % (Machine ami286, « aucun ») ; l'intervalle le plus large, 4,56 points, VideoEt4Pcem
+    [−3,16 ; +1,40].
+  - *Les machines des jeux de puces* (`Machine.Fenetre`, une tranche fixe de `pc.runpc` après la remontée de la
+    machine ; ce qu'y fait le jeu de puces n'est pas mesuré à part) : ami286 (`ChipsCS8221`) −0,02 % et −0,00 %, ami386
+    (`HeadlandHT18`, dont les gestionnaires portent toute la RAM) +0,05 % et −0,00 %, ami386dx (`Opti82C495`) −0,02 % et
+    −0,00 %, ami486 (`ali1429`, inchangé) −0,02 % et −0,04 %, en « aucun » et en « tout », toutes vertes, les
+    allocations égales.
+  - La sonde a noté quatre relevés de plus de 0,3 UC sur les 56 passages, sans refus : Rider (0,33 et 0,40 UC, passe 1,
+    Exec486, après 2-C et avant 3-C) et `localsearch-3` (0,79 et 0,80 UC, passe 1, Machine808x, après 3-C et avant 4-R).
+  - *La dérive de l'hôte* : R de ce banc contre R du banc de G14.3 (`g14-3/banc-C/rapport.tsv`) : 65 cas, médiane
+    +0,03 %, de −0,87 % (Exec486) à +1,04 % (Video) ; contre R de la porte du réancrage (`g14-1/porte-R`) : médiane
+    −0,01 %, de −0,72 % (Video) à +0,87 % (Video).
+  - Les rapports nomment C « `g144` (5400c901cf17) » : le banc a mesuré l'arbre renommé avant son commit, au-dessus du
+    commit 1 ; l'arbre commité est celui-là (ci-dessus, la construction).
+  C'est le cinquième renommage pur mesuré. Le banc ne voit rien qui sorte du bruit A/A de G14.0b.
+
+- **Les séries entières dans les deux modes** (`outils/series-g144.sh`, `series-g144.log`), jouées comme `g14r` et
+  `g141` à `g143` : la copie figée `S-g144` (la construction de 19 h 08 : `iXtal26.dll` `155a7d90…d4bb34f3`,
+  `iXtal26.Diff.dll` `5ccef464…65558719`, et la `.so` de `S-g14r`, `fe905731…a2bc03ae` ; `S-g144.sha256`,
+  `prep-serie-g144.log`), les portes copiées de `g144` (`gates-g144`, `gates-g144-tout` ; `tools/gates/` de `g144` est
+  celui de `ser-R` à l'octet, `diff -r` vide), `MALLOC_PERTURB_=85`, dix voies, l'ordre tiré des durées de `g14r`,
+  `TMPDIR_SERIE` par défaut (`/var/tmp/ixtal-par/g144`, un nom de la longueur de `g14r`). `REPO` = `g144`, préparé comme
+  `ser-R` (ci-dessus, le worktree). Le WORK est neuf, fait par la recette de `g144` (`outils/prep-g144.sh recette`,
+  `prep-g144-recette.log`, le 03/11 de 19 h 28 à 19 h 30, les « Cannot open file '' » de la recette de `g14r`) :
+  `/var/tmp/ixtal-g14/g14-4/g5w-g14-4`, conforme à `g5w.sha256` (30 empreintes) avant la première série, après la
+  seconde (`series-g144.log`) et après le rejeu (`complement-atapi-materiel-tout.log`), au chemin de la longueur de
+  `g14-0d/g5w-g14r` (34 caractères). Avant chaque série et avant le rejeu, cinq minutes calmes de suite (`calme.log`).
+  - `g144`, le 03/11 de 20 h 33 à 22 h 27 (1 h 54) : **827 vertes**, aucune rouge.
+  - `g144-tout`, sous `MATERIEL=tout`, le 03/11 de 22 h 32 à 23 h 21 (49 min) : 548 vertes, 267 refusées par le mode, 11
+    « pcem », et une rouge, `banc-atapibanc-materiel` (rc=1, 1 846 s ; `g14r-tout` : 1 581 s), dont le journal commence
+    par « une séance n'a pas fini proprement : délai dépassé (1 200 s) », suivi de « les deux séances diffèrent » et de
+    91 échecs de l'attendu, les suites d'une séance tuée au délai
+    (`essais/g144-tout-premiere/g144-tout-banc-atapibanc-materiel.txt`) : le délai d'horloge de l'hôte de
+    `Banc.cs:166-169`, celui que § G14.0d et § G14.1 ont vu frapper `banc-atapibanc` et `banc-atapibanc-vide`. La seule
+    charge connue était celle de la série elle-même : le guet relevait 0,27 à 0,29 UC d'autres processus avant elle
+    (`calme.log`), et aucun journal ne couvre la machine pendant la série. Rejouée seule
+    (`outils/complement-atapi-materiel-tout.sh`, `PORTES`, `MATERIEL=tout`, même DLL figée, même WORK, même
+    `TMPDIR_SERIE`), le 03/11 de 23 h 27 à 23 h 46, après cinq minutes calmes : **verte**, « les 89 attendus du mode
+    materiel, deux séances identiques », 1 110 s. Sa ligne et son journal remplacent ceux de la série ; la série telle
+    qu'elle est sortie est gardée (`essais/g144-tout-premiere/`, et
+    `/var/tmp/ixtal-g13/series/g144-tout-premiere-banc-atapibanc-materiel-delai.tsv`) ; `series/g144-tout.notes` le dit,
+    à côté du tsv. Ensuite : **549 vertes, 267 refusées, 11 « pcem »**, aucune rouge, les comptes de `g14r-tout`. La
+    comparaison n'a pas été jouée avant le rejeu : seule la ligne du tsv de cette porte était rouge.
+  - *Les comparaisons* (`compare-series.py --racine /var/tmp/ixtal-g14/ser-R /var/tmp/ixtal-g14/g144 --work
+    /var/tmp/ixtal-g14/g14-0d/g5w-g14r /var/tmp/ixtal-g14/g14-4/g5w-g14-4`, le 03/11 à 23 h 46) :
+    - `g144` contre `g14r` : 827 portes communes, **0 écart** (`g144-contre-g14r.log`) ; bruit retiré : 1 654 durées,
+      70 répertoires, 68 PID, 0 texte coupé, 12 temps de l'hôte, 38 racines et WORK, 0 longueur de séance ;
+    - `g144-tout` contre `g14r-tout` : 827 communes, **0 écart** (`g144-tout-contre-g14r-tout.log`) ; 1 654 durées,
+      52 répertoires, 50 PID, 12 temps de l'hôte, 0 texte coupé, 0 racine et WORK, 0 longueur de séance.
+    Les comptes de bruit de G14.3. Les tsv sont doublés dans `/var/tmp/ixtal-g13/series/` (`g144.tsv`, `g144-tout.tsv`,
+    `g144-tout.notes`, la série telle qu'elle est sortie) ; les journaux sont dans `g14-4/series/`.
+  - *Les portes des jeux de puces* (`portes-jeux-de-puces.txt` : chaque `run` de `series.sh`, sa machine lue dans
+    `--model` ou dans le `model =` de sa configuration, les noms en `$` dépliés sur les tsv) :
+    - l'ami286 (`ChipsCS8221`) : 16 portes, toutes des boot-diffs (`bd-ami286`, `-287`, `-mfm-ecriture`, `-mfm-fdisk`,
+      `-ide-ecriture`, `-ide-fdisk`, `-ide-check`, `-ps2-refus`, `-hercules-cmos`, `-win-ega`, `-win-hercules`, `-ega`,
+      `-et4000`, `-qbasic-stick`, `-atapi-banc`, `-aha-boot`) : vertes dans `g144`, refusées par le mode « tout » ;
+    - l'ami386 (`HeadlandHT18`) : 4 boot-diffs (`bd-ami386`, `-4m`, `-387`, `-ega`) : vertes, refusées par « tout » ;
+    - l'ami386dx (`Opti82C495`) : 24 portes, 16 boot-diffs (`bd-ami386dx-4m`, `-4m-dos`, `-387`, `-387-dos`,
+      `-387-post`, `-ide-ecriture`, `-gd5429`, `-trio64`, `-im-refus`, `-ps2-banc-2`, `-ps2-banc-3`, `-et4000`,
+      `-et4-banc`, `-et4h-banc`, `-atapi-banc`, `-aha-boot`) et 8 bancs C# (`banc-et4banc`, `banc-et4hbanc`,
+      `banc-ps2banc-2`, `-3`, et leurs `-materiel`) : 24 vertes dans `g144` ; dans `g144-tout`, les 16 boot-diffs
+      refusés, les 8 bancs verts ;
+    - l'ami486 (`ali1429`, inchangé) : 68 portes, dont 48 boot-diffs (`bd-ami486-*`, `bd-cfg-486-cd`) : 68 vertes dans
+      `g144` ; dans `g144-tout`, 48 refusées, 20 bancs verts.
+    Toutes identiques à R. Le boot-diff compare C# à l'oracle, donc en mode PCem : sous « tout », les trois jeux de
+    puces renommés ne passent que par les bancs de l'ami386dx ; `ChipsCS8221` et `HeadlandHT18` n'y passent pas, et
+    leur mode « tout » repose sur l'IL et sur le banc (`Machine.Fenetre`, ami286 et ami386, « tout »).
+  - *Runtime ou renommage ?* `g14r` et `g14r-tout` ont été jouées sous 10.0.13, `g144` et `g144-tout` sous 10.0.14.
+    Aucune porte n'est en écart : rien à départager.
+
+- **La `.so` de l'oracle** (`oracle-so.log`) : `git diff HEAD -- tools/oracle/ pcem-dev/` vide dans `g144`, et
+  `git diff f15e11f HEAD` aussi ; les séries jouent la `.so` de `S-g14r`, copiée dans `S-g144`, conforme à
+  `gel-R/S-g14r.sha256` (`fe905731…a2bc03ae`).
+- **Les anciens noms** (`outils/grep-anciens.sh`, `grep-anciens.log`), dans le code compilé (`*.cs` d'`iXtal26/`,
+  `tools/iXtal26.Diff/`, `tools/perfbanc/`) : `iXtal26.Models.(opti495|neat|headland)` : **0** ; les mêmes, relatifs
+  (`Models.opti495`…) : **0** ; `using static iXtal26.Models.(opti495|neat|headland)` : **0** ; `class (opti495|neat|
+  headland)` : 0 ; ces noms qualifiant un membre hors d'un commentaire : 0 ; ceux de G14.1 à G14.3 : 0 encore. Aucun
+  `opti495.cs`, `neat.cs`, `headland.cs` sous `Models/`, qui garde 7 fichiers, tous `namespace iXtal26.Models`,
+  `ali1429.cs` compris ; `Ics/` a 18 fichiers, tous `namespace iXtal26.Ics`, aucun `using iXtal26.Ics;`. Hors du code
+  compilé, les anciens noms ne restent que dans les blocs `// noms:` (« avant G14, Models/opti495.cs »), la table et les
+  journaux datés ; aucun commentaire du harnais.
+- **Les lignes neuves** (`outils/longues.py`, `git diff -M -U0 HEAD`, en caractères ; `longues.log`) : 79 lignes
+  ajoutées, aucune de plus de 120 caractères hors des enregistrements de tsv (ci-dessus, « Les lignes longues ») ; la
+  condition du commit (`longues-commit.log`) : 0. Le premier contrôle avant le commit passait les chemins neufs en
+  pathspec : git n'y voit pas les déplacements et comptait `HeadlandHT18.cs` entier, 11 lignes longues d'avant l'étape ;
+  le commit a été bloqué, et le contrôle rejoué sans pathspec (`essais/longues-commit-1-pathspec.txt`, recopié de la
+  console).
+- **Aucun champ statique neuf** : l'IL d'iXtal26 est celui de R par la table, champs, constantes et constructeurs
+  statiques compris.
+- **La construction finale** (`construction-finale.log`, le 03/11 à 23 h 47, après les séries et le rejeu,
+  `--no-incremental`) : les cinq DLL de la construction de 19 h 08 à l'octet, 0 avertissement ; l'arbre commité est
+  celui-là : `git diff HEAD` vide après le commit, `git show --stat` donne les 9 fichiers attendus, trois déplacements
+  compris (`apres-commit.log`).
+
+### Les contrôles négatifs
+
+Chacun a son journal, gardé.
+- *La table arrêtée à G14.3* (`--jusqua G14.3`, qui renomme G14.1 à G14.3 et rien de G14.4) :
+  - `ildump comparer` (`il-negatif.log`, `il/iXtal26-jusqua-G14.3.txt`) : iXtal26, **3 changées, 32 disparues, 32
+    apparues** ; les 32 de chaque côté sont 6 types (les trois conteneurs et leur type imbriqué `+<>O`, le cache des
+    délégués que le compilateur crée) et 26 méthodes (`Models.headland` 18, `Models.neat` 4, `Models.opti495` 4), et
+    leurs pendants `Ics.*` ; les 3 changées, les trois inits de `model_c` qui les appellent (`at_headland_init`,
+    `at_neat_init`, `at_opti495_init`). iXtal26.Diff : 0, il ne nomme pas ces types.
+  - `listings-jit.sh compare --jusqua G14.3`, avec les DLL (`jit-jusqua-G14.3.txt`) : **1 changée, 4 disparues,
+    4 apparues** : `Models.opti495` (`.cctor`, `opti495_init`, `opti495_read`, `opti495_write`) disparues, leurs
+    pendants `Ics.Opti82C495` apparus, `model_c:at_opti495_init` changée ; les 4 méthodes des jetons, égales par leurs
+    jetons, comme avec la table entière. Sans aucune table (`jit-sans-table.txt`) : 45 changées, 103 disparues,
+    103 apparues (G14.1 à G14.4).
+- *`oracle.tsv` laissé à l'ancien chemin* (`negatif-oracle.log`, le 03/11 à 19 h 07, après le renommage et avant
+  l'édition des documents : l'`oracle.tsv` de `5400c90`, `fb4e5a38…`, `git diff` vide) : trois « ABSENT C# »
+  (`Models/neat.cs`, `Models/headland.cs`, `Models/opti495.cs`), « 214 transcrit(s) … 41 fichier(s) hote … 3
+  absent(s) », retour 1. Après l'édition : 217, 41, 0, retour 0.
+- *`check-doc5150.sh` avant l'édition des documents* (`negatif-doc5150.log`, le 03/11 à 19 h 07) : **sans objet** :
+  `Docs/ibm5150/` ne cite aucun des fichiers ni des types de l'étape (`git grep -i` : 3 lignes, toutes du mot
+  « options ») ; il sort « 4 fichiers, renvois justes », retour 0, avant comme après, et sa couverture est la même
+  (`couverture-avant-documents.txt` = `couverture-g144.txt`). Ce contrôle ne peut pas rougir ici, et c'est dit.
+- *Les étiquettes de boot-diff* (`negatif-bootdiff.log`, `outils/chaines.py`) : `BootDiff.cs` n'est pas touché
+  (`git diff -U0 HEAD` : 0 ligne), ni rien de `tools/iXtal26.Diff/` ; dans chacun des 5 `.cs` touchés, les morceaux de
+  chaîne de HEAD, dans le même ordre (189 en tout).
+- *Le diff inverse* (`diff-inverse-temoins.log`) : sans les entrées par fichier, 3 écarts ; à l'envers, 9 (ci-dessus).
+- *La porte du JIT* (`q39-preuve.log`, `q39-temoin-illisible.log`) : un jeton faux sort « changée », une instruction
+  changée aussi, une DLL absente, fausse, illisible ou sans empreinte est refusée (ci-dessus, « Q39, la porte
+  outillée »).
+
+### La durée
+
+Le 03/11 de 18 h 50 à 23 h 50, environ 5 h, dont environ 4 h 40 de machine : la preuve de Q39 (deux passages, de 18 h 56
+à 19 h 00 et de 19 h 01 à 19 h 04, la capture de `pc1512` comprise), la capture du JIT (15 min), la recette (2 min), le
+banc de C (53 min, aucune passe 2), `g144` (1 h 54), `g144-tout` (49 min), le rejeu de `banc-atapibanc-materiel` (19
+min), les quatre guets du calme (cinq minutes chacun, chacun conclu en cinq relevés de suite, `calme.log`), les
+constructions (le parent, l'arbre renommé, la finale, de 9 à 13 s ; et celles de l'outil de renommage dans `g144` et
+`rp2-g144`). Ce que les journaux montrent de la machine : la sonde du banc a noté quatre relevés de plus de 0,3 UC
+(Rider, `localsearch-3`), sans refus ; une porte a passé le délai de l'hôte, dans `g144-tout`, sans autre charge connue
+que celle de la série ; aucun journal ne couvre la machine pendant les séries, la capture et les constructions. Aucun
+réancrage ; un rejeu, celui de la porte au délai. Les premiers essais ratés, chacun dit plus haut : la porte du JIT qui
+lisait les jetons de toutes les lignes (3 méthodes changées à tort, une commande à la console, sans journal ; sa sortie
+est dans « Q39, la porte outillée ») ; la vérification des DLL faite après la table
+(`essais/q39-preuve-1-dll-verifiee-apres-table.log`) ; les témoins du diff inverse qui journalisaient le retour de
+`tail` (`essais/diff-inverse-temoins-1-retour-de-tail.log`) ; le premier contrôle des lignes longues du commit, bloqué
+par son pathspec (`essais/longues-commit-1-pathspec.txt`). Et une maladresse sans suite : un `git add -N .`, lancé pour
+compter le diff, a inscrit à l'index le `__pycache__` d'isogen (que la recette crée) ; ôté aussitôt (`git reset`), il
+n'est pas dans le commit (`git show --stat`).
+
+**Après la contre-lecture** (`apres-cl/`, du 03/11 à 23 h 59 au 04/11 à 0 h 03). Les corrections sont des
+commentaires : trois dans `listings-jit.sh` (le commit 1), trois blocs `// noms:` (le commit de l'étape).
+- *La porte du JIT, rejouée avec l'outil corrigé* (`jit-rejeu-apres-cl.log`) : R contre G14.4 (`--jusqua G14.4`) et R
+  contre G14.3 (`--jusqua G14.3`), avec les DLL : 0 changée, 0 disparue, 0 apparue, retour 0 ; l'usage, retour 2.
+- *Les commits réécrits* : le commit 1 repris (`5643228`), `6f2dd10` rejoué par `git cherry-pick`, les corrections des
+  blocs appliquées (`apres-cl/cl-outil.patch`, `cl-blocs.patch`) ; la branche d'avant gardée, `g14-4-avant-cl`.
+- *Reconstruit* (`apres-cl/construction.log`, `outils/construire.sh`, 0 avertissement) : `iXtal26.dll`
+  `d7c1b864…c4ec38ac`. `ildump comparer` contre la DLL des portes (`apres-cl/dll-portes/`, `155a7d90…d4bb34f3`), sans
+  table : 0 changée, 0 disparue, 0 apparue (`il-portes-contre-cl.txt`) ; contre R, par la table jusqu'à G14.4 : 0, 0, 0
+  (`il-R-contre-cl.txt`). Les 152 octets qui diffèrent sont tous des empreintes (`apres-cl/octets.log`) : le commit
+  inscrit dans la version (`5400c901…`, au commit duquel la DLL des portes a été construite, contre `ac2226f7…`), le
+  MVID, les deux horodatages déterministes, l'identifiant et l'empreinte du PDB.
+- Ni série ni banc rejoués : l'IL ne change pas, et l'émulateur non plus.
+
+Contre-lecture en deux relectures, le code et la preuve : aucune erreur. Dans le code, sept imprécisions : trois
+commentaires de `listings-jit.sh` précisés (un jeton d'un autre module qui change n'est pas distingué, l'alignement des
+flux, l'aide qui coupait la ligne `methode`) ; trois blocs `// noms:` repris (la base 208h/209h de RB9, que la fiche ne
+dit pas « par défaut » ; le port 22h, absent de la carte d'E/S du HT18 ; CR6, de la révision C seule ; le port 92h,
+transcrit, que PCem ne pose que sur l'AMA-932J ; la ROM de l'ami386dx, qui vise le 82C495SX par son nom) ; la
+septième, § G14.4 de PLAN-G14, reprise par les textes des plans. Dans la preuve, huit imprécisions reprises : la
+charge pendant les séries, ce que dit la première passe de la porte rejouée, 4 h 40 de machine et non 4 h 20, les
+types et les méthodes du contrôle négatif, la lecture de « path » sans journal (rejouée), les tsv au-delà de 120 dans
+le message de commit, l'en-tête de `verif-avant.log`, les douze registres annoncés par O1 ; et deux remarques, les
+empreintes des commits (recalées après la réécriture) et la liste des outils (complétée).
+
+### Les risques
+
+- *Le runtime, encore.* Aucune mise à jour depuis le réancrage de G14.1 ; une mise à jour d'apt de .NET avant G14.5
+  demandera le réancrage de § G14.1.
+- *Les jetons de chaîne* : chaque déplacement réordonne le tas #US (1 492 chaînes déplacées contre R à G14.4) ; la
+  porte les lit désormais. Elle ne lit que les lignes qui diffèrent : une chaîne changée sous un jeton égal n'est vue
+  que par l'IL, qu'`ildump` compare par ses chaînes (les deux portes vont ensemble).
+- *Ce que les listings ne compilent pas* : `ChipsCS8221` et `HeadlandHT18` n'ont aucun scénario ; le jour où un
+  renommage les toucherait encore (G15), un scénario de l'ami286 et de l'ami386 manquerait à la preuve du code machine.
+- *Les renvois de ligne décalés* : l'étape ne décale que les trois fichiers déplacés (les blocs `// noms:`) ;
+  `renvois.py` : 0 à recaler. `PLAN-G3.md`, `PLAN-G14.md`, `VERIFICATION.md` et les rapports de
+  `Docs/G14-reconnaissance/` (R1, R2 et leurs contre-lectures) citent `headland.cs`, `neat.cs` ou `opti495.cs`
+  (`git grep`) : journaux datés et plans, non touchés.
+- *La machine partagée* : le guet attend le calme, et le banc refuse une passe dès qu'un processus lourd paraît.
+- *L'outil de renommage* lie le Roslyn privé du SDK (inchangé sous 10.0.114) ; il ne sait appliquer qu'un cumul
+  d'étapes (« Hors de la portée »).
+
+### Hors de la portée
+
+Trouvé en route, non corrigé (règle du 18/10) :
+- **Les bits 3 et 4 de CR0 du HT18, à l'envers** (`headland.c:211-214` contre la fiche H1, p. 75 : « 1 = Shadow
+  Disable, 0 = Shadow Enable ») : un candidat de défaut de PCem, ou une erreur de la fiche, dont l'intitulé (« Shadow
+  Enable ») contredit les valeurs. Sans effet sur l'ami386 de iXtal26 tant que sa ROM n'écrit pas en 1EFh (aucun
+  `mov dx, 1ECh` à `1EFh` dans `ami386.bin`, ci-dessus). Non versé à `PCEM_BUGS.md`.
+- **Le jeu de puces de l'ami386 reste inconnu** : le bloc 22h/23h que PCem lui pose (index 82h, 87h, C1h) n'est pas du
+  HT18, et PCem doute de la ROM (`headland.c:446`) ; l'identifiant de CR4 vaut 0. Le module porte le nom de la puce
+  du code Headland ; le bloc `// noms:` le dit.
+- **La valeur initiale de 22h de l'OPTi** : E4h à la mise sous tension selon O1 (p. 26), 80h chez PCem
+  (`opti495.c:49`) ; les bits 6-0 ne sont pas modélisés, mais 22h se relit. Et 2Ah-2Ch, que le code mémorise, ne sont
+  pas documentés par O1 (20h-29h) ; O2 va jusqu'à 2Bh.
+- **La lecture des bits d'extension de RB10 du NEAT** : des blocs de 2 Mo selon CT1 (p. 51-52), des bits de numéro de
+  page chez PCem ; sans effet, aucune fenêtre EMS n'étant posée (`neat.c:51-53`, sans appelant).
+- **Une erreur de `fiches.md`** : le bit 4 de 21h du 82C495XLC est à la page 26 du PDF, imprimée 18, et non 17 ;
+  corrigée ici et dans le bloc d'`Opti82C495.cs`, qui ne cite que les pages du PDF.
+- **`ali1429` sans fiche** : le module garde `ali1429`, dans `Models/` ; s'il en paraît une, son renommage fera une
+  étape à part, avec sa preuve.
+- **Les enregistrements de tsv au-delà de 120 caractères** : la règle des lignes longues ne peut pas s'appliquer à un
+  enregistrement d'`oracle.tsv` ni de `MANIFEST.tsv` ; G14.3 l'avait dit des enregistrements touchés, G14.4 ajoute
+  quatre enregistrements neufs (le précédent : `a39bf0d`, sept). À trancher par Julien s'il veut une autre forme pour
+  le manifeste.
+- **`listings-jit.sh compare` lit les jetons des seules lignes qui diffèrent** (ci-dessus, « Les risques ») ; une
+  méthode de CoreLib inlinée porte des jetons de son module, que le listing ne nomme pas.
+- **`tools/renommage` ne sait toujours pas jouer une étape seule** (« Hors de la portée » de § G14.2) : l'étape a passé
+  un extrait de la table, `noms-g144-seule.txt`.
+- **`diff_inverse.py` rend 0 quel que soit son verdict** : le compte d'écarts est le juge ; un outil jetable.
+- **L'en-tête d'`Opti82C495.cs`** recopie le commentaire de PCem, « This is the chipset used in the AMI386 model »
+  (`opti495.c:2`), alors que la machine est l'ami386dx (`model.c:1340-1349`) ; l'ami386 de PCem est celle du Headland.
+  Un commentaire de PCem, gardé tel quel.
+- **Des renvois des plans et des rapports clos** vers les fichiers renommés (`PLAN-G3.md`, `VERIFICATION.md`,
+  `Docs/G14-reconnaissance/R1-*.md` et `R2-*.md`) : journaux datés, non touchés (décision n° 10).

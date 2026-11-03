@@ -7,6 +7,27 @@
 //         transcrit mais n'est pas posé sur l'ami386 ; son cpu_set_edx s'arrête en se
 //         nommant.
 //
+// noms: PCem → iXtal26 → ce qu'il désigne — R1(e). « = » : nom inchangé.
+//   headland.c  Ics/HeadlandHT18.cs  le fichier ; avant G14, Models/headland.cs
+//   (aucun)     HeadlandHT18        le conteneur, le jeu de puces de l'ami386 ; avant G14, la classe `headland`
+//                                   (iXtal26.Models). Le HT18 de Headland (sources/ H1), pour le code Headland du
+//                                   module : le registre de page en 1ECh, CRI en 1EDh, MAR en 1EEh, CR0-CR6 en 1EFh
+//                                   (CR6 : révision C seule ; p. 26 du PDF ; p. 74-85), l'identifiant dans le quartet
+//                                   haut de CR4 (p. 78), le port 92h (p. 25, p. 62), transcrit, que PCem ne pose que
+//                                   sur l'AMA-932J, machine non portée. Trois réserves :
+//                                   - le bloc 22h/23h que headland_init pose sur l'ami386 seul (headland.c:445-447)
+//                                     n'est pas du HT18 : la carte d'E/S de la fiche saute 0022H et dit « 0023H -
+//                                     003FH Reserved » (p. 24), et PCem doute du BIOS (headland.c:446). La ROM de
+//                                     l'ami386 écrit en 22h/23h et jamais en 1ECh-1EFh ; son jeu de puces reste
+//                                     inconnu ;
+//                                   - l'identifiant de l'ami386 vaut 0 (headland.c:440-441, que ROM_AMI386SX ne
+//                                     repose pas), qui n'est aucune révision du HT18 (0001b, 0010b, 1000b, p. 78) ;
+//                                   - les bits 3 et 4 de CR0 sont à l'envers : la fiche dit « 1 = Shadow Disable,
+//                                     0 = Shadow Enable » (p. 75), PCem lit la RAM quand le bit est à 1
+//                                     (headland.c:211-214). G14 ne corrige rien
+//   Les FONCTIONS et les globales gardent les noms de PCem (headland_init, headland_regs_cr…) : elles sont l'API
+//   entre modules (fdc.cs:47 ; PLAN-G14.md, décision n° 1).
+//
 // LE CHIPSET HEADLAND HT18 DE L'AMI 386SX. Comme le NEAT de l'ami286, deux ports
 // d'index et de données (0x22/0x23) pour ses registres de configuration ; mais il fait
 // bien plus : il REMPLACE les trois mappages de la RAM (ram_low, ram_mid, ram_high) par
@@ -34,9 +55,9 @@ using iXtal26.Memory;
 using static iXtal26.io;
 using static iXtal26.Memory.mem;
 
-namespace iXtal26.Models;
+namespace iXtal26.Ics;
 
-internal static class headland
+internal static class HeadlandHT18
 {
     // pcem: headland.c:9-19
     private static int headland_index;

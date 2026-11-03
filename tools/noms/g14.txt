@@ -94,14 +94,13 @@
 //   iXtal26/Video/vid_unk_ramdac.Materiel.cs  iXtal26/Ics/SierraSC1502x.Materiel.cs
 //
 // étape G14.4 — les jeux de puces (PLAN-G14.md § G14.4). Opti82C495 est le nom que PCem imprime (opti495.c:1).
-//   Les trois autres sont SOUS RÉSERVE D'UNE FICHE : une fiche publique, rangée dans sources/ et MANIFEST.tsv, doit
-//   confirmer la référence pour le code transcrit ; sinon l'entrée sort de la table et le module garde le nom de
-//   PCem, et c'est dit. La table de G14.4 se relit donc avant l'étape.
+//   Une fiche publique, rangée dans sources/ et MANIFEST.tsv, confirme chaque référence pour le code transcrit : O1
+//   et O2 pour Opti82C495, CT1 pour ChipsCS8221, H1 pour HeadlandHT18 (le code Headland du module ; le bloc noms: de
+//   HeadlandHT18.cs dit ses réserves). ali1429 n'a pas de fiche publique : ses deux entrées (AliM1429, AliM1429.cs)
+//   sont sorties de la table, et le module garde le nom de PCem (Models/ali1429.cs, iXtal26.Models).
 //   iXtal26.Models.opti495              iXtal26.Ics.Opti82C495        OPTi 82C495, le jeu de puces de l'ami386dx
-//   iXtal26.Models.neat                 iXtal26.Ics.ChipsCS8221       SOUS RÉSERVE : Chips & Technologies CS8221
-//   iXtal26.Models.ali1429              iXtal26.Ics.AliM1429          SOUS RÉSERVE : ALi M1429
-//   iXtal26.Models.headland             iXtal26.Ics.HeadlandHT18      SOUS RÉSERVE : Headland HT18
+//   iXtal26.Models.neat                 iXtal26.Ics.ChipsCS8221       Chips and Technologies CS8221, de l'ami286
+//   iXtal26.Models.headland             iXtal26.Ics.HeadlandHT18      Headland HT18, de l'ami386
 //   iXtal26/Models/opti495.cs           iXtal26/Ics/Opti82C495.cs
-//   iXtal26/Models/neat.cs              iXtal26/Ics/ChipsCS8221.cs    SOUS RÉSERVE
-//   iXtal26/Models/ali1429.cs           iXtal26/Ics/AliM1429.cs       SOUS RÉSERVE
-//   iXtal26/Models/headland.cs          iXtal26/Ics/HeadlandHT18.cs   SOUS RÉSERVE
+//   iXtal26/Models/neat.cs              iXtal26/Ics/ChipsCS8221.cs
+//   iXtal26/Models/headland.cs          iXtal26/Ics/HeadlandHT18.cs

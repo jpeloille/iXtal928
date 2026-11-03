@@ -25,7 +25,7 @@
 // processus (mesuré en G14.0a) :
 // - sur l'ami286 et l'ami386dx, la première fenêtre d'un processus n'est pas celle des suivantes, la CGA à la place de
 //   la Trident aussi. Les registres du NEAT et de l'OPTi 495 sont des statiques que ni neat_init ni opti495_init ne
-//   remettent (neat.cs:37, opti495.cs:36), et le POST de la fenêtre précédente les a programmés (déduit) ;
+//   remettent (ChipsCS8221.cs:52, Opti82C495.cs:52), et le POST de la fenêtre précédente les a programmés (déduit) ;
 // - sur la M24 en mode « tout », les deux premières fenêtres diffèrent entre elles et des suivantes (de 3 instructions
 //   la deuxième, à cycles égaux) ; ce qui passe d'une fenêtre à l'autre n'est pas identifié ;
 // - sur le PC1512, une fenêtre trop longue alterne d'une remontée à l'autre entre deux empreintes, sans régime : à

@@ -6,6 +6,22 @@
 // STATUS: transcribed — G3, le chipset de l'AMI 386DX. Seul le printf de trace des
 //         écritures est omis.
 //
+// noms: PCem → iXtal26 → ce qu'il désigne — R1(e). « = » : nom inchangé.
+//   opti495.c   Ics/Opti82C495.cs   le fichier ; avant G14, Models/opti495.cs
+//   (aucun)     Opti82C495          le conteneur, le jeu de puces de l'ami386dx ; avant G14, la classe `opti495`
+//                                   (iXtal26.Models). OPTi 82C495, que PCem nomme (opti495.c:1). La ROM de
+//                                   l'ami386dx, opt495sx.ami (« This option ONLY valid for 495 Rev. B. »), vise par
+//                                   son nom le 82C495SX, dont aucune fiche publique n'a été trouvée ; le suffixe tombe
+//                                   (PLAN-G14.md, décision n° 3). Deux fiches d'OPTi de la famille décrivent le code
+//                                   à l'identique : le 82C495XLC (sources/ O1, p. 25-26 du PDF) et le 82C493 que
+//                                   PCem décrit (O2, p. 19-21) — l'index en 22h, les données en 24h, le bit 4 de
+//                                   21h (le cache), le bit 7 de 22h (la ROM de F0000h, à 1 lue en ROM et écrite en
+//                                   RAM, à 0 lue en RAM protégée). O1 documente 20h à 29h (O2 jusqu'à 2Bh, p. 28) et
+//                                   pose 22h à E4h (p. 26) ; le code mémorise 20h à 2Ch et pose 80h : les autres bits
+//                                   ne sont pas modélisés
+//   Les FONCTIONS et les globales gardent les noms de PCem (opti495_init, optiregs…) : elles sont l'API entre
+//   modules (fdc.cs:47 ; PLAN-G14.md, décision n° 1).
+//
 // LE CHIPSET OPTi 82C495 DE L'AMI 386DX, et le commentaire d'origine le dit (:1-2) :
 // « This is the chipset used in the AMI386 model ». Toujours le même motif que le NEAT
 // de l'ami286 et le Headland de l'ami386SX : un port d'index (0x22) et un port de
@@ -28,9 +44,9 @@
 using static iXtal26.io;
 using static iXtal26.Memory.mem;
 
-namespace iXtal26.Models;
+namespace iXtal26.Ics;
 
-internal static class opti495
+internal static class Opti82C495
 {
     // pcem: opti495.c:8-9
     private static readonly uint8_t[] optiregs = new uint8_t[0x10];

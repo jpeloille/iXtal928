@@ -1,4 +1,5 @@
-# Les sources primaires de iXtal26/Docs/ibm5150/ et de PLAN-CARTE-IDE.md. Une ligne par document, séparée par des tabulations.
+# Les sources primaires de iXtal26/Docs/ibm5150/, de PLAN-CARTE-IDE.md et de PLAN-G14.md (G14.4, les jeux de puces).
+# Une ligne par document, séparée par des tabulations.
 # id	sha256	fichier	url	titre	référence	date
 # Un sha256 à « - » se remplit au premier téléchargement (tools/fetch-sources.sh) ; ensuite il fait foi.
 I1	717194ec03520d6499a40523abdfd4ed15a2b8ccc45a21c653e2b443c248664c	9800722-03_The_8086_Family_Users_Manual_Oct79.pdf	https://ftp.mirrorservice.org/sites/www.bitsavers.org/components/intel/8086/9800722-03_The_8086_Family_Users_Manual_Oct79.pdf	Intel, The 8086 Family User's Manual	9800722-03	1979-10
@@ -18,3 +19,7 @@ G1	fefa6f5fbe54334afbd4fff85a355eeebb092ca1962b8001143ef2f9be515db3	GM82C765B.pd
 W1	91d2793d5341854d03432580020d8ccde6b263d9b23ae86334a7aaa5ab8dfe31	W83757.pdf	https://theretroweb.com/chip/documentation/w83757-6454bd5a47d28732390949.pdf	Winbond, W83757 Super I/O	-	1992
 W2	216ae8432a7b795252e25d74b6a138f066b085dbcf637ec13ea3b601d028d117	W83759_199505.pdf	https://ftp.mirrorservice.org/sites/www.bitsavers.org/components/winbond/W83759_199505.pdf	Winbond, W83759A VL-Bus IDE	Rev. A1	1995-05
 WD1	95ca6180e3b2a7d8d33a387b379bb2022700dd86baae3659940a243b30cb07f0	25_WD37C65C.pdf	https://ftp.mirrorservice.org/sites/www.bitsavers.org/components/westernDigital/_dataBooks/1992_SystemLogic_Imaging_Storage/25_WD37C65C.pdf	Western Digital, WD37C65C Floppy Disk Subsystem Controller	-	1991-11
+CT1	ebd0b391e13da36ad223aff912230ed192f9fe2e8167957be1e068047c66f7c6	CS8221_NEAT_Data_Book_198710.pdf	https://ftp.mirrorservice.org/sites/www.bitsavers.org/components/chipsAndTech/CS8221_NEAT_Data_Book_198710.pdf	Chips and Technologies, CS8221 NEAT Data Book (82C211, 82C212, 82C215, 82C206)	REV 0	1987-10
+H1	ec0c611f32b012ccc5166fcd6601e6ed39877a5499ddffcbb23b3beb9d530d98	Headland_HT18_751-0100-01_Rev2.pdf	https://theretroweb.com/chip/documentation/headland-ht18-datasheet-6a5cfee3c32bd080574730.pdf	Headland Technology, HT18 80386SX Single Chip (Rev. A, B et C ; version océrisée de The Retro Web)	751-0100-01 Rev.2	1991-09
+O1	76a5e8a771d3b0c424c5e477acd6f76883111a7e3ec10395bd2c8df72fca1bf9	82C495XLC_82C206_PC_AT_Chip_Set_199410.pdf	https://ftp.mirrorservice.org/sites/www.bitsavers.org/components/opti/dataSheets/82C495XLC_82C206_PC_AT_Chip_Set_199410.pdf	OPTi, 82C495XLC/82C206 PC/AT Chip Set Data Book	912-3000-009 Rev. 1.0	1994-10
+O2	03494fd008333226890fa8144e4b8f401a17ec32237147c0e22f80358b043a64	82C493_392_206_OPTi-486SXWB_Chipset_199108.pdf	https://ftp.mirrorservice.org/sites/www.bitsavers.org/components/opti/dataSheets/82C493_392_206_OPTi-486SXWB_Chipset_199108.pdf	OPTi, OPTi-486SXWB PC/AT Chipset (82C493/82C392/82C206) Data Book, Preliminary	Version 1.1	1991-08
