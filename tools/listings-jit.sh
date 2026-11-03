@@ -12,6 +12,9 @@
 #                                                         changées, apparues ou disparues ; retour 1 s'il y en a
 #   tools/listings-jit.sh compare --noms TABLE [--jusqua ETAPE] REF AUTRE
 #                                                         de même, la table des noms appliquée à REF (G14.0c)
+#   tools/listings-jit.sh compare [--noms TABLE [--jusqua ETAPE]] --dll-ref DLL --dll-autre DLL REF AUTRE
+#                                                         de même, chaque jeton de chaîne lu dans la DLL de sa
+#                                                         capture (Q39)
 #   tools/listings-jit.sh methode CAPTURE NOM             imprime le listing d'une méthode (le premier scénario qui
 #                                                         la compile), pour lire un écart
 #
@@ -32,6 +35,21 @@
 # de REF, si un ancien est encore dans AUTRE, si un nouveau est déjà dans REF, ou si un ancien vu dans REF n'a pas
 # son nouveau dans AUTRE (et l'inverse). Un type que les scénarios ne compilent pas (absent des deux côtés) est dit,
 # sans refus : les listings ne prouvent rien pour ce qu'ils ne compilent pas (R2-noms.md § 1.5).
+#
+# --dll-ref DLL --dll-autre DLL (Q39, PLAN-G14.md, la vérification) : le JIT charge une chaîne littérale par son jeton,
+# « mov edi, T », « mov rsi, … », « call [CORINFO_HELP_STRCNS] » ; T est le décalage de la chaîne dans le tas #US des
+# métadonnées (le jeton 0x70000000 | T, dont le listing ne montre que T). Un fichier déplacé change l'ordre de
+# compilation, donc les décalages, sans changer une chaîne ni l'IL (G14.3 : 16 jetons). Avec les deux options, dans
+# une méthode qui diffère après la table, chaque ligne qui diffère doit être un tel jeton des deux côtés, et les deux
+# jetons, lus chacun dans le tas #US de la DLL de sa capture, doivent désigner la même chaîne : la méthode est alors
+# égale. Une autre chaîne est un écart, comme toute autre instruction changée. Une ligne égale n'est pas lue : une
+# méthode d'un autre assemblage inlinée porte les jetons de son module (« path », 0x1A399, est de CoreLib), que le
+# listing ne nomme pas (mov rsi, 0xD1FFAB1E) ; et une chaîne changée sous un jeton égal changerait l'IL, qu'ildump
+# compare par ses chaînes. Un jeton d'un autre module qui change, lui, n'est pas distingué d'un jeton d'iXtal26 : il
+# est lu dans la DLL d'iXtal26, et seule une chaîne égale par hasard le ferait passer. Chaque DLL est vérifiée
+# contre l'empreinte notée par sa capture (runtime.txt, « dll » et, depuis Q39, « dll-sha256 ») : une DLL absente,
+# illisible, ou qui n'est pas celle de sa capture, est refusée (retour 2). Sans les options, rien n'est lu : la
+# comparaison est celle d'avant Q39.
 set -uo pipefail
 REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 
@@ -128,7 +146,8 @@ capture() {
   local dll out; dll=$(realpath -m "$1"); out=$(realpath -m "$2"); shift 2
   [ -f "$dll" ] || { echo "listings-jit : $dll introuvable" >&2; exit 2; }
   mkdir -p "$out"
-  { dotnet --list-runtimes | grep Microsoft.NETCore.App; echo "dll $(sha256sum "$dll" | cut -c1-16)"; } > "$out/runtime.txt"
+  { dotnet --list-runtimes | grep Microsoft.NETCore.App; echo "dll $(sha256sum "$dll" | cut -c1-16)"
+    echo "dll-sha256 $(sha256sum "$dll" | cut -d' ' -f1)"; } > "$out/runtime.txt"
   local s nom args w
   for s in "${SCENARIOS[@]}"; do
     nom=${s%%|*}; args=${s#*|}; cmos=""
@@ -188,7 +207,7 @@ capture() {
 # Le découpage : un listing commence à « ; Assembly listing for method NOM (NIVEAU) ».
 decoupe() {
   python3 - "$@" << 'PY'
-import os, re, sys, json
+import os, re, sys, json, struct, hashlib
 def lire(d):
     m = {}
     for f in sorted(os.listdir(d)):
@@ -285,13 +304,108 @@ def appliquer(a, b, chemin, jusqua):
           + (' : ' + ', '.join(absents) if absents else '') + f') et {fichiers} fichiers (ignorés) ; '
           + f'{compte[0]} noms réécrits dans REF')
     return a2
+def refuser_dll(m):
+    print('  DLL refusée :', m, file=sys.stderr); sys.exit(2)
+def tas_us(dll, capture):
+    # Le tas #US de la DLL (ECMA-335 § II.24.2), lu dans le PE sans paquet, après l'empreinte notée par la capture.
+    try:
+        b = open(dll, 'rb').read()
+    except OSError as e:
+        refuser_dll(f'{dll} : {e.strerror}')
+    notes = {}
+    try:
+        for l in open(os.path.join(capture, 'runtime.txt'), encoding='utf-8'):
+            p = l.split()
+            if len(p) == 2 and p[0] in ('dll', 'dll-sha256'):
+                notes[p[0]] = p[1]
+    except OSError:
+        pass
+    if not notes:
+        refuser_dll(f'{capture}/runtime.txt ne note aucune DLL')
+    h = hashlib.sha256(b).hexdigest()
+    attendu = notes.get('dll-sha256', notes.get('dll'))
+    if not h.startswith(attendu) or not h.startswith(notes.get('dll', '')):
+        refuser_dll(f'{dll} ({h[:16]}…) n\'est pas la DLL de {capture} ({attendu[:16]}…)')
+    try:
+        u = struct.unpack_from
+        pe = u('<I', b, 0x3C)[0]; nsec = u('<H', b, pe + 6)[0]; opt = u('<H', b, pe + 20)[0]
+        o = pe + 24; dd = o + (96 if u('<H', b, o)[0] == 0x10B else 112)
+        secs = [u('<8sIIII', b, pe + 24 + opt + 40 * i) for i in range(nsec)]
+        def off(rva):
+            for _, vs, va, rs, ro in secs:
+                if va <= rva < va + max(vs, rs): return rva - va + ro
+            raise ValueError(rva)
+        c = off(u('<I', b, dd + 14 * 8)[0]); md = off(u('<I', b, c + 8)[0])
+        q = md + 16 + u('<I', b, md + 12)[0]; ns = u('<H', b, q + 2)[0]; q += 4
+        for _ in range(ns):
+            so, sz = u('<II', b, q); q += 8
+            # l'alignement sur 4 se compte depuis md, qui l'est (une section commence sur 512)
+            e = b.index(b'\0', q); nom = b[q:e]; q = (e + 4) & ~3
+            if nom == b'#US': return b[md + so: md + so + sz]
+    except (struct.error, ValueError):
+        pass
+    refuser_dll(f'{dll} : aucun tas #US lisible')
+def chaine(us, t):
+    # La chaîne du jeton T (0x70000000 | décalage, ou le décalage seul) : longueur compressée, UTF-16, octet final.
+    if t >> 24 not in (0, 0x70): return None
+    i = t & 0xFFFFFF
+    try:
+        x = us[i]
+        if x & 0x80 == 0: n, i = x, i + 1
+        elif x & 0xC0 == 0x80: n, i = ((x & 0x3F) << 8) | us[i + 1], i + 2
+        else: n, i = ((x & 0x1F) << 24) | (us[i + 1] << 16) | (us[i + 2] << 8) | us[i + 3], i + 4
+        if n % 2 != 1 or i + n > len(us): return None
+        return us[i:i + n - 1].decode('utf-16-le')
+    except (IndexError, UnicodeDecodeError):
+        return None
+JETON = re.compile(r'^\s+mov\s+edi, (0x[0-9A-F]+|\d+)\s*$')
+def jeton(lignes, k):
+    # La ligne k est-elle « mov edi, T » d'un chargement de chaîne : suivie de « call [CORINFO_HELP_STRCNS] », au plus
+    # un « mov rsi, … » entre eux ? Rend T, ou None.
+    m = JETON.match(lignes[k])
+    if not m: return None
+    j = k + 1
+    if j < len(lignes) and re.match(r'^\s+mov\s+rsi, ', lignes[j]): j += 1
+    if j < len(lignes) and re.match(r'^\s+call\s+\[CORINFO_HELP_STRCNS\]\s*$', lignes[j]): return int(m.group(1), 0)
+    return None
+def egaux_par_jetons(x, y, ua, ub, compte):
+    # Deux listings qui diffèrent sont égaux si chaque ligne qui diffère est un jeton de chaîne des deux côtés, et que
+    # les deux jetons, lus chacun dans le tas #US de sa DLL, désignent la même chaîne. Une ligne égale reste égale :
+    # une chaîne qu'une méthode changerait sous un jeton égal changerait l'IL (ildump compare un ldstr par sa chaîne).
+    lx, ly = x.split('\n'), y.split('\n')
+    if len(lx) != len(ly): return False
+    paires = []
+    for k, (p, q) in enumerate(zip(lx, ly)):
+        if p == q: continue
+        tp, tq = jeton(lx, k), jeton(ly, k)
+        if tp is None or tq is None: return False
+        paires.append((chaine(ua, tp), chaine(ub, tq)))
+    for sp, sq in paires:
+        if sp is None or sq is None: compte['illisibles'] += 1
+        elif sp == sq: compte['même chaîne'] += 1
+        else: compte['autre chaîne'] += 1
+    return all(sp is not None and sp == sq for sp, sq in paires)
 mode = sys.argv[1]
 if mode == 'compare':
+    opts = dict(zip(sys.argv[4::2], sys.argv[5::2]))
+    lus = '--dll-ref' in opts
+    if lus:
+        ua, ub = tas_us(opts['--dll-ref'], sys.argv[2]), tas_us(opts['--dll-autre'], sys.argv[3])
+        compte = {'même chaîne': 0, 'autre chaîne': 0, 'illisibles': 0}; par_jetons = []
     a, b = lire(sys.argv[2]), lire(sys.argv[3])
-    if len(sys.argv) > 4:
-        a = appliquer(a, b, sys.argv[4], sys.argv[5] if len(sys.argv) > 5 else None)
+    if '--noms' in opts:
+        a = appliquer(a, b, opts['--noms'], opts.get('--jusqua'))
     seuls_a = sorted(set(a) - set(b)); seuls_b = sorted(set(b) - set(a))
     change = sorted(k for k in set(a) & set(b) if a[k][1] != b[k][1])
+    if lus:
+        for k in change:
+            if egaux_par_jetons(a[k][1], b[k][1], ua, ub, compte): par_jetons.append(k)
+        change = [k for k in change if k not in par_jetons]
+        print(f'  jetons de chaîne (CORINFO_HELP_STRCNS), lus dans le tas #US de chaque DLL : '
+              f'{sum(compte.values())} qui changent, {compte["même chaîne"]} vers la même chaîne, '
+              f'{compte["autre chaîne"]} vers une autre, {compte["illisibles"]} illisibles ; '
+              f'{len(par_jetons)} méthodes égales par leurs jetons')
+        for k in par_jetons: print('  égale par ses jetons ', k)
     print(f'  {len(a)} méthodes dans la référence, {len(b)} dans l\'autre ; {len(change)} changées, '
           f'{len(seuls_a)} disparues, {len(seuls_b)} apparues')
     for k in change: print('  changée   ', k)
@@ -310,18 +424,21 @@ PY
 case "${1:-}" in
 capture) shift; [ $# -ge 2 ] || { echo "usage : listings-jit.sh capture DLL SORTIE [SCÉNARIO…]" >&2; exit 2; }; capture "$@" ;;
 compare)
-  shift; noms=(); jusqua=()
+  shift; noms=(); jusqua=(); dllr=(); dlla=()
   while [ $# -gt 0 ]; do
     case "$1" in
-      --noms) [ $# -ge 2 ] || break; noms=("$2"); shift 2 ;;
-      --jusqua) [ $# -ge 2 ] || break; jusqua=("$2"); shift 2 ;;
+      --noms) [ $# -ge 2 ] || break; noms=(--noms "$2"); shift 2 ;;
+      --jusqua) [ $# -ge 2 ] || break; jusqua=(--jusqua "$2"); shift 2 ;;
+      --dll-ref) [ $# -ge 2 ] || break; dllr=(--dll-ref "$2"); shift 2 ;;
+      --dll-autre) [ $# -ge 2 ] || break; dlla=(--dll-autre "$2"); shift 2 ;;
       *) break ;;
     esac
   done
-  if [ $# -ne 2 ] || { [ ${#jusqua[@]} -gt 0 ] && [ ${#noms[@]} -eq 0 ]; }; then
-    echo "usage : listings-jit.sh compare [--noms TABLE [--jusqua ETAPE]] REF AUTRE" >&2; exit 2
+  if [ $# -ne 2 ] || { [ ${#jusqua[@]} -gt 0 ] && [ ${#noms[@]} -eq 0 ]; } || [ ${#dllr[@]} -ne ${#dlla[@]} ]; then
+    echo "usage : listings-jit.sh compare [--noms TABLE [--jusqua ETAPE]] [--dll-ref DLL --dll-autre DLL] REF AUTRE" >&2
+    exit 2
   fi
-  decoupe compare "$1" "$2" "${noms[@]}" "${jusqua[@]}" ;;
+  decoupe compare "$1" "$2" "${noms[@]}" "${jusqua[@]}" "${dllr[@]}" "${dlla[@]}" ;;
 methode) [ $# -eq 3 ] || { echo "usage : listings-jit.sh methode CAPTURE NOM" >&2; exit 2; }; decoupe methode "$2" "$3" ;;
-*) sed -n '5,14p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 2 ;;
+*) sed -n '5,19p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac
