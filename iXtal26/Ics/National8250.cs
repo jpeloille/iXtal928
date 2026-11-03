@@ -6,10 +6,22 @@
 //         serial_write_fifo, serial_read_fifo, serial_write, serial_read,
 //         serial_receive_callback, serial1_init/_set/_set_has_fifo/_remove et leurs
 //         pendants serial2.
+//
+// noms: PCem → iXtal26 → ce qu'il désigne — R1(e). « = » : nom inchangé.
+//   serial.c    Ics/National8250.cs  le fichier ; avant G14, Models/serial.cs
+//   (aucun)     National8250        le conteneur, les deux UART de COM1 et COM2 ; avant G14, la classe `serial`
+//                                   (iXtal26.Models). National 8250 ; le code couvre la famille, le 16450 et le
+//                                   16550, par has_fifo : il ouvre seul le FCR, donc la FIFO (serial.c:93, :177).
+//                                   Le registre de brouillon (serial.c:142, :204), que l'INS8250 n'a pas
+//                                   (sources/ S2, AN-0493 § 3.0), est toujours là : rien n'y distingue le 8250
+//                                   du 16450. common_init pose has_fifo à 1 (model.c:198-199)
+//   SERIAL      =                   la struct de serial.h:17-35, l'état d'un UART ; espace iXtal26.Ics
+//   (aucun)     serial_rcr_fn       le rappel de réception, le type de rcr_callback (serial.h:28) ; espace
+//                                   iXtal26.Ics
+//   Les FONCTIONS et les globales gardent toutes les noms de PCem (serial1, serial_write…) : elles sont l'API
+//   entre modules (fdc.cs:47 ; PLAN-G14.md, décision n° 1).
 
-using iXtal26.Ics;
-
-namespace iXtal26.Models;
+namespace iXtal26.Ics;
 
 // pcem: serial.h:15
 internal delegate void serial_rcr_fn(SERIAL serial, object? p);
@@ -53,7 +65,7 @@ internal sealed class SERIAL
     }
 }
 
-internal static partial class serial
+internal static partial class National8250
 {
     // pcem: serial.c:8
     private const int SERIAL_INT_LSR = 1, SERIAL_INT_RECEIVE = 2, SERIAL_INT_TRANSMIT = 4, SERIAL_INT_MSR = 8;

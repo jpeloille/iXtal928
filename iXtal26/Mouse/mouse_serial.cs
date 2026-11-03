@@ -7,6 +7,7 @@
 //         mouse_serial_microsoft.
 
 using iXtal26.Models;
+using iXtal26.Ics;
 
 namespace iXtal26.Mouse;
 
@@ -57,9 +58,9 @@ internal static partial class mouse_serial
 
         if ((serial.mctrl & 0x10) == 0)
         {
-                Models.serial.serial_write_fifo(mouse.serial, mousedat[0]);
-                Models.serial.serial_write_fifo(mouse.serial, mousedat[1]);
-                Models.serial.serial_write_fifo(mouse.serial, mousedat[2]);
+                Ics.National8250.serial_write_fifo(mouse.serial, mousedat[0]);
+                Ics.National8250.serial_write_fifo(mouse.serial, mousedat[1]);
+                Ics.National8250.serial_write_fifo(mouse.serial, mousedat[2]);
         }
     }
 
@@ -80,7 +81,7 @@ internal static partial class mouse_serial
         if (mouse.mousepos == -1)
         {
                 mouse.mousepos = 0;
-                Models.serial.serial_write_fifo(mouse.serial, (uint8_t)'M');
+                Ics.National8250.serial_write_fifo(mouse.serial, (uint8_t)'M');
         }
     }
 
@@ -90,9 +91,9 @@ internal static partial class mouse_serial
         mouse_serial_t mouse = new mouse_serial_t();
         // pcem: mouse_serial.c:74 — memset(mouse, 0, …) ; `new` zéro-initialise.
 
-        mouse.serial = Models.serial.serial1;
-        Models.serial.serial1.rcr_callback = mouse_serial_rcr;
-        Models.serial.serial1.rcr_callback_p = mouse;
+        mouse.serial = Ics.National8250.serial1;
+        Ics.National8250.serial1.rcr_callback = mouse_serial_rcr;
+        Ics.National8250.serial1.rcr_callback_p = mouse;
         timer.timer_add(mouse.mousedelay_timer, mousecallback, mouse, 0);
 
         return mouse;
@@ -102,7 +103,7 @@ internal static partial class mouse_serial
     internal static void mouse_serial_close(object p)
     {
         // omitted: free(mouse) — libération manuelle, sans objet sous GC.
-        Models.serial.serial1.rcr_callback = null;
+        Ics.National8250.serial1.rcr_callback = null;
     }
 
     // pcem: mouse_serial.c:93-94

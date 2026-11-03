@@ -1355,7 +1355,7 @@ public sealed class SdlHost : IDisposable
         //   images si nvr_dosave ». Elle protege contre une fermeture brutale, pas
         //   contre une fermeture normale, et nvr_dosave reste donc pose sans lecteur
         //   entre deux sorties. A ajouter si une perte sur plantage devient genante.
-        Devices.nvr.savenvr();
+        Ics.Motorola146818.savenvr();
         pc.closepc();
 
         if (_texture != IntPtr.Zero)

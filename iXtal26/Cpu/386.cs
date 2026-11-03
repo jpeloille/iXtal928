@@ -412,7 +412,7 @@ internal static partial class _386
                                                 //   l'oracle l'enveloppe à vide (__wrap_cpu_set_edx,
                                                 //   harness_stubs.c). Même arbitrage que les deux autres
                                                 //   resets, x86seg.cs (triple faute de pmodeint) et
-                                                //   keyboard_at.cs : DX garde sa valeur, des deux côtés.
+                                                //   Intel8042.cs : DX garde sa valeur, des deux côtés.
                                                 // omitted: pclog("Triple fault - reset\n") — sortie pure.
                                         }
                                 }

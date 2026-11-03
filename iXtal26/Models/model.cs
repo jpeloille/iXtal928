@@ -173,8 +173,8 @@ internal static partial class model_c
         mem.mem_add_bios();
         Intel8253.pit_set_out_func(Intel8253.pit_, 1, Intel8253.pit_refresh_timer_at);
         Intel8237.dma16_init();
-        Keyboard.keyboard_at.keyboard_at_init();
-        PluginApi.device.device_add(Devices.nvr.nvr_device);
+        Ics.Intel8042.keyboard_at_init();
+        PluginApi.device.device_add(Ics.Motorola146818.nvr_device);
         Intel8259A.pic2_init();
         // pcem: model.c:344 — G10.0 : le port jeu, sur tous les AT.
         if (!lpt_jeu_hors_service)
@@ -439,8 +439,8 @@ internal static partial class model_c
                 Lpt.lpt.lpt_init();
         Intel8259A.pic_init();
         Intel8253.pit_init();
-        serial.serial1_init(0x3f8, 4, 1);
-        serial.serial2_init(0x2f8, 3, 1);
+        National8250.serial1_init(0x3f8, 4, 1);
+        National8250.serial2_init(0x2f8, 3, 1);
         // DEVIATION: (G13.13b) les cartes de COM et de LPT que serial1, serial2, parallel1 et parallel2 retirent, dans
         //   les deux modes ; sans clé, les quatre restent (model_ports_retirer, model.Materiel.cs).
         model_ports_retirer();
@@ -472,7 +472,7 @@ internal static partial class model_c
         if (materiel.pb_256)
                 model_rafraichissement_materiel();
         Keyboard.keyboard_olim24.keyboard_olim24_init();
-        PluginApi.device.device_add(Devices.nvr.nvr_device);
+        PluginApi.device.device_add(Ics.Motorola146818.nvr_device);
         olivetti_m24.olivetti_m24_init();
         nmi.nmi_init();
         PluginApi.device.device_add(Joystick.gameport.gameport_device);
@@ -492,7 +492,7 @@ internal static partial class model_c
         Lpt.lpt.lpt1_remove();
         amstrad.amstrad_init();
         Keyboard.keyboard_amstrad.keyboard_amstrad_init();
-        PluginApi.device.device_add(Devices.nvr.nvr_device);
+        PluginApi.device.device_add(Ics.Motorola146818.nvr_device);
         nmi.nmi_init();
         Floppy.fdc_c.fdc_set_dskchg_activelow();
         PluginApi.device.device_add(Joystick.gameport.gameport_device);

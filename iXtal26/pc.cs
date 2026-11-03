@@ -12,7 +12,7 @@
 //   celui de model_init (:372). Idempotent aujourd'hui : son corps n'est que des
 //   constantes plus video_is_mda(), et aucun code invite ne tourne entre les deux.
 //   Il CESSE de l'etre des qu'un second resetpchard tourne sur un 8042 deja
-//   interroge, keyboard_at.cs incrementant les deux bits bas de input_port a chaque
+//   interroge, Intel8042.cs incrementant les deux bits bas de input_port a chaque
 //   commande 0xC0.
 // omitted: mem_set_704kb() (:370-371) — garde `!AT && max_ram <= 768`, fausse pour les
 //   trois machines du depot. NOTE : le C teste `AT` AVANT que model_init() ne le pose,
@@ -83,7 +83,7 @@ internal static partial class pc
     internal const int ROM_ATARIPC3 = 65;  // hors cible, présent pour les gardes
     internal const int ROM_PC5086 = 100;
 
-    // B1b : les deux que keyboard_at.cs lit. ROM_IBMXT286 apparaît dans la SEULE
+    // B1b : les deux qu'Intel8042.cs lit. ROM_IBMXT286 apparaît dans la SEULE
     // condition de keyboard_at_read qui décide si l'accès coûte huit cycles ISA, et
     // un IBM AT est l'autre moitié de cette condition. ROM_T3100E garde une douzaine
     // de branches du 8042, toutes vers le Toshiba, non transcrit.
@@ -1362,7 +1362,7 @@ internal static partial class pc
         // donc l'indice -1 : le C lit l'octet qui précède le tableau et continue, le C#
         // lève. Trouvé par le premier boot-diff AT qui franchissait le mode protégé.
         // L'oracle l'appelle maintenant au même point (harness.c).
-        Devices.nvr.loadnvr();
+        Ics.Motorola146818.loadnvr();
 
         // pcem: pc.c:403 — G6.3, le troisième ali1429_reset, après loadnvr.
         Models.ali1429.ali1429_reset();
@@ -1449,7 +1449,7 @@ internal static partial class pc
         Floppy.fdc_c.fdc_reset();
         Ics.Intel8259A.pic_reset();
         // pcem: pc.c:182 — M21.
-        Models.serial.serial_reset();
+        Ics.National8250.serial_reset();
 
         // omitted: timer_reset() — pc.c:178 la porte EN COMMENTAIRE. Je l'avais
         //   ajoutée : elle invalide (magic = 0) tous les chronomètres que

@@ -10,11 +10,11 @@
 // comme en C par E9h, EBh et le paquet — pas le `b` du poll, qui ne sert qu'au test de
 // changement.
 //
-// PS2.0 (PLAN-PS2.md). La souris parle au 8042 de keyboard_at.cs : elle y pousse ses octets
+// PS2.0 (PLAN-PS2.md). La souris parle au 8042 d'Intel8042.cs : elle y pousse ses octets
 // par keyboard_at_adddata_mouse, et le 8042 lui passe ce que l'invité écrit après D4h par le
 // mouse_write que mouse_ps2_init enregistre.
 
-using static iXtal26.Keyboard.keyboard_at;
+using static iXtal26.Ics.Intel8042;
 using static iXtal26.Mouse.mouse;
 
 namespace iXtal26.Mouse;
@@ -43,7 +43,7 @@ internal sealed class mouse_ps2_t
 
 internal static partial class mouse_ps2
 {
-    // pcem: mouse_ps2.c:10. Jusqu'à PS2.0 il vivait dans keyboard_at.cs (DEVIATION) ; il
+    // pcem: mouse_ps2.c:10. Jusqu'à PS2.0 il vivait dans keyboard_at.cs, Intel8042.cs depuis G14 (DEVIATION) ; il
     //   rejoint son fichier. Le 8042 le lit et l'écrit (A7h, A8h, D4h, octet de commande).
     internal static int mouse_scan = 0;
 

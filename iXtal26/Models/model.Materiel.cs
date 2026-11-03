@@ -81,9 +81,9 @@ internal static partial class model_c
     private static void model_ports_retirer()
     {
         if (!PortsCarteMere.com1)
-                serial.serial1_remove();
+                National8250.serial1_remove();
         if (!PortsCarteMere.com2)
-                serial.serial2_remove();
+                National8250.serial2_remove();
         if (lpt_jeu_hors_service)
                 return;
         if (!PortsCarteMere.lpt1)

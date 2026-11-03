@@ -6021,9 +6021,9 @@ la ligne « clock » pour retenir l'envoi. Documenté.
 rend le 1er, le 18e, le 19e et le 20e ; l'AT, les dix-sept premiers puis le code de débordement, 00h sans traduction
 et FFh traduit par le 8042 (le BIOS de l'AT le teste à FFh).
 *G13* : (a) — documenté ; vérifiable en C# seul par des frappes injectées, et par PS2BANC sous `--force-ps2`.
-*Reproduit* en mode PCem : `Keyboard/keyboard_at.cs`, `keyboard_at_adddata`, `keyboard_at_adddata_keyboard` et
+*Reproduit* en mode PCem : `Ics/Intel8042.cs`, `keyboard_at_adddata`, `keyboard_at_adddata_keyboard` et
 `keyboard_at_adddata_mouse`, marqueurs `fixed in hardware mode: PB-254`.
-*Corrigé en mode matériel* (G13.4) : sous `if (materiel.pb_254)` (`Keyboard/keyboard_at.Materiel.cs`), le clavier
+*Corrigé en mode matériel* (G13.4) : sous `if (materiel.pb_254)` (`Ics/Intel8042.Materiel.cs`), le clavier
 garde ses octets dans son tampon, seize puis le code de débordement, les suivants perdus, en octets bruts avant la
 traduction ; il en livre un à la file de PCem quand elle est vide, en tête du poll, et l'octet livré compte encore
 dans les seize. Le contrôleur et la souris ne perdent rien : ce que leur file ne tient plus attend dans l'ordre (le
@@ -7895,7 +7895,7 @@ l'échec était *attendu* — simplement pas propagé.
 
 *Effet* : plantage à la sortie de l'émulateur, après que la session a tourné normalement.
 Le CMOS de la session est perdu, ce qui est la conséquence la moins grave.
-*NON reproduit* (hôte, G13.0) : `savenvr` dit que le CMOS n'est pas écrit et rend la main (`Devices/nvr.cs`,
+*NON reproduit* (hôte, G13.0) : `savenvr` dit que le CMOS n'est pas écrit et rend la main (`Ics/Motorola146818.cs`,
 marqueur PB-33). Il passe AVANT `closepc`, le seul endroit qui vide les images : l'exception faisait aussi perdre
 les dernières écritures de l'invité. `r9-filet` le prouve. Avant G13.0, **mesuré dans ce dépôt** : le premier
 amorçage après l'écriture de `savenvr`, avec un `nvr/` encore absent, a levé exactement là — c'est ce qui a fait

@@ -44,7 +44,7 @@ internal static partial class scsi_aha1540
     {
         ModeMateriel.Sonde[144]++;
         scsi.fn = "aha1542c.materiel.nvr";
-        FileStream? f = Devices.nvr.nvrfopen(scsi.fn, "rb");
+        FileStream? f = Ics.Motorola146818.nvrfopen(scsi.fn, "rb");
         if (f is null)
         {
                 eeprom_usine_materiel().CopyTo(scsi.eeprom, 0);

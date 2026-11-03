@@ -4,7 +4,7 @@
 // ORACLE: (aucun) — le code propre au mode matériel du 8042 et de ses files (G13 ; R10 de TRANSCRIPTION.md).
 // STATUS: materiel
 //
-// Les corrections des défauts de PCem dans keyboard_at.c, appelées par les gardes de keyboard_at.cs et de
+// Les corrections des défauts de PCem dans keyboard_at.c, appelées par les gardes d'Intel8042.cs et de
 // mouse_ps2.cs (`if (materiel.pb_nn)`), seules sur leur ligne. La source, le cas qui discrimine et la panne qui le
 // rougit sont dans l'entrée PB de PCEM_BUGS.md.
 //
@@ -17,13 +17,13 @@
 // attend ici, dans l'ordre ; au-delà de RESERVE octets, l'émulateur borne, pour qu'un invité qui empile des commandes
 // sans jamais lire ne fasse pas grandir l'hôte (R9).
 
-namespace iXtal26.Keyboard;
+namespace iXtal26.Ics;
 
-internal static partial class keyboard_at
+internal static partial class Intel8042
 {
     private const int RESERVE = 64;
 
-    // L'état que PCem n'a pas, dans une classe à part : des champs statiques de plus dans keyboard_at changeraient son
+    // L'état que PCem n'a pas, dans une classe à part : des champs statiques de plus dans Intel8042 changeraient son
     // constructeur statique, et le code que le JIT produit pour les méthodes qui le lisent, en mode PCem aussi.
     private static class Etat8042
     {

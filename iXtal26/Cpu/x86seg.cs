@@ -1126,7 +1126,7 @@ internal static partial class x86seg_c
                         // DEVIATION: cpu_set_edx() (x86seg.c:1654) non appelé, et
                         //   l'oracle l'enveloppe à vide. PCem pose EDX = edx_reset —
                         //   0 dans les trois tables du dépôt — après la triple faute ;
-                        //   ici DX garde sa valeur, des deux côtés. Voir keyboard_at.cs.
+                        //   ici DX garde sa valeur, des deux côtés. Voir Intel8042.cs.
                 }
                 else if (num == 0xD)
                 {

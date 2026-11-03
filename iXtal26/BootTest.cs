@@ -68,7 +68,7 @@ public static class BootTest
         // SANS CET APPEL LE CMOS NE SURVIT PAS, et le SETUP d'un BIOS AMI ne sert alors
         // a rien : la machine reecrirait sa configuration a chaque demarrage et
         // retrouverait « CMOS system options not set ».
-        Devices.nvr.savenvr();
+        Ics.Motorola146818.savenvr();
         pc.closepc();
 
         return 0;

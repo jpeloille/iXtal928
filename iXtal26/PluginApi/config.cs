@@ -51,7 +51,7 @@ internal static partial class config
     // pcem: config.c:8 — nom sans extension. Chez PCem il nomme aussi la NVRAM
     // (nvr.c:33-54), couplage qui fait perdre le CMOS quand on renomme un .cfg.
     //
-    // LE COUPLAGE EXISTE ICI AUSSI — nvr.cs:85 lit ce champ — mais RIEN NE
+    // LE COUPLAGE EXISTE ICI AUSSI — Motorola146818.cs:101 lit ce champ — mais RIEN NE
     // L'AFFECTE JAMAIS, là où PCem le pose depuis le nom du fichier de
     // configuration (pc.c:217-219, wx-config_sel.c:90-92), tous deux omis.
     // Conséquence observable : le CMOS s'appelle « nvr/.at.nvr », un fichier

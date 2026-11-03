@@ -17899,3 +17899,415 @@ Trouvé en route, non corrigé :
 - Le guet du calme de G14.0d (`guet-calme.sh`) et celui de cette étape lisent la sonde de `compare_ref.py` ; une
   première version du second (`attendre-calme.sh`) ne savait pas lire sa sortie et n'aurait jamais conclu : arrêtée
   après deux relevés, corrigée (`sonde-lourds.py`) ; l'essai est gardé (`calme-essai-guet-defectueux.log`).
+
+## G14.2 — Le 8042, le MC146818 et l'UART
+
+Le 3 novembre 2026 (PLAN-G14.md § G14.2, décisions n° 1 à 4 bis, 7 à 11 et 13 ; Q37, Q38). Feu vert de Julien le
+03/11 : « feu vert pour G14.2 ». `keyboard_at` → `Intel8042`, avec son `.Materiel.cs` ; `nvr` → `Motorola146818`, qui
+quitte `Devices/` ; `serial` → `National8250` ; dans `Ics/` et l'espace de noms `iXtal26.Ics`. Le worktree de l'étape
+est `/var/tmp/ixtal-g14/g142`, sur la branche locale `g14-2`, parti de `d561881` ; les journaux sont sous
+`/var/tmp/ixtal-g14/g14-2/`, les outils jetables qui les ont produits sous `outils/` (recopiés de `g14-1/outils/` et
+adaptés : `verif-avant.sh`, `prep-g142.sh`, `documents.py`, `diff_inverse.py` et son lexeur, `delta_main.py`,
+`longues.py`, `renvois.py`, `il-portes.sh`, `capture-C.sh`, `attendre-calme.sh`, `sonde-lourds.py`, `bancs.sh`,
+`synthese.py`, `series-g142.sh`, `mesures.sh`, `reflue.py` ; `complement-atapi-vide.sh` et
+`complement-atapi-vide-tout.sh`, prêts, n'ont pas servi : aucun rejeu). Rien n'a été construit
+ni modifié dans le dépôt principal ; la préversion de Rider seule y a lu.
+
+**Le commit : `f332e11`**, « g14: G14.2, le 8042, le MC146818 et l'UART — … », auteur Julien Peloille, sur la
+branche `g14-2` du worktree `g142`, parent `d561881`. Non poussé ; `master` reste à `d561881`. L'arbre commité est
+celui que les portes ont jugé : aucun fichier suivi n'a changé après la construction de 7 h 21, la construction finale
+(11 h 36) rend les mêmes DLL à l'octet, `git diff HEAD` est vide après le commit (`apres-commit.log`). Un premier
+`git commit` (`5f4616d`) n'avait pris que les quatre déplacements : le `git add` des chemins nommés avait échoué sur les
+anciens chemins, déjà déplacés, et rien n'avait été ajouté ; remplacé par `git commit --amend` avec tous les fichiers,
+avant toute autre chose ; `5f4616d` n'est référencé par rien. Le message est aussi dans `message-commit.txt`.
+
+| Ancien chemin | Nouveau chemin | Conteneur |
+|---|---|---|
+| `iXtal26/Keyboard/keyboard_at.cs` | `iXtal26/Ics/Intel8042.cs` | `Keyboard.keyboard_at` → `Ics.Intel8042` |
+| `iXtal26/Keyboard/keyboard_at.Materiel.cs` | `iXtal26/Ics/Intel8042.Materiel.cs` | (le même, partiel) |
+| `iXtal26/Devices/nvr.cs` | `iXtal26/Ics/Motorola146818.cs` | `Devices.nvr` → `Ics.Motorola146818` |
+| `iXtal26/Models/serial.cs` | `iXtal26/Ics/National8250.cs` | `Models.serial` → `Ics.National8250` |
+
+Les types d'état et les rappels gardent leur nom et passent dans `iXtal26.Ics` avec leur fichier (décisions n° 1 et
+2) : `keyboard_at_t`, `mouse_write_fn`, `SERIAL`, `serial_rcr_fn` (la table, `tools/noms/g14.txt`, étape G14.2 :
+7 types, 4 fichiers ; `nvr_t`, imbriquée dans le conteneur, le suit sans entrée). Les membres, globales comprises
+(`keyboard_at_`, `nvrram`, `serial1`, `serial2`…), ne changent pas. `nvr.Materiel.cs` et `serial.Materiel.cs`
+n'existent pas.
+
+### Avant l'étape
+
+**Le runtime n'a pas changé** (`verif-avant.log`, le 03/11 à 7 h 08) : `dotnet --list-runtimes` ne donne que
+Microsoft.NETCore.App et AspNetCore.App 10.0.14, `--list-sdks` 10.0.114, `dotnet --version` 10.0.114. Depuis le
+réancrage de G14.1 (le 02/11), `/var/log/apt/history.log` n'a qu'une entrée, `apt install hunspell-fr` du 01/11 à
+7 h 27, déjà vue par G14.1 ; la dernière de `history.log.1.gz` est celle du 31/10 à 6 h 55 (10.0.14). Pas de
+réancrage : le gel `gel-R-10.0.14/` et la capture `ref-R-captures-10.0.14/jit` restent ceux de la porte.
+
+**ref-R n'a pas bougé** (même journal) : HEAD `f15e11f`, `git status --porcelain` vide, les trois DLL de bin/
+conformes à `gel-R-10.0.14/empreintes-r.sha256` (lui-même égal à `gel-R/empreintes-r.sha256`), les 1 894 fichiers du
+manifeste de fin conformes, 163 liens, aucun répertoire de job.
+
+**La vérification « hors G14 »** (§ G14.0d ; `verif-avant.log`), sur le pathspec de § G14.0d :
+- `git log --no-merges --invert-grep --grep='^g14:' f15e11f..d561881 -- CHEMINS` : **vide**. Les deux commits de
+  l'intervalle, `651d5f7` et `d561881`, sont des `g14:`. Le témoin, la même commande sur `1d49a7f..f15e11f`, sort
+  `622b091` (« hote: un second disque dur sur l'ami486 », six profils `ixtal26-486*.cfg` et
+  `tools/gates/g5w-recipe.sh`), le seul connu, d'avant R, déjà jugé en G14.0d et en G14.1 : rien après R ;
+- `git diff f15e11f d561881 -- tools/oracle/ pcem-dev/` : 0 ligne ;
+- dans `g142`, avant le renommage : `git status --porcelain` vide (`worktree-g142.log`) ; `nvr/default/` conforme à
+  `gel-R/nvr-default.sha256` (7 fichiers), `roms.sha256` : 34 OK, `S-g14r` conforme à `gel-R/S-g14r.sha256` (4) ;
+- `ildump comparer` du parent construit (`g142` avant le renommage, `construction-avant.log`) contre R, avec la table
+  cumulée de l'étape d'avant (`--noms tools/noms/g14.txt --jusqua G14.1` ; `il-parent.log`) : iXtal26 5 738 entrées,
+  **0 changée, 0 disparue, 0 apparue** (2 543 noms réécrits) ; iXtal26.Diff contre `S-g14r` : 3 331 entrées, 0 ;
+  SoftFloat, sans table : 90 entrées, 0.
+
+Le dépôt principal a des fichiers non commités (`PLAN.md`, `tools/fetch-sources.sh`,
+`iXtal26/Docs/arbre-classes-cpu.html`, des `__pycache__/`) ; ils n'entrent pas dans le worktree, parti du commit.
+
+### Le renommage
+
+**Le worktree.** `git worktree add -b g14-2 /var/tmp/ixtal-g14/g142 d561881` (`master` = `origin/master` =
+`d561881`) ; `roms/` lié entrée par entrée (163 liens, `roms.sha256` : 34 OK ; `worktree-g142.log`). Un premier
+passage de la boucle de liens ne citait pas les noms : trois ROM à espaces n'étaient pas liées (160 liens, `ln:
+target … is not a directory`), le second passage les a liées ; dit dans le journal. Construit en Release avant le
+renommage (`construction-avant.log`, 0 avertissement).
+
+**Le contre-compte de Rider** (`rider-preview.tsv`, `rider-contre-script.txt`). Dans le dépôt principal,
+`rename_refactoring` en `preview=true` seulement, sur `keyboard_at`, `nvr` et `serial`, le 03/11 vers 7 h 12 :
+`applied` faux, `touched` à 0, aucun conflit, `moreFiles` à 0 ; `git status` du dépôt principal identique avant et
+après (`depot-principal-status-avant-rider.txt`, `depot-principal-status-apres-rider.txt`).
+
+| Conteneur | Rider : fichiers, sites | Script, dans `iXtal26/` | Hors d'`iXtal26/` |
+|---|---|---|---|
+| `keyboard_at` → `Intel8042` | 5, 3 | 5, 3 | 1 fichier, 24 sites (`MaterielCas.cs`) |
+| `nvr` → `Motorola146818` | 7, 9 | 7, 9 | 1, 4 (`R9Filet.cs`) |
+| `serial` → `National8250` | 5, 13 | 5, 13 | 0 |
+
+Les fichiers comptent ceux des déclarations, les sites non. Les trois comptes sont égaux, et les fichiers que Rider
+nomme sont exactement ceux du script. Rider ne voit ni iXtal26.Diff ni le banc.
+
+**La table de l'étape seule.** `tools/renommage` cumule les étapes du début jusqu'à `--jusqua` (`TableDesNoms.cs:31`) ;
+avec `--jusqua G14.2` il prendrait les entrées de G14.1, dont les ANCIENS n'existent plus dans l'arbre, et refuserait
+(`Program.cs:131-132`). Il reçoit donc un extrait de la table, `g14-2/noms-g142-seule.txt` : deux lignes d'en-tête
+et les lignes 48 à 62 de `tools/noms/g14.txt` (l'étape G14.2), copiées telles quelles (`diff` vide contre la table).
+Les juges, `ildump` et `listings-jit.sh`, lisent la table elle-même, `--jusqua G14.2`, contre R.
+
+**L'outil** (`renommer.sh g142 noms-g142-seule.txt G14.2`, `renommage-g142.log`, `renommage-g142.tsv`, 62 lignes) :
+3 projets, 342 fichiers, la compilation de départ sans erreur ; **16 fichiers modifiés, 62 sites** : 4 déclarations
+(`keyboard_at` deux, ses deux parties ; `nvr` et `serial` une), 4 espaces de noms de fichier, 2 `using static`
+(`mouse_ps2.cs`, `mouse_ps2.Materiel.cs`), 23 noms qualifiés (`Devices.nvr.` 13, `Models.serial.` 9,
+`Keyboard.keyboard_at.` 1), 28 noms simples (`keyboard_at` 24, dans `MaterielCas.cs` ; `serial` 4, dans `model.cs`
+et `model.Materiel.cs`), 1 `using iXtal26.Ics;` ajouté (`mouse_serial.cs`, qui nomme `SERIAL` par l'espace
+`iXtal26.Models`) ; 0 renvoi `cref` ; 0 ligne portée au-delà de 120 caractères. La recompilation en mémoire est sans
+erreur ni avertissement de plus. Quatre `git mv`. Les types d'état et les rappels n'ont d'autre site que l'espace de
+leur fichier (compté sous le premier type déclaré : `keyboard_at_t` pour `keyboard_at.cs`, `serial_rcr_fn` pour
+`serial.cs`) : ils gardent leur nom, et leurs renvois simples, inchangés, ne sont pas comptés (`Program.cs:270`).
+
+*Reproductible* : le même renommage, refait par l'outil seul dans un worktree jetable `rp2-g142` (détaché à
+`d561881`), rend le même journal et le même diff (`diff` vides, `renommage-rp2.log`). `rp2-g142` sert ensuite à
+séparer ce que l'outil a fait de ce qui a été fait à la main.
+
+**Les blocs `// noms:`.** Un par fichier transcrit, sur le modèle de `fdc.cs:10-49` et des blocs de G14.1 :
+`Intel8042.cs:9-20`, `Motorola146818.cs:12-21`, `National8250.cs:10-22` (`Intel8042.Materiel.cs` n'en a pas, comme
+les `.Materiel.cs` de G14.1). Chacun donne le fichier C et le fichier C# (avant G14 : `Keyboard/…`, `Devices/…`,
+`Models/…`), le `.Materiel.cs` pour le 8042, le conteneur et son ancien nom, les types d'état et les rappels (leur
+ligne de PCem, l'espace `iXtal26.Ics`), et que les fonctions et les globales gardent les noms de PCem. Les trois
+choses que § G14.2 demande, vérifiées contre le code :
+- *`National8250` couvre le 8250, le 16450 et le 16550 par `has_fifo`* : `has_fifo` n'agit qu'en un point,
+  l'écriture du FCR (`serial.c:93-94`, `National8250.cs:178`), dont le bit 0 ouvre la FIFO en lecture
+  (`serial.c:177`, `National8250.cs:266`) : il sépare le 16550 du 16450. `common_init` le pose à 1 sur toutes les
+  machines (`model.c:198-199`, `model.cs:442-443`). Le bloc ajoute ce que le code montre et que la fiche dit : le
+  registre de brouillon (`serial.c:142`, `:204`) est toujours transcrit, et l'INS8250 ne l'a pas (`sources/` S2,
+  AN-0493 § 3.0 : « This register is not on the INS8250 or -B ») ; rien n'y distingue donc le 8250 du 16450. Le nom
+  reste celui que la table et le plan donnent ;
+- *`Motorola146818` porte aussi `nvrfopen` et `loadnvr`* : `nvrfopen` (`nvr.c:33-54`, `Motorola146818.cs:94`) est
+  appelée par l'EEPROM de l'AHA-1542C (`scsi_aha1540.c:2100`, `:2110` ; `scsi_aha1540.cs:2076`, `:2089`,
+  `scsi_aha1540.Materiel.cs:47`) ; `loadnvr` (`nvr.c:233`), non : PCem l'appelle d'`initpc` (`pc.c:289`) et de
+  `resetpchard` (`pc.c:397`), le C# du seul `resetpchard` (`pc.cs:1365`). Le bloc dit donc « nvrfopen …, que
+  l'EEPROM de l'AHA-1542C emploie aussi ; loadnvr et savenvr (nvr.c:233, :544), le fichier de CMOS de la machine ». La
+  phrase de § G14.2 (« `nvrfopen` et `loadnvr`, que l'EEPROM de l'AHA-1542C emploie ») est reprise de même dans les
+  textes des plans (`textes-plans.md`) ;
+- *l'horloge reste dans `rtc.cs`* : `rtc.cs` est à la racine, `namespace iXtal26`, ses classes `rtc_h` (`:37`) et
+  `rtc` (`:91`), que `Motorola146818` appelle (`getnvrtime` → `rtc.time_get`, `:122`). La décision qui l'en garde est
+  **le n° 4 bis** (PLAN-G14.md, « `rtc` et `rtc_h` restent à la racine sous leur nom ») ; la n° 4 dresse la
+  liste des puces retenues. La table disait « décision n° 4 bis » (`tools/noms/g14.txt:54`), § G14.2 « décision
+  n° 4 » : le bloc dit « n° 4 bis », et les textes des plans corrigent § G14.2 ; la table ne change pas.
+
+Celui d'`Intel8042` dit aussi la globale suffixée : « `keyboard_at` → `keyboard_at_`, l'état (keyboard_at.c:64) ;
+« _ » : `keyboard_at` était le nom du conteneur (CS0542) », comme `pic_` et `pit_` en G14.1 ; et « le contrôleur du
+clavier de l'AT, et du PS/2 par keyboard_at_init_ps2 » (`Intel8042.cs:898`). Celui de `National8250` nomme
+`serial_rcr_fn` « (aucun) » : PCem n'a pas de nom pour ce type, il écrit le pointeur dans la struct
+(`serial.h:28`).
+
+**Les commentaires du code** qui désignent ces classes ou ces fichiers C# (`documents.py`, `documents.log`) :
+- `Intel8042.cs:133-135`, le CS0542 de `keyboard_at_` : « ne pouvait pas porter le nom de la classe conteneur,
+  `keyboard_at` avant G14 ; le nom reste (PLAN-G14.md, décision n° 1) », comme `pit_` en G14.1 ;
+- `Intel8042.Materiel.cs:7` (« les gardes de keyboard_at.cs » → « d'Intel8042.cs ») et `:26` (« dans
+  keyboard_at » → « dans Intel8042 ») ;
+- `keyboard_at.cs` → `Intel8042.cs` : `Cpu/386.cs:415`, `Cpu/x86seg.cs:1129`, `Memory/mem.cs:327`,
+  `Mouse/mouse_ps2.cs:13`, `Video/video.cs:480`, `pc.cs:15`, `:86`, `tools/iXtal26.Diff/AtProbe.cs:159` ;
+  `mouse_ps2.cs:46`, qui dit l'histoire (« Jusqu'à PS2.0 il vivait dans keyboard_at.cs »), garde le nom d'alors et
+  ajoute « Intel8042.cs depuis G14 » ;
+- `PluginApi/config.cs:54` : « nvr.cs:85 lit ce champ » → « Motorola146818.cs:101 », la ligne de `s += config_name;`
+  dans `nvrfopen` (calculée par `documents.py` sur le texte d'après les blocs ; à HEAD, cette ligne était `nvr.cs:91`,
+  le renvoi était déjà décalé de six lignes) ;
+- les deux `using iXtal26.Ics;` que G14.1 avait ajoutés à `nvr.cs` et `serial.cs` (`renommage-g141.tsv`), ôtés : les
+  deux fichiers sont maintenant dans l'espace `iXtal26.Ics`, la directive y est sans objet (l'IL n'en dépend pas ;
+  ci-dessous). Aucun fichier d'`Ics/` n'a plus de `using iXtal26.Ics;` (`grep-anciens.log`).
+
+Les commentaires qui citent le C ne changent pas : tout `keyboard_at.c:N`, `nvr.c:N`, `serial.c:N`, les cinq `pclog`
+omis (« keyboard_at : take IRQ1 »…, `Intel8042.cs:195`…), les chemins de fichiers `nvr/…` (`nvr/default/`,
+`nvr/.at.nvr`). Aucun `.cfg` ne cite ces fichiers ni ces classes (`git grep`).
+
+**Les documents vivants** (`documents.log`) :
+- `oracle.tsv` : les cinq `csharp_path` (`Devices/nvr.cs`, `Keyboard/keyboard_at.Materiel.cs`,
+  `Keyboard/keyboard_at.cs`, `Models/serial.cs` deux fois, `serial.c` et `serial.h`) ;
+- `PCEM_BUGS.md` : 3 chemins (`:6024` `Keyboard/keyboard_at.cs`, `:6026` `Keyboard/keyboard_at.Materiel.cs`, `:7898`
+  `Devices/nvr.cs`), dans leurs lignes, aucune portée au-delà de 120 ; les marqueurs que `Recensement.cs` lit
+  (`*Reproduit*`, `*Corrigé en mode matériel*`, `*NON reproduit*`) restent en tête de leur ligne ;
+- `Docs/ibm5150/` : `README.md:120` (l'index des 42 fichiers, `Models/serial.cs` → `Ics/National8250.cs`, à sa
+  place) et `constats.md:34` (`Devices/nvr.cs#writenvr` → `Ics/Motorola146818.cs#writenvr`) ;
+- `TRANSCRIPTION.md` (248 → 249 lignes, plafond 260) : aux « Collisions conteneur/membre » (`:195-197`),
+  `keyboard_at.c` et `keyboard_at_` rejoignent `pic_`, `pit_` et `dma_` ; et `:235`, `nvrfopen` comprise
+  (`nvr.cs:78-103`) → (`Motorola146818.cs:88-113`), recalé par la carte des lignes de `renvois.py` (78 → 88,
+  103 → 113 : le même texte ; à HEAD, `nvrfopen` occupait déjà `nvr.cs:67-109`, le renvoi était décalé, il l'est de
+  même). La ligne `:235` est une ligne de tableau de 1 406 caractères à HEAD (`:234`).
+
+`VERIFICATION.md`, les plans et les rapports de reconnaissance sont des journaux datés : non touchés (décision
+n° 10) ; deux renvois `keyboard_at.cs:155` de `Docs/GR-reconnaissance/R4-contre.md` et `R4-dette.md` y restent
+(`renvois-decales.log`). Le harnais ne l'est pas non plus (décision n° 9) : ses deux commentaires qui nomment `nvr.cs`
+et `keyboard_at.cs` (`harness.c:2092`, `harness_stubs.c:172`) sont ceux que § G14.5 liste déjà ; aucun autre ne
+nomme `Devices.nvr`, `Models.serial`, `Keyboard.keyboard_at`, ni les types d'état (`git grep` sur `tools/oracle/`).
+
+**Ce que l'outil a fait, ce que la main a fait.** Deux juges indépendants de l'outil, sans Roslyn.
+- *Le diff inverse* (`outils/diff_inverse.py`, celui de G14.1 avec un ajout : une entrée « fichier|ancien=>nouveau »
+  ne vaut que pour son fichier, puisque `iXtal26.Ics` vient ici de trois espaces), sur `rp2-g142`, la sortie de l'outil
+  seul, avec la carte `outils/carte-inverse.txt` (les quatre espaces de fichier, puis `iXtal26.Keyboard.keyboard_at=>
+  iXtal26.Ics.Intel8042` … `serial=>National8250`) : 41 morceaux, 57 lignes changées, 1 `using` ajouté ; **0 écart**
+  et **0 caractère hors du code** (`diff-inverse-rp2.log`). Les témoins (`diff-inverse-temoins.log`) : la carte sans
+  ses entrées par fichier sort les quatre lignes `namespace iXtal26.Ics;` en écart ; la carte à l'envers, 40 écarts.
+- *L'écart de la main*, `rp2-g142` → `g142` (`outils/delta_main.py`, `delta-main.log`) : 17 fichiers (12 `.cs` et
+  5 documents), 17 morceaux dans les `.cs`, 0 fichier d'un seul côté ; **15 ne touchent que des commentaires** (les
+  trois blocs, le CS0542, les commentaires ci-dessus) ; **2 ôtent `using iXtal26.Ics;`** (`Motorola146818.cs:54`,
+  `National8250.cs:9`, dans le morceau du bloc) ; **0 autre**, 0 recoupe. `delta_main.py` a reçu deux ajouts : les
+  `__pycache__/` sont écartés (la recette lance `isogen.py` sans `-B` et en laisse un dans `tools/isogen/`, ni suivi
+  ni livré), et chaque morceau est d'abord jugé ligne par ligne : les lignes qui portent du code, de part et d'autre,
+  doivent être les mêmes, ou le seul code retiré `using iXtal26.Ics;` dans `Ics/`. Le premier passage, par caractères
+  seulement, rangeait le morceau de `National8250.cs:9` parmi les commentaires : l'alignement des caractères avait
+  apparié le `using iXtal26.Ics;` ôté à « espace iXtal26.Ics » du bloc neuf ; le classement par lignes le montre.
+- *Les documents* (`diff-inverse-documents.log`) : `oracle.tsv`, `PCEM_BUGS.md`, `Docs/ibm5150/README.md` et
+  `constats.md`, les chemins ramenés, redonnent HEAD à l'octet ; `TRANSCRIPTION.md`, le paragraphe et le renvoi
+  ramenés, à l'octet.
+- *Aucune chaîne ni aucun commentaire de PCem* : une seule ligne retirée porte `// pcem:`, `mouse_ps2.cs:46`
+  (ci-dessus) : son marqueur et son renvoi au C (`mouse_ps2.c:10`) sont gardés en tête, seul le nom du fichier C#
+  est complété ; aucune ne porte « pcem bug ». Les chaînes
+  (`negatif-bootdiff.log`, le lexeur du diff inverse sur chaque `.cs` touché, HEAD contre l'arbre) : les
+  mêmes morceaux de chaîne, dans le même ordre, dans les 22 fichiers (2 934 morceaux), les noms de fichiers de CMOS
+  de `Motorola146818.cs` compris (`"ami386dx_opti495.nvr"`…, 28 morceaux) ; aucun `nameof`, `typeof`, `GetType("…")`
+  ni accès par réflexion ne vise ces types (`git grep`) ; `[CallerFilePath]` ne sert qu'aux `BenchmarkAttribute` du
+  banc, que l'étape ne touche pas.
+
+**L'étape, en tout** : 27 fichiers, 125 lignes ajoutées et 87 retirées (`git diff -M --stat HEAD`), 4 déplacements
+(similarité de 90 à 97 %), 23 modifiés : 18 `.cs` et 5 documents.
+
+### Les portes
+
+- **La construction** (`construction-apres.log`, `--no-incremental`, SDK 10.0.114, le 03/11 à 7 h 21) :
+  `iXtal26.csproj`, `tools/perfbanc` et `tools/iXtal26.Diff`, **0 avertissement, 0 erreur** chacun (les projets
+  traitent les avertissements en erreurs). `iXtal26.dll` de C : `e65ed6b8…a376d6f03` ; `iXtal26.Diff.dll` :
+  `bfd493bc…e1f1bc` ; `iXtal26.SoftFloat.dll` : `935f40be…b332e607`, celui du parent construit dans `g142`. Tous les
+  fichiers suivis que l'étape change sont plus anciens que cette construction (le dernier, `TRANSCRIPTION.md`, à
+  7 h 21 min 02 s) : l'IL, la capture, la copie figée des séries et le banc ont été faits sur elle.
+  La construction finale (`construction-finale.log`, le 03/11 à 11 h 36, après les séries, `--no-incremental`) rend
+  ces DLL à l'octet (iXtal26, iXtal26.Diff, PerfBanc, SoftFloat), 0 avertissement.
+- **`check-oracle.sh`** (`check-oracle-doc.log`) : « 217 transcrit(s) verifie(s), 41 fichier(s) hote ignore(s), 0
+  derive(s), 0 absent(s), arbre vendore OK » ; retour 0, les comptes de R (`cmp-R` : les mêmes).
+- **`check-doc5150.sh`** : « 4 fichiers, renvois justes », retour 0 ; `--couverture` sort 31 fichiers non cités, les
+  31 de R une fois ses chemins portés aux noms de G14.1 et G14.2, rien de plus.
+- **L'IL par la table** (`il-portes.log`, `il/`, `outils/il-portes.sh` : `ildump comparer --noms tools/noms/g14.txt
+  --jusqua G14.2`, R = les DLL de bin/ de `ref-R`, iXtal26.Diff de `S-g14r`) :
+  - iXtal26 : 5 738 entrées (617 types, 5 120 méthodes, 423 653 instructions), **0 changée, 0 disparue, 0 apparue** ;
+    3 875 noms réécrits dans le vidage de R (« 15 types et 10 fichiers ») ;
+  - iXtal26.Diff : 3 331 entrées, **0** ; 195 noms réécrits ;
+  - SoftFloat : 90 entrées, 0, avec ou sans la table ;
+  - le banc : 297 entrées, 35 changées, 0 disparue, 0 apparue : les 35 `BenchmarkAttribute` de G14.1, et elles
+    seules (aucune ligne de détail hors de cet attribut) ; le rapport est celui de G14.1 à l'arbre près, `g141` →
+    `g142`, dans le texte et dans le blob hexadécimal (`il/banc-attributs.log`) : 34 par le seul chemin de
+    `[CallerFilePath]`, `Machine::Fenetre` aussi par `[CallerLineNumber]` 84 → 85, la ligne que le `using
+    iXtal26.Ics;` de G14.1 a décalée. G14.2 ne touche aucun fichier de `tools/perfbanc/`.
+  - Les deux `using iXtal26.Ics;` ôtés n'y laissent rien : une directive n'est pas dans l'IL.
+- **Les listings du JIT par la table** (`jit-portes.log`, `outils/jit-portes.sh`) : la capture de C
+  (`outils/capture-C.sh`, le 03/11 de 7 h 28 à 7 h 44, par le script et le bac à sable de `g142`, `os/` copié de
+  `ser-R/os/` par `prep-g142.sh` ; `runtime.txt` : 10.0.14, `dll e65ed6b886b2e242`) : 30 scénarios, 1 512 méthodes,
+  les comptes par scénario de R, 0 mention de MinOpts. Contre `ref-R-captures-10.0.14/jit`, `compare --noms
+  tools/noms/g14.txt --jusqua G14.2` : **0 changée, 0 disparue, 0 apparue**, 443 noms réécrits ; « 15 types (12 vus,
+  3 que les scénarios ne compilent pas : `PIC`, `PIT_nr`, `dma_t`) » : les sept types de G14.2 sont tous vus. Contre
+  la capture de 10.0.13 (`ref-R-captures/jit`), la même : 0 aussi. Un premier lancement de `jit-portes.sh` passait
+  les options après les répertoires et sortait sur l'usage (retour 2) ; gardé (`essais/jit-portes-1-usage.log`).
+
+- **Le banc contre R** : `compare-ref.sh --empreintes-r /var/tmp/ixtal-g14/gel-R-10.0.14/empreintes-r.sha256
+  --lancees-r /var/tmp/ixtal-g14/gel-R-10.0.14/lancees-r.txt /var/tmp/ixtal-g14/ref-R /var/tmp/ixtal-g14/g142 banc-C`
+  (`outils/bancs.sh`, le `compare-ref.sh` de `g142`, celui de `g141` à l'octet), C construit en Release (la
+  construction de 7 h 21), les 14 groupes, 65 cas, la règle des trois passes, après cinq minutes calmes de suite
+  (`calme.log`, de 7 h 46 à 7 h 51). Le 03/11 de 7 h 51 à 8 h 43 : **vert, 65 cas sur 65 dès la passe 1**, sans
+  passe 2 ni passe 3, en 52,7 min (`banc-C/rapport.txt`, `rapport.tsv`, `banc-C-synthese.txt`).
+  - Aucun refus, aucun « à confirmer ». Le gel est vérifié sur les 28 passages de R ; bin/ de R intact après
+    (`sha256sum -c`), le manifeste de fin conforme, `git status` vide, aucun répertoire de job, ni dans `ref-R` ni dans
+    `g142`.
+  - Aucun rouge exact : les allocations égales à l'octet sur les 65 cas, aucune instable ; les états et les
+    empreintes de Machine égaux.
+  - C/R − 1 va de −0,37 % (Exec386Pcem) à +0,50 % (RenduCga, « tout »), médiane −0,01 % ; par groupe, de −0,24 %
+    (Fetch) à +0,26 % (RenduCga). La borne basse la plus haute est −0,02 % (Machine ami286, « tout »), la borne haute
+    la plus basse +0,05 % (Machine pc1512, « aucun ») ; l'intervalle le plus large, 3,42 points, Exec386Pcem
+    [−2,54 ; +0,88].
+  - La sonde n'a noté aucun relevé de plus de 0,3 UC sur les 56 passages.
+  - *La dérive de l'hôte* : R de ce banc contre R du banc de G14.1 (`g14-1/banc-C/rapport.tsv`) : 65 cas, médiane
+    −0,02 %, de −0,77 % (Video) à +0,47 % (Exec386) ; contre R de la porte du réancrage (`g14-1/porte-R`) : médiane
+    +0,02 %, de −0,69 % (RenduCga) à +0,65 % (Son).
+  - Les rapports nomment C « `g142` (d561881fab0c) » : le banc a mesuré l'arbre renommé avant son commit ; l'arbre
+    commité est celui-là (ci-dessus, la construction).
+  C'est le troisième renommage pur mesuré. Machine fait passer, sur les modèles AT, le 8042 (son chronomètre,
+  `keyboard_at_poll_timer`, `Intel8042.cs:847`) et le MC146818 (ses trois chronomètres, `Motorola146818.cs:541-543`) ;
+  ce que les UART y font au-delà de leur initialisation n'est pas établi ici, et leur 0 % repose sur l'IL et les
+  listings. Le banc ne voit rien qui sorte du bruit A/A de G14.0b.
+
+- **Les séries entières dans les deux modes** (`outils/series-g142.sh`, `series-g142.log`), jouées comme `g14r` et
+  `g141` : la copie figée `S-g142` (la construction de 7 h 21 : `iXtal26.dll` `e65ed6b8…`, `iXtal26.Diff.dll`
+  `bfd493bc…`, et la `.so` de `S-g14r`, `fe905731…` ; `S-g142.sha256`, `prep-serie-g142.log`), les portes copiées de
+  `g142` (`gates-g142`, `gates-g142-tout` ; `tools/gates/` de `g142` est celui de `ser-R` à l'octet, `diff -r` vide),
+  `MALLOC_PERTURB_=85`, dix voies, l'ordre tiré des durées de `g14r`, `TMPDIR_SERIE` par défaut
+  (`/var/tmp/ixtal-par/g142`, un nom de la longueur de `g14r`). `REPO` = `g142`, préparé comme `ser-R`
+  (`outils/prep-g142.sh`, `prep-g142.log`) : `os/` copié de `ser-R/os/` fichier par fichier (161 fichiers, le disque
+  386 de `gr1i2`, `9ce09889…`, compris ; 0 lien ; le `sha256sum -c` d'`os.sha256` y sort `386-HDD-C.img` et
+  `486-HDD-C.img` en « FAILED », comme en G14.1 : les deux images réécrites par des séances du 23 et du 24/10, laissées
+  telles quelles depuis G14.0d, les mêmes à l'octet que celles de `ser-R`), `vectors/` lié entrée par entrée (les mêmes
+  entrées que `ser-R`), `roms/` lié entrée par entrée. Le WORK est neuf, fait par la recette de `g142`
+  (`recette-g142.log`, les 11 « Cannot
+  open file '' » de la recette de `g14r`) : `/var/tmp/ixtal-g14/g14-2/g5w-g14-2`, conforme à `g5w.sha256`
+  (30 empreintes) avant et après les deux séries, au chemin de la longueur de `g14-0d/g5w-g14r` (34 caractères).
+  Avant chaque série, cinq minutes calmes de suite (`calme.log`).
+  - `g142`, le 03/11 de 8 h 48 à 10 h 41 (1 h 52) : **827 vertes**, aucune rouge ; `banc-atapibanc-vide`, que le
+    délai d'horloge de `Banc.cs:166-169` avait frappée en G14.0d et en G14.1, est passée cette fois.
+  - `g142-tout`, sous `MATERIEL=tout`, le 03/11 de 10 h 46 à 11 h 34 (48 min) : **549 vertes, 267 refusées par le
+    mode, 11 « pcem »**, aucune rouge : les comptes de `g14r-tout`.
+  - *Les comparaisons* (`compare-series.py --racine /var/tmp/ixtal-g14/ser-R /var/tmp/ixtal-g14/g142 --work
+    /var/tmp/ixtal-g14/g14-0d/g5w-g14r /var/tmp/ixtal-g14/g14-2/g5w-g14-2`) :
+    - `g142` contre `g14r` : 827 portes communes, **0 écart** (`g142-contre-g14r.log`) ; bruit retiré : 1 654 durées,
+      70 répertoires, 68 PID, 2 textes coupés, 12 temps de l'hôte, 38 racines et WORK, 0 longueur de séance ;
+    - `g142-tout` contre `g14r-tout` : 827 communes, **0 écart** (`g142-tout-contre-g14r-tout.log`) ; 1 654 durées,
+      52 répertoires, 50 PID, 12 temps de l'hôte, 0 longueur de séance.
+    Les mêmes comptes de bruit qu'en G14.1. Les tsv sont doublés dans `/var/tmp/ixtal-g13/series/` (`g142.tsv`,
+    `g142-tout.tsv`) ; les journaux sont dans `g14-2/series/`.
+  - *Runtime ou renommage ?* `g14r` et `g14r-tout` ont été jouées sous 10.0.13, `g142` et `g142-tout` sous 10.0.14.
+    Aucune porte n'est en écart : rien à départager, la portion de R n'a pas été rejouée.
+
+- **La `.so` de l'oracle** : `git diff HEAD -- tools/oracle/ pcem-dev/` vide dans `g142`, et `git diff f15e11f HEAD`
+  aussi ; les séries jouent la `.so` de `S-g14r`, copiée dans `S-g142`, conforme à `gel-R/S-g14r.sha256`
+  (`fe905731…6bc03ae` ; `prep-serie-g142.log`).
+- **Les anciens noms** (`grep-anciens.log`), dans le code compilé (`*.cs` d'`iXtal26/`, `tools/iXtal26.Diff/`,
+  `tools/perfbanc/`) : `iXtal26.Keyboard.(keyboard_at|keyboard_at_t|mouse_write_fn)`, `iXtal26.Devices.nvr`,
+  `iXtal26.Models.(serial|SERIAL|serial_rcr_fn)` : **0** ; les mêmes, relatifs (`Keyboard.keyboard_at`,
+  `Devices.nvr`, `Models.serial`…) : **0** ; `using static iXtal26.(Keyboard.keyboard_at|Devices.nvr|Models.serial)` :
+  **0** ; `class (keyboard_at|nvr|serial)` : 0 ; ceux de G14.1 : 0 encore. Aucun `keyboard_at.*`, `nvr.*`,
+  `serial.*` sous `Keyboard/`, `Devices/`, `Models/` ; les fichiers restés gardent leur espace (`Keyboard/` 4,
+  `Devices/` 1, `cassette.cs`, `Models/` 10) ; `Ics/` a 10 fichiers, tous `namespace iXtal26.Ics`. Un premier passage
+  mêlait les `.md` d'`iXtal26/` par un pathspec en OU (les rapports de la reconnaissance sortaient sous « G14.1 ») :
+  refait sur les `.cs` seuls, dans le même journal. Hors du code compilé, les anciens noms ne restent que dans les
+  blocs `// noms:` (« avant G14, Devices/nvr.cs »), la table, les deux commentaires du harnais et les journaux datés.
+- **Les lignes neuves** (`outils/longues.py`, `git diff -M -U0 HEAD`, en caractères, fichiers neufs en entier) : 125
+  lignes ajoutées, aucune de plus de 120 caractères dans les `.cs` ni dans la prose neuve. Cinq restent au-delà,
+  qui l'étaient déjà à HEAD et ne se coupent pas : quatre enregistrements d'`oracle.tsv` (`:35` 501 → 508, `:66`
+  259 → 252, `:211` 166 → 169, `:212` 171 → 174 ; 221 des 273 lignes du tsv dépassent 120 à HEAD) et la ligne de
+  tableau `TRANSCRIPTION.md:235` (1 406 → 1 417, `:234` à HEAD). `longues.py` de G14.1 commençait par `git add -N
+  .`, qui a inscrit à l'index de `g142` le `__pycache__` de la recette (« intent to add ») ; l'inscription est
+  retirée (`git reset`), l'outil corrigé, le compte refait : le même.
+- **Aucun champ statique neuf** : l'IL d'iXtal26 est celui de R par la table, champs, constantes et constructeurs
+  statiques compris.
+
+### Les contrôles négatifs
+
+Chacun a son journal, gardé (le défaut de G14.1, dont le contrôle de `check-doc5150.sh` avait dû être rejoué).
+- *Sans la table de l'étape, les types de G14.2 sortent disparus et apparus.* La référence est R, d'avant G14.1 : le
+  contrôle propre à l'étape est la table arrêtée à G14.1 (`--jusqua G14.1`), qui renomme ce que G14.1 a renommé et
+  rien de G14.2.
+  - `ildump comparer --noms … --jusqua G14.1` (`il-negatif.log`, `il/iXtal26-jusqua-G14.1.txt`) : iXtal26, 26
+    changées, **83 disparues, 83 apparues** ; les 83 de chaque côté sont des trois conteneurs, de leurs types
+    imbriqués (`nvr_t`, `Etat8042`, les `<>O` du compilateur) et des quatre types d'état et rappels
+    (`iXtal26.Keyboard.keyboard_at` 30, `.Devices.nvr` 19, `.Models.serial` 18, `keyboard_at_t` 2, `mouse_write_fn`
+    5, `SERIAL` 3, `serial_rcr_fn` 5), leurs pendants `iXtal26.Ics.*` apparus, plus une méthode de
+    `iXtal26.Mouse.mouse_serial` dont la signature nomme `SERIAL` (`mouse_serial_rcr(SERIAL, Object)`) ; aucune autre.
+    Les 26 changées appellent ou lisent ces types (`BootTest::Run` → `savenvr`, `model_c::at_init` →
+    `keyboard_at_init`…). iXtal26.Diff, 6 changées.
+  - Sans aucune table (`il/iXtal26-sans.txt`), G14.1 et G14.2 ensemble : 105 changées, 189 disparues, 189 apparues
+    (106 de G14.1, 83 de G14.2).
+  - `listings-jit.sh compare --noms … --jusqua G14.1` (`jit-jusqua-G14.1.txt`) : **8 changées, 33 disparues,
+    33 apparues** : `Devices.nvr` 12 et `nvr_t` 1, `Keyboard.keyboard_at` 9, `keyboard_at_t` 1, `Models.serial` 8,
+    `SERIAL` 2 disparues, leurs pendants `Ics.*` apparus. Sans aucune table (`jit-sans-table.txt`) : 38 changées,
+    76 disparues, 76 apparues (les 43 de G14.1 et ces 33).
+- *`oracle.tsv` laissé à l'ancien chemin* (`negatif-oracle.log`, le 03/11 à 7 h 14, après le renommage et avant
+  l'édition des documents : l'`oracle.tsv` de `d561881`, sha256 `68166419…`, `git diff` vide) : cinq « ABSENT C# »
+  (`Devices/nvr.cs`, `Keyboard/keyboard_at.Materiel.cs`, `Keyboard/keyboard_at.cs`, `Models/serial.cs` deux fois),
+  « 213 transcrit(s) … 40 fichier(s) hote … 5 absent(s) », retour 1. Après l'édition : 217, 41, 0, retour 0.
+- *`check-doc5150.sh` avant l'édition des documents* (`negatif-doc5150.log`, le 03/11 à 7 h 14, `Docs/ibm5150/` de
+  `d561881`, `git diff` vide) : retour 1, deux « introuvable » (`constats.md:34 : Devices/nvr.cs`, `README.md:120 :
+  Models/serial.cs`) ; après : retour 0.
+- *Les étiquettes de boot-diff* (`negatif-bootdiff.log`) : `BootDiff.cs` n'est pas touché par l'étape (`git diff -U0
+  HEAD -- tools/iXtal26.Diff/BootDiff.cs` : 0 ligne ; 948 morceaux de chaîne, ceux de HEAD) ; et dans chacun des
+  22 `.cs` touchés, les morceaux de chaîne de HEAD, dans le même ordre (2 934 en tout).
+- *Le diff inverse* (`diff-inverse-temoins.log`) : sans les entrées par fichier, 4 écarts ; à l'envers, 40 (ci-dessus).
+
+### La durée
+
+Le 03/11 de 7 h 08 à 11 h 37, environ 4 h 30, dont environ 4 h de machine : la capture du JIT (15 min), la recette
+(2 min), le banc de C (53 min), `g142` (1 h 52), `g142-tout` (48 min), les guets du calme (cinq minutes chacun),
+les constructions. Ce que les journaux montrent de la machine : chaque guet a conclu en cinq relevés de suite
+(`calme.log`), la sonde du banc n'a rien noté sur 56 passages, et aucune porte n'a passé le délai de l'hôte ; aucun
+journal ne couvre la machine pendant les séries, la capture et les constructions. Ni réancrage ni rejeu n'ont été
+nécessaires, d'où la durée, contre 8 h pour G14.1.
+
+Contre-lecture en deux relectures, le code et la preuve : dans le code, deux numéros de ligne du bloc `// noms:`
+d'`Intel8042.cs` repris (`keyboard_at.c:31-64` et `:64`, non `:65`) ; dans la preuve, une erreur (`nvr.cs:67-109`)
+et sept imprécisions reprises, dont l'appelant de `loadnvr` (`resetpchard`, non `initpc`) et le « FAILED »
+d'`os.sha256`.
+
+### Les risques
+
+- *Le runtime, encore.* Aucune mise à jour depuis le réancrage de G14.1 ; une mise à jour d'apt de .NET avant G14.3
+  demandera le réancrage de § G14.1.
+- *Les renvois de ligne décalés* : l'étape décale peu (les blocs `// noms:` dans trois fichiers, un `using` ajouté
+  dans `mouse_serial.cs`) ; `renvois.py` (`renvois-decales.log`) : 169 renvois vers les 22 fichiers modifiés, 4 à
+  recaler (deux de `TRANSCRIPTION.md`, recalés ; deux des rapports clos, non touchés), 3 vers la ligne changée,
+  tous `config.cs:54` (de `TRANSCRIPTION.md`, `Motorola146818.cs` et `ixtal26-286-install.cfg`) : ils visent le
+  commentaire recalé lui-même, et restent justes.
+- *La machine partagée* : le guet attend le calme, et le banc refuse une passe dès qu'un processus lourd paraît.
+- *L'outil de renommage* lie le Roslyn privé du SDK (5.0.26.52326 sous 10.0.114, inchangé depuis G14.1) ; il ne sait
+  appliquer qu'un cumul d'étapes (« Hors de la portée »).
+
+### Hors de la portée
+
+Trouvé en route, non corrigé (règle du 18/10) :
+- **Trois directives `using` devenues inutiles** (`usings-inutiles.log`, dans `rp2-g142`, chaque directive ôtée
+  seule puis la construction) : `using iXtal26.Models;` de `Mouse/mouse_serial.cs` (il n'y servait qu'à `SERIAL` et
+  `serial`), `using iXtal26.Models;` d'`Ics/Intel8042.cs` (non établi : depuis G14.2, ou depuis G14.1, qui a sorti
+  `pic` et `pit` de `Models`), `using iXtal26.Keyboard;` de `tools/iXtal26.Diff/MaterielCas.cs`. Le compilateur ne
+  les signale pas (CS8019 est caché, IDE0005 n'est pas réglé) ; l'outil de renommage en ajoute, il n'en ôte jamais.
+  Seules celles d'`Ics/` qui nommaient leur propre espace ont été ôtées (ci-dessus). Les ôter est un nettoyage, que
+  G14.5 ou G15 peut faire avec l'IL pour juge ; `using iXtal26.Models;` de `Motorola146818.cs`, `using
+  iXtal26.Keyboard;` de `BootTest.cs` et `using iXtal26.Models;` de `MaterielCas.cs` servent encore.
+- **`tools/renommage` ne sait pas jouer une étape seule** : `--jusqua` cumule depuis le début (`TableDesNoms.cs:31`),
+  et une étape déjà faite fait refuser la suivante (`Program.cs:131-132`). L'étape a passé un extrait de la table
+  (`noms-g142-seule.txt`) ; G14.3 et G14.4 feront de même, ou l'outil prendra une option `--etape`.
+- **Deux renvois déjà décalés à HEAD** : `TRANSCRIPTION.md:235` (`nvr.cs:78-103`, alors que `nvrfopen` occupait
+  `:67-109`), recalé par la carte des lignes et donc encore décalé (`Motorola146818.cs:88-113`, la fonction est
+  à `:77-119`) ; `config.cs:54` (`nvr.cs:85`, la ligne `:91`), recalé sur la ligne visée parce qu'il désigne le
+  fichier renommé (`Motorola146818.cs:101`).
+- **`// pcem: serial.h:17-37`** (`National8250.cs:29`) : la struct `SERIAL` de PCem va de `serial.h:17` à `:35`
+  (`} SERIAL;`) ; le bloc `// noms:` dit `:17-35`.
+- **La recette laisse un `__pycache__`** : `g5w-recipe.sh` lance `isogen.py` sans `-B` et écrit
+  `tools/isogen/__pycache__/` dans l'arbre (non suivi, non ignoré : il est aussi dans le `git status` du dépôt
+  principal). Rien ne le livre ; `delta_main.py` l'écarte.
+- **`delta_main.py` de G14.1 jugeait par caractères** : un `using` ôté à côté d'un commentaire neuf qui contient le
+  même nom était rangé parmi les commentaires ; corrigé dans la copie jetable de l'étape (le jugement ligne par ligne
+  d'abord), dit ci-dessus.
+- **Deux renvois des rapports clos** (`Docs/GR-reconnaissance/R4-contre.md`, `R4-dette.md` : `keyboard_at.cs:155`,
+  aujourd'hui `Intel8042.cs:169`) : journaux datés, non touchés (décision n° 10).
+- Les deux commentaires du harnais (`harness.c:2092` `nvr.cs`, `harness_stubs.c:172` `keyboard_at.cs`) restent ceux
+  que § G14.5 liste ; G14.2 n'en ajoute pas.

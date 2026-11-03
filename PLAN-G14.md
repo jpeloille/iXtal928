@@ -9,10 +9,11 @@
 ## Où on en est
 
 G14.0a à G14.0d sont faites : la référence est gelée au commit R = `f15e11f` (`/var/tmp/ixtal-g14/ref-R`, séries
-`g14r` et `g14r-tout`, VERIFICATION.md § G14.0d), les outils de la preuve sont en place. G14.1 est faite : `pic`,
-`pit` et `dma` sont `Intel8259A`, `Intel8253` et `Intel8237`, dans `Ics/` (VERIFICATION.md § G14.1). Le runtime est
-passé à 10.0.14 le 31/10 : la référence a été réancrée (§ G14.1, le réancrage), sans rien reconstruire. G14.2 attend
-son feu vert.
+`g14r` et `g14r-tout`, VERIFICATION.md § G14.0d), les outils de la preuve sont en place. G14.1 et G14.2 sont faites :
+`pic`, `pit` et `dma` sont `Intel8259A`, `Intel8253` et `Intel8237` (VERIFICATION.md § G14.1), `keyboard_at`, `nvr`
+et `serial` sont `Intel8042`, `Motorola146818` et `National8250` (§ G14.2), dans `Ics/`. Le runtime est passé à
+10.0.14 le 31/10 : la référence a été réancrée (§ G14.1, le réancrage), sans rien reconstruire ; il n'a pas changé
+depuis. G14.3 attend son feu vert.
 
 ### Ce que les lectures ont trouvé
 
@@ -219,13 +220,13 @@ l'espace de noms `iXtal26.Ics`.
 - `oracle.tsv` laissé à l'ancien chemin fait sortir `check-oracle.sh` en « ABSENT C# » ;
 - les étiquettes de boot-diff (`"dma[{c}]…"`) sont inchangées : `git diff` de `BootDiff.cs` limité aux sites qualifiés.
 
-### G14.2 — Le 8042, le MC146818 et l'UART
+### G14.2 — Le 8042, le MC146818 et l'UART  ✅ *fait, VERIFICATION.md § G14.2*
 
 `keyboard_at` → `Intel8042` ; `nvr` → `Motorola146818`, qui quitte `Devices/` ; `serial` → `National8250`. Leur bloc
 `// noms:` dit trois choses :
 - `National8250` couvre le 8250, le 16450 et le 16550 par `has_fifo` ;
-- `Motorola146818` porte aussi `nvrfopen` et `loadnvr`, que l'EEPROM de l'AHA-1542C emploie ;
-- l'horloge reste dans `rtc.cs` (décision n° 4).
+- `Motorola146818` porte aussi `nvrfopen`, que l'EEPROM de l'AHA-1542C emploie, et `loadnvr` ;
+- l'horloge reste dans `rtc.cs` (décision n° 4 bis).
 
 Mêmes portes et mêmes contrôles négatifs que G14.1.
 

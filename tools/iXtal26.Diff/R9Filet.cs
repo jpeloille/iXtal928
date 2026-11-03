@@ -49,12 +49,12 @@ internal static class R9Filet
         try
         {
             var chemin = paths.nvr_path;
-            var romset = Devices.nvr.oldromset;
+            var romset = Ics.Motorola146818.oldromset;
             try
             {
                 paths.nvr_path = Path.Combine(tmp, "absent") + "/";
-                Devices.nvr.oldromset = pc.ROM_IBMAT;
-                Devices.nvr.savenvr();
+                Ics.Motorola146818.oldromset = pc.ROM_IBMAT;
+                Ics.Motorola146818.savenvr();
                 Console.WriteLine("  PB-33, savenvr sans répertoire nvr/ : survit, le CMOS n'est pas écrit et la sortie continue");
             }
             catch (Exception e)
@@ -65,7 +65,7 @@ internal static class R9Filet
             finally
             {
                 paths.nvr_path = chemin;
-                Devices.nvr.oldromset = romset;
+                Ics.Motorola146818.oldromset = romset;
             }
 
             var romsAbsolu = Path.GetFullPath(romsPath);

@@ -6,6 +6,19 @@
 //         machines etrangeres (T3100E, Xi8088, GRID1520, SPC6000A, Endeavor, Zappa,
 //         Itautec, GA686BX), et les pclog. Voir le registre des omissions.
 //
+// noms: PCem → iXtal26 → ce qu'il désigne — R1(e). « = » : nom inchangé.
+//   keyboard_at.c  Ics/Intel8042.cs  le fichier ; avant G14, Keyboard/keyboard_at.cs
+//   (aucun)     Ics/Intel8042.Materiel.cs  le mode matériel ; avant G14, Keyboard/keyboard_at.Materiel.cs
+//   (aucun)     Intel8042           le conteneur, Intel 8042, le contrôleur du clavier de l'AT, et du PS/2 par
+//                                   keyboard_at_init_ps2 ; avant G14, la classe `keyboard_at` (iXtal26.Keyboard)
+//   (aucun)     keyboard_at_t       la struct anonyme de keyboard_at.c:31-64, l'état du 8042 ; espace iXtal26.Ics
+//   (aucun)     mouse_write_fn      le rappel de la souris PS/2, la signature de keyboard_at.h:7 ; espace
+//                                   iXtal26.Ics
+//   keyboard_at keyboard_at_        l'état (keyboard_at.c:64) ; « _ » : `keyboard_at` était le nom du conteneur
+//                                   (CS0542)
+//   Les FONCTIONS et les autres globales gardent les noms de PCem (keyboard_at_init, keyboard_at_poll…) : elles
+//   sont l'API entre modules (fdc.cs:47 ; PLAN-G14.md, décision n° 1).
+//
 // LE 8042, ET IL TIENT DEUX CHOSES QUI NE SONT PAS DU CLAVIER.
 //
 // C'est un microcontroleur avec son propre programme, place entre le clavier et le
@@ -49,7 +62,7 @@ using static iXtal26.pc;
 using static iXtal26.ppi_c;
 using static iXtal26.timer;
 
-namespace iXtal26.Keyboard;
+namespace iXtal26.Ics;
 
 // pcem: keyboard_at.c:31-65 — la struct anonyme de PCem. Classe et non struct, comme
 // keyboard_xt_t : timer_add prend l'adresse des trois chronometres.
@@ -92,7 +105,7 @@ internal sealed class keyboard_at_t
 // pcem: keyboard_at.h:7 — la signature que keyboard_at_set_mouse enregistre.
 internal delegate void mouse_write_fn(uint8_t val, object? p);
 
-internal static partial class keyboard_at
+internal static partial class Intel8042
 {
     // pcem: keyboard_at.c:17-25 — STAT_MFULL partage 0x20 avec STAT_TTIMEOUT, et ce
     // n'est pas une coquille de PCem : le meme bit dit « tampon souris plein » sur un
@@ -117,8 +130,9 @@ internal static partial class keyboard_at
     private const int RESET_DELAY_TIME = 100 * 10;
 
     // pcem: keyboard_at.c:65
-    // CS0542 : la globale `keyboard_at` ne peut pas porter le nom de la classe
-    // conteneur. Suffixe `_`, comme keyboard_xt_, pic_ et pit_.
+    // CS0542 : la globale `keyboard_at` ne pouvait pas porter le nom de la classe
+    // conteneur, `keyboard_at` avant G14 ; le nom reste (PLAN-G14.md, décision
+    // n° 1). Suffixe `_`, comme keyboard_xt_, pic_ et pit_.
     // PAS `readonly` : keyboard_at_init la REMPLACE, voir plus bas.
     internal static keyboard_at_t keyboard_at_ = new();
 

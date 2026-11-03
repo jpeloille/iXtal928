@@ -31,7 +31,7 @@ change, et avec quel niveau de preuve.
 - **Notre code.** Deux variables.
   - Le port A0h écrit `nmi_mask` de la classe `nmi` (`Models/nmi.cs#nmi_write`), que personne ne relit.
   - Le 8088 lit le sien, déclaré dans `_808x` (`Cpu/808x.cs#nmi_mask`), que seuls l'AT (`Models/model.cs#at_init`) et le
-    CMOS (`Devices/nvr.cs#writenvr`) écrivent.
+    CMOS (`Ics/Motorola146818.cs#writenvr`) écrivent.
   - Sur un 5150, ce second masque reste donc à 0.
 - **L'effet.** Rien aujourd'hui, car rien ne déclenche de NMI sur un 5150. Mais la correction de PB-69 proposée pour le
   mode matériel de G13 passe par ce chemin : l'erreur du 8087 lève `nmi`, et le 8088 la sert si `nmi_mask` est posé.

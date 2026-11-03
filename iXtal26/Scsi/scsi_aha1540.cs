@@ -2073,7 +2073,7 @@ internal static partial class scsi_aha1540
         FileStream? f;
 
         scsi.fn = fn;
-        f = Devices.nvr.nvrfopen(scsi.fn, "rb");
+        f = Ics.Motorola146818.nvrfopen(scsi.fn, "rb");
         if (f is null)
         {
                 Array.Clear(scsi.eeprom, 0, 35);
@@ -2086,7 +2086,7 @@ internal static partial class scsi_aha1540
     // pcem: scsi_aha1540.c:2109-2116
     private static void aha1542c_eeprom_save(aha154x_t scsi)
     {
-        FileStream? f = Devices.nvr.nvrfopen(scsi.fn, "wb");
+        FileStream? f = Ics.Motorola146818.nvrfopen(scsi.fn, "wb");
 
         if (f is null)
                 return;

@@ -117,7 +117,7 @@ Chaque fichier du cœur, avec les chapitres qui l'expliquent :
 - `Ics/Intel8253.cs` : 04, 08, 12
 - `Ics/Intel8237.cs` : 09
 - `Models/nmi.cs` : 14
-- `Models/serial.cs` : 17
+- `Ics/National8250.cs` : 17
 - `Cpu/808x.cs` : 01, 02, 03, 14
 - `Cpu/x86.cs` : 01
 - `Cpu/x86seg.cs` : 01

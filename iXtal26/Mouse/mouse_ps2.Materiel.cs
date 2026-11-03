@@ -9,7 +9,7 @@
 // PCEM_BUGS.md. Les commandes et leurs réponses sont celles de Chapweske (« The PS/2 Mouse Interface », 2001) et de
 // Brouwer (« The PS/2 mouse »), sources secondaires ; l'octet d'état est celui d'IBM (15F0306, p. 2-97).
 
-using static iXtal26.Keyboard.keyboard_at;
+using static iXtal26.Ics.Intel8042;
 using static iXtal26.Mouse.mouse;
 
 namespace iXtal26.Mouse;

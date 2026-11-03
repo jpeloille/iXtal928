@@ -9,6 +9,17 @@
 //         lignes qu'ils font sont un nom de fichier par machine, sur une
 //         trentaine de machines absentes. Voir le registre des omissions.
 //
+// noms: PCem → iXtal26 → ce qu'il désigne — R1(e). « = » : nom inchangé.
+//   nvr.c       Ics/Motorola146818.cs  le fichier ; avant G14, Devices/nvr.cs
+//   (aucun)     Motorola146818      le conteneur, Motorola MC146818 ; avant G14, la classe `nvr` (iXtal26.Devices)
+//   nvr_t       =                   la struct de nvr.c:25-31, imbriquée : elle suit le conteneur
+//   Le conteneur porte aussi ce que nvr.c range à côté de la puce : nvrfopen (nvr.c:33-54), le chemin d'un
+//   fichier de nvr/, que l'EEPROM de l'AHA-1542C emploie aussi (scsi_aha1540.c:2100, :2110) ; loadnvr et savenvr
+//   (nvr.c:233, :544), le fichier de CMOS de la machine. L'horloge reste dans rtc.cs, à la racine (rtc et rtc_h ;
+//   PLAN-G14.md, décision n° 4 bis).
+//   Les FONCTIONS et les globales gardent toutes les noms de PCem (nvrram, writenvr, readnvr…) : elles sont
+//   l'API entre modules (fdc.cs:47 ; PLAN-G14.md, décision n° 1).
+//
 // L'HORLOGE TEMPS RÉEL ET LES 128 OCTETS DE CMOS, ET LE POST LES LIT AVANT TOUT.
 //
 // Le MC146818 tient deux choses derrière la même paire de ports, 0x70 et 0x71 :
@@ -40,11 +51,10 @@ using iXtal26.PluginApi;
 using static iXtal26.Flash.rom;
 using static iXtal26.PluginApi.config;
 using static iXtal26.rtc_h;
-using iXtal26.Ics;
 
-namespace iXtal26.Devices;
+namespace iXtal26.Ics;
 
-internal static class nvr
+internal static class Motorola146818
 {
     // pcem: nvr.c:18-23
     internal static int oldromset;

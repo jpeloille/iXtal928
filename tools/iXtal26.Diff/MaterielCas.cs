@@ -3704,9 +3704,9 @@ internal static partial class MaterielCas
     private static void Clavier8042()
     {
         _808x.Reset();
-        keyboard_at.keyboard_at_init();
-        keyboard_at.keyboard_at_.mem[0] = 0x01;
-        keyboard_at.keyboard_at_.translate = 0;
+        Intel8042.keyboard_at_init();
+        Intel8042.keyboard_at_.mem[0] = 0x01;
+        Intel8042.keyboard_at_.translate = 0;
         mouse_ps2.mouse_scan = 0;
     }
 
@@ -3716,9 +3716,9 @@ internal static partial class MaterielCas
         var lus = new List<int>();
         for (var k = 0; k < 400; k++)
         {
-            keyboard_at.keyboard_at_poll();
-            if ((keyboard_at.keyboard_at_.status & 1) != 0)
-                lus.Add(keyboard_at.keyboard_at_read(0x60, null));
+            Intel8042.keyboard_at_poll();
+            if ((Intel8042.keyboard_at_.status & 1) != 0)
+                lus.Add(Intel8042.keyboard_at_read(0x60, null));
         }
         return lus;
     }
@@ -3733,23 +3733,23 @@ internal static partial class MaterielCas
     {
         var bad = 0;
         Clavier8042();
-        keyboard_at.keyboard_at_adddata_keyboard(0x01);
-        keyboard_at.keyboard_at_poll();
-        keyboard_at.keyboard_at_poll();
+        Intel8042.keyboard_at_adddata_keyboard(0x01);
+        Intel8042.keyboard_at_poll();
+        Intel8042.keyboard_at_poll();
         for (var c = 2; c <= 20; c++)
-            keyboard_at.keyboard_at_adddata_keyboard((byte)c);
+            Intel8042.keyboard_at_adddata_keyboard((byte)c);
         var lus = Vider8042();
         var att = hw ? Enumerable.Range(1, 17).Append(0).ToList() : [1, 18, 19, 20];
         bad += Voir("clavier, 01h au tampon de sortie, puis 02h à 14h sans lecture", lus.SequenceEqual(att), Hex(lus),
                     Hex(att), hw);
 
         Clavier8042();
-        keyboard_at.keyboard_at_.translate = 1;
-        keyboard_at.keyboard_at_adddata_keyboard(0x16);  // « 1 », traduit 02h
-        keyboard_at.keyboard_at_poll();
-        keyboard_at.keyboard_at_poll();
+        Intel8042.keyboard_at_.translate = 1;
+        Intel8042.keyboard_at_adddata_keyboard(0x16);  // « 1 », traduit 02h
+        Intel8042.keyboard_at_poll();
+        Intel8042.keyboard_at_poll();
         for (var c = 0; c < 17; c++)
-            keyboard_at.keyboard_at_adddata_keyboard(0x1c);
+            Intel8042.keyboard_at_adddata_keyboard(0x1c);
         lus = Vider8042();
         att = hw ? [0x02, .. Enumerable.Repeat(0x1e, 16), 0xff] : [0x02, 0x1e];
         bad += Voir("clavier traduit, 16h au tampon de sortie, puis dix-sept fois 1Ch", lus.SequenceEqual(att), Hex(lus),
@@ -3757,7 +3757,7 @@ internal static partial class MaterielCas
 
         Clavier8042();
         for (var c = 0; c < 20; c++)
-            keyboard_at.keyboard_at_write(0x64, 0x20, null);
+            Intel8042.keyboard_at_write(0x64, 0x20, null);
         lus = Vider8042();
         var n = hw ? 20 : 4;
         bad += Voir("contrôleur, vingt fois 20h sans lecture", lus.Count == n && lus.All(v => v == 0x01),
@@ -3782,7 +3782,7 @@ internal static partial class MaterielCas
     {
         mouse.mouse_type = type;
         mouse.mouse_buttons = 0;
-        keyboard_at.mouse_queue_start = keyboard_at.mouse_queue_end = 0;
+        Intel8042.mouse_queue_start = Intel8042.mouse_queue_end = 0;
         return (mouse_ps2_t)mouse_ps2.mouse_ps2_init();
     }
 
@@ -3797,10 +3797,10 @@ internal static partial class MaterielCas
     private static List<int> FileSouris()
     {
         var l = new List<int>();
-        while (keyboard_at.mouse_queue_start != keyboard_at.mouse_queue_end)
+        while (Intel8042.mouse_queue_start != Intel8042.mouse_queue_end)
         {
-            l.Add(keyboard_at.mouse_queue[keyboard_at.mouse_queue_start]);
-            keyboard_at.mouse_queue_start = (keyboard_at.mouse_queue_start + 1) & 0xf;
+            l.Add(Intel8042.mouse_queue[Intel8042.mouse_queue_start]);
+            Intel8042.mouse_queue_start = (Intel8042.mouse_queue_start + 1) & 0xf;
         }
         return l;
     }

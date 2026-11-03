@@ -477,7 +477,7 @@ internal static partial class video
     //   dépôt tombent toutes dans la lecture des drapeaux de la carte ; la M24 et le PC1512
     //   ont leurs cas (G1.1, G1.2, ci-dessous).
     //   Le PPI du XT les lit pour composer les interrupteurs DIP (keyboard_xt.cs), le
-    //   8042 de l'AT pour son port d'entrée (keyboard_at.cs). L'oracle rend les mêmes
+    //   8042 de l'AT pour son port d'entrée (Intel8042.cs). L'oracle rend les mêmes
     //   réponses depuis gfxcard (harness_stubs.c).
     // G1.1, G1.2 — la M24 et le PC1512 : MDA non, CGA oui, EGA/VGA non (video.c:432-433, :469-470, :509-512), avant toute
     //   lecture de la carte — gfxcard peut y valoir GFX_BUILTIN.

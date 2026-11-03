@@ -156,7 +156,7 @@ public static class AtProbe
         // Depuis M16, h_boot peuple models[] pour ses romsets et fait tourner le
         // vrai cpu_set() : la sonde le constate (« peuple »). Ce qui suit est l'état
         // d'avant, gardé parce qu'il explique pourquoi cpu_set_edx reste enveloppé —
-        // désormais comme une DÉVIATION déclarée (keyboard_at.cs), et non plus par
+        // désormais comme une DÉVIATION déclarée (Intel8042.cs), et non plus par
         // nécessité ; cpu_update_waitstates ne l'est plus depuis l'étape 6.
         //
         // h_model_ibmat ne pose que name, id, internal_name, flags et les trois

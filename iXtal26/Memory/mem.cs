@@ -324,7 +324,7 @@ internal static partial class mem
     // mémoire haute devient atteignable.
     //
     // DÉ-OMISSION : cette ligne disait « mem_a20_* — 286+ », et B1b est l'endroit où
-    // ça cesse d'être vrai. keyboard_at.cs les écrit en deux points, la commande 0xD1
+    // ça cesse d'être vrai. Intel8042.cs les écrit en deux points, la commande 0xD1
     // et l'auto-test 0xAA.
     //
     // mem_a20_state VAUT 2 AU DÉPART, et ce n'est pas un détail : avec zéro, le
