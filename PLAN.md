@@ -182,7 +182,7 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
 - **G14, fait** : du 23/10 au 04/11 (`PLAN-G14.md`, VERIFICATION.md § G14 et sa synthèse). Douze puces dans `Ics/`
   (`ali1429`, sans fiche, garde son nom) ; l'IL et le code machine de R à la table des noms près, les séries identiques
   à l'unité, le banc vert contre R ; Q36 (le 6845 reste dans ses cinq cartes), Q37 à Q39 tranchées.
-- **G15, en cours** : feu vert du 04/11, `PLAN-G15.md`, Q40 à Q50 posées ; G16 et G17 attendent un feu vert.
+- **G15, en cours** : `PLAN-G15.md` ; Q40 à Q50 tranchées (les propositions), G15.0a faite ; G16 et G17 attendent.
 
 ## Les générations
 

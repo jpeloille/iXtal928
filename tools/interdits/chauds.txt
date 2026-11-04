@@ -1,0 +1,39 @@
+# SPDX-FileCopyrightText: 2026 Julien Peloille
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# LA FRONTIÈRE DES CHEMINS CHAUDS (G15.0a ; PLAN-G15.md, décision n° 7 ; R1-interdits.md § 1.1, R1-contre.md § 1).
+#
+# PLAN.md interdit des constructions « dans les chemins chauds (cœurs UC et x87, mémoire, aiguillage des opcodes,
+# minuteries, rendu vidéo, mixage du son) » et les fait signaler dans « les dossiers des chemins chauds ». Un dossier
+# mêle du chaud et du froid (Ics/ porte le PIT et les jeux de puces, Cpu/ les portes du harnais) : la frontière est
+# donc cette liste de fichiers, écrite une fois, lue par tools/interdits/releve.py et par la revue de chaque étape.
+#
+# La forme : un motif par ligne, sur le chemin d'un fichier suivi par git, relatif à la racine du dépôt (fnmatch : `*`
+# traverse aussi les `/`) ; un motif qui commence par `!` retire ce qu'il désigne ; le dernier motif qui s'accorde à un
+# chemin décide. Les lignes vides et celles qui commencent par `#` ne comptent pas.
+#
+# Hors de la frontière, classés à l'écriture : ppi.cs (l'état de la PPI et son initialisation, aucun code qui tourne :
+# le PIT et le clavier lisent ses champs) et rtc.cs (l'horloge du MC146818, que nvr_onesec avance une fois par
+# seconde) ; pc.cs (runpc, cent fois par seconde, et la configuration), le PIC et le DMA (Ics/Intel8259A.cs,
+# Ics/Intel8237.cs : PLAN.md ne les nomme pas, la porte des 0 % les traverse), et tout ce que R1-interdits.md § 1.1
+# dit froid (Host/, Models/, les disques, les ports, la configuration).
+
+# Les cœurs UC et x87, l'aiguillage des opcodes ; sans les portes du harnais.
+iXtal26/Cpu/*.cs
+!iXtal26/Cpu/*.State.cs
+iXtal26.SoftFloat/*.cs
+# La mémoire et l'aiguillage des ports.
+iXtal26/Memory/mem.cs
+iXtal26/io.cs
+# Les minuteries.
+iXtal26/timer.cs
+iXtal26/Ics/Intel8253*.cs
+# Le rendu vidéo, et les RAMDAC de deux cartes.
+iXtal26/Video/*.cs
+iXtal26/Ics/TridentTKD8001*.cs
+iXtal26/Ics/SierraSC1502x*.cs
+# Le mixage du son : les cartes, l'EMU8000 de l'AWE32, le DAC et le DSS du port parallèle.
+iXtal26/Sound/*.cs
+iXtal26/Ics/Emu8000*.cs
+iXtal26/Lpt/lpt_dac.cs
+iXtal26/Lpt/lpt_dss.cs

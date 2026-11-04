@@ -73,7 +73,7 @@ COEURS="${COEURS:-4,6,8,10}"
 #     seulement : la trame à 0 lecture est contenue dans celle à 16 (le balayage, plus les lectures de 3DAh) ;
 #   - Son : « aucun » et « son » (le domaine entier, le « tout » de SonBanc) de chaque cas ; les PB seuls sortent
 #     (leur code est dans « son ») ; SonAweWc à 16 lectures seulement (le tampon de l'AWE32 et les lectures de WC).
-# - Hors de la référence : GardeBanc et Is486Banc (des copies locales du code), les cas par PB nommés ci-dessus.
+# - Hors de la référence : GardeBanc, Is486Banc, les Interdit* de G15.0a (des copies du code), les cas par PB nommés.
 # Machine est coupé en trois groupes par cœur (execx86, le 286, exec386 du 386 et du 486) : un rouge n'y fait
 # rejouer que son tiers. 65 cas en tout.
 GROUPES_REF=()

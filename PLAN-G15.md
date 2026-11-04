@@ -8,10 +8,11 @@
 
 ## Où on en est
 
-Le plan est écrit ; aucune étape n'est faite. Onze questions sont posées à Julien (Q40 à Q50, ci-dessous), chacune avec
-sa proposition ; G15.0a n'en dépend pas, G15.0b dépend de Q40 pour sa table et de Q45 pour ce que l'outil journalise
-(ses autres outils, non). La référence reste celle de G14 : le commit R = `f15e11f`, `/var/tmp/ixtal-g14/ref-R`, les
-séries `g14r` et `g14r-tout` (VERIFICATION.md § G14.0d), jusqu'à la fin de G15.
+Les onze questions (Q40 à Q50, ci-dessous) sont tranchées par Julien le 04/11 : « ok pour tes propositions » ; chaque
+proposition est la décision. G15.0a est faite (le banc des constructions interdites, la frontière des chemins chauds, la
+base à R ; VERIFICATION.md § G15.0a). G15.0b attend son feu vert. La référence reste celle de G14 : le commit R =
+`f15e11f`, `/var/tmp/ixtal-g14/ref-R`, les séries `g14r` et `g14r-tout` (VERIFICATION.md § G14.0d), jusqu'à la fin de
+G15.
 
 ### Ce que les lectures ont trouvé
 
@@ -99,7 +100,7 @@ famille à la fois), G15.9 (les paramètres et les locales), G15.10 (les enums),
 dépend d'aucune question ; G15.0b, de Q40 pour sa table et de Q45 pour ce que l'outil journalise ; G15.0c et la suite,
 de Q40 à Q50 selon l'étape (dit à chacune).
 
-### G15.0a — Le banc des constructions interdites (l'ouverture)
+### G15.0a — Le banc des constructions interdites (l'ouverture) ✅
 
 `PLAN.md` le veut « en ouverture de G15 ». Neuf cas dans `iXtal26.PerfBanc`, hors des 65 cas de la référence des 0 %
 (`compare-ref.sh` ne les nomme pas, comme GardeBanc et Is486Banc) ; iXtal26 n'est pas touché. Chaque cas mesure la
@@ -141,6 +142,15 @@ L'équivalence des copies et du vrai code est vérifiée avant la mesure.
 - **Contrôles négatifs** : une copie falsifiée (un drapeau faux dans la copie interdite du cas 3) fait échouer
   l'équivalence ; la copie retenue du cas 6 qui alloue fait paraître des octets ; le cas 2 interdit montre des octets,
   la retenue 0.
+- **Fait le 04/11** (VERIFICATION.md § G15.0a). Ce qui s'écarte de ce qui précède, et pourquoi :
+  - au cas 8, la retenue est la garde pliée du vrai (`svga_output` est une constante), et la garde par un champ une
+    colonne de plus ; au cas 1, l'instance en deux colonnes, l'appel gardé comme dans le produit et l'appel inliné par
+    le JIT ; au cas 3, Delegue, la forme du vrai ;
+  - le seuil s'élargit au placement du vrai quand son code machine est celui de sa copie (six cas sur neuf ; il ne
+    joue qu'aux cas 1, 3 et 8) : l'A/A, deux copies du même assemblage, ne voit pas l'écart entre deux assemblages (de
+    12 à 27 % à code égal, selon la construction) ;
+  - la base compte 14 `new uint16_t[4]` : les 13 de `x86seg.cs` et celui de `porte_tache_materiel` ; et l'IL s'y écrit
+    en comptes par méthode et par instruction, le détail (1,9 Mo) se régénérant de R.
 
 ### G15.0b — Les outils de la preuve des membres
 
@@ -444,4 +454,7 @@ Trouvé par les lectures, non proposé (règle du 18/10) :
 - sous « tout », `attend` enveloppe peut-être toutes les instructions x87, et pas seulement WAIT (à vérifier) ;
 - la parade `DOTNET_ROOT` contre une mise à jour du runtime (G14-reconnaissance/R0-contre.md:248-251), et l'épinglage
   du runtime par apt, une action sur la machine de Julien, que G15 ne fait pas ;
-- le délai de 1 200 s de `Banc.cs:166-169`, déjà dit en G14.
+- le délai de 1 200 s de `Banc.cs:166-169`, déjà dit en G14 ;
+- trouvé par G15.0a : le `readmemb` statique n'est pas inliné, dans le banc ni dans le produit, sa copie d'instance
+  l'est (−20,7 % sur ce chemin) ; une interpolation gardée par un champ coûte par sa présence, le prologue mettant ses
+  locales à zéro (+14,75 % sur `svga_write`, à peine au-dessus du seuil élargi de +13,47 %).

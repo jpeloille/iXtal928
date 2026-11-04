@@ -1,0 +1,1114 @@
+iXtal26/Cpu/386.Materiel.cs	new	315	throw new InvalidOperationException("_386.ILLEGAL introuvable : le décodeur de longueur ne reconnaîtrait plus les opcodes invalides");
+iXtal26/Cpu/386.Materiel.cs	new	546	var d = new uint16_t[4];
+iXtal26/Cpu/386.Materiel.cs	segdat	546	var d = new uint16_t[4];
+iXtal26/Cpu/386.cs	new	80	var t = new OpFn[1024];
+iXtal26/Cpu/386.cs	chaine	197	pc.fatal($"opcode 0F {op2:X2} non transcrit ({NomTable()}_0f, op32 " +
+iXtal26/Cpu/386.cs	chaine	198	$"0x{cpu_state.op32:X3}) a {CS:X4}:{cpu_state.oldpc:X4}\n");
+iXtal26/Cpu/386.cs	chaine	204	pc.fatal($"opcode {op:X2} non transcrit ({NomTable()}, op32 0x{cpu_state.op32:X3}) " +
+iXtal26/Cpu/386.cs	chaine	205	$"a {CS:X4}:{cpu_state.oldpc:X4}\n");
+iXtal26/Cpu/386_common.cs	new	23	internal static readonly cpu_state_t cpu_state = new();
+iXtal26/Cpu/386_common.cs	chaine	707	pc.fatal($"x86_int : idt.limit = {idt.limit:X} — branche de triple faute non transcrite\n");
+iXtal26/Cpu/386_ops_arith.cs	lambda	103	ops_286[slotBRmw] = fetchdat =>
+iXtal26/Cpu/386_ops_arith.cs	fetchdat	103	ops_286[slotBRmw] = fetchdat =>
+iXtal26/Cpu/386_ops_arith.cs	lambda	136	ops_286[slotWRmw] = fetchdat =>
+iXtal26/Cpu/386_ops_arith.cs	fetchdat	136	ops_286[slotWRmw] = fetchdat =>
+iXtal26/Cpu/386_ops_arith.cs	lambda	176	ops_286[slotBRm] = fetchdat =>
+iXtal26/Cpu/386_ops_arith.cs	fetchdat	176	ops_286[slotBRm] = fetchdat =>
+iXtal26/Cpu/386_ops_arith.cs	lambda	197	ops_286[slotWRm] = fetchdat =>
+iXtal26/Cpu/386_ops_arith.cs	fetchdat	197	ops_286[slotWRm] = fetchdat =>
+iXtal26/Cpu/386_ops_arith.cs	lambda	219	ops_286[slotALImm] = fetchdat =>
+iXtal26/Cpu/386_ops_arith.cs	fetchdat	219	ops_286[slotALImm] = fetchdat =>
+iXtal26/Cpu/386_ops_arith.cs	lambda	233	ops_286[slotAXImm] = fetchdat =>
+iXtal26/Cpu/386_ops_arith.cs	fetchdat	233	ops_286[slotAXImm] = fetchdat =>
+iXtal26/Cpu/386_ops_arith.cs	lambda	259	(dst, src) => (uint8_t)(dst + src),
+iXtal26/Cpu/386_ops_arith.cs	lambda	260	(dst, src) => (uint16_t)(dst + src),
+iXtal26/Cpu/386_ops_arith.cs	lambda	265	(dst, src) => (uint8_t)(dst + src + tempc),
+iXtal26/Cpu/386_ops_arith.cs	lambda	266	(dst, src) => (uint16_t)(dst + src + tempc),
+iXtal26/Cpu/386_ops_arith.cs	lambda	271	(dst, src) => (uint8_t)(dst - src),
+iXtal26/Cpu/386_ops_arith.cs	lambda	272	(dst, src) => (uint16_t)(dst - src),
+iXtal26/Cpu/386_ops_arith.cs	lambda	277	(dst, src) => (uint8_t)(dst - (src + tempc)),
+iXtal26/Cpu/386_ops_arith.cs	lambda	278	(dst, src) => (uint16_t)(dst - (src + tempc)),
+iXtal26/Cpu/386_ops_arith.cs	lambda	293	(dst, src) => (uint8_t)(dst | src),
+iXtal26/Cpu/386_ops_arith.cs	lambda	294	(dst, src) => (uint16_t)(dst | src),
+iXtal26/Cpu/386_ops_arith.cs	lambda	295	(dst, src) => setznp8((uint8_t)(dst | src)),
+iXtal26/Cpu/386_ops_arith.cs	lambda	296	(dst, src) => setznp16((uint16_t)(dst | src)), false);
+iXtal26/Cpu/386_ops_arith.cs	lambda	300	(dst, src) => (uint8_t)(dst & src),
+iXtal26/Cpu/386_ops_arith.cs	lambda	301	(dst, src) => (uint16_t)(dst & src),
+iXtal26/Cpu/386_ops_arith.cs	lambda	302	(dst, src) => setznp8((uint8_t)(dst & src)),
+iXtal26/Cpu/386_ops_arith.cs	lambda	303	(dst, src) => setznp16((uint16_t)(dst & src)), false);
+iXtal26/Cpu/386_ops_arith.cs	lambda	307	(dst, src) => (uint8_t)(dst ^ src),
+iXtal26/Cpu/386_ops_arith.cs	lambda	308	(dst, src) => (uint16_t)(dst ^ src),
+iXtal26/Cpu/386_ops_arith.cs	lambda	309	(dst, src) => setznp8((uint8_t)(dst ^ src)),
+iXtal26/Cpu/386_ops_arith.cs	lambda	310	(dst, src) => setznp16((uint16_t)(dst ^ src)), false);
+iXtal26/Cpu/386_ops_arith.cs	lambda	887	OpFn bRmwA32 = fetchdat =>
+iXtal26/Cpu/386_ops_arith.cs	fetchdat	887	OpFn bRmwA32 = fetchdat =>
+iXtal26/Cpu/386_ops_arith.cs	lambda	920	OpFn wRmwA32 = fetchdat =>
+iXtal26/Cpu/386_ops_arith.cs	fetchdat	920	OpFn wRmwA32 = fetchdat =>
+iXtal26/Cpu/386_ops_arith.cs	fetchdat	953	OpFn LRmw(bool a32) => fetchdat =>
+iXtal26/Cpu/386_ops_arith.cs	lambda	986	OpFn bRmA32 = fetchdat =>
+iXtal26/Cpu/386_ops_arith.cs	fetchdat	986	OpFn bRmA32 = fetchdat =>
+iXtal26/Cpu/386_ops_arith.cs	lambda	1007	OpFn wRmA32 = fetchdat =>
+iXtal26/Cpu/386_ops_arith.cs	fetchdat	1007	OpFn wRmA32 = fetchdat =>
+iXtal26/Cpu/386_ops_arith.cs	fetchdat	1028	OpFn LRm(bool a32) => fetchdat =>
+iXtal26/Cpu/386_ops_arith.cs	lambda	1049	OpFn eaxImm = fetchdat =>
+iXtal26/Cpu/386_ops_arith.cs	fetchdat	1049	OpFn eaxImm = fetchdat =>
+iXtal26/Cpu/386_ops_arith.cs	lambda	1081	OP_ARITH_386(0x00, (d, s) => (uint8_t)(d + s), (d, s) => (uint16_t)(d + s), (d, s) => d + s,
+iXtal26/Cpu/386_ops_arith.cs	lambda	1083	OP_ARITH_386(0x10, (d, s) => (uint8_t)(d + s + tempc), (d, s) => (uint16_t)(d + s + tempc),
+iXtal26/Cpu/386_ops_arith.cs	lambda	1084	(d, s) => d + s + (uint32_t)tempc, setadc8, setadc16, setadc32, true);
+iXtal26/Cpu/386_ops_arith.cs	lambda	1085	OP_ARITH_386(0x28, (d, s) => (uint8_t)(d - s), (d, s) => (uint16_t)(d - s), (d, s) => d - s,
+iXtal26/Cpu/386_ops_arith.cs	lambda	1087	OP_ARITH_386(0x18, (d, s) => (uint8_t)(d - (s + tempc)), (d, s) => (uint16_t)(d - (s + tempc)),
+iXtal26/Cpu/386_ops_arith.cs	lambda	1088	(d, s) => d - (s + (uint32_t)tempc), setsbc8, setsbc16, setsbc32, true);
+iXtal26/Cpu/386_ops_arith.cs	lambda	1089	OP_ARITH_386(0x08, (d, s) => (uint8_t)(d | s), (d, s) => (uint16_t)(d | s), (d, s) => d | s,
+iXtal26/Cpu/386_ops_arith.cs	lambda	1090	(d, s) => setznp8((uint8_t)(d | s)), (d, s) => setznp16((uint16_t)(d | s)),
+iXtal26/Cpu/386_ops_arith.cs	lambda	1091	(d, s) => setznp32(d | s), false);
+iXtal26/Cpu/386_ops_arith.cs	lambda	1092	OP_ARITH_386(0x20, (d, s) => (uint8_t)(d & s), (d, s) => (uint16_t)(d & s), (d, s) => d & s,
+iXtal26/Cpu/386_ops_arith.cs	lambda	1093	(d, s) => setznp8((uint8_t)(d & s)), (d, s) => setznp16((uint16_t)(d & s)),
+iXtal26/Cpu/386_ops_arith.cs	lambda	1094	(d, s) => setznp32(d & s), false);
+iXtal26/Cpu/386_ops_arith.cs	lambda	1095	OP_ARITH_386(0x30, (d, s) => (uint8_t)(d ^ s), (d, s) => (uint16_t)(d ^ s), (d, s) => d ^ s,
+iXtal26/Cpu/386_ops_arith.cs	lambda	1096	(d, s) => setznp8((uint8_t)(d ^ s)), (d, s) => setznp16((uint16_t)(d ^ s)),
+iXtal26/Cpu/386_ops_arith.cs	lambda	1097	(d, s) => setznp32(d ^ s), false);
+iXtal26/Cpu/386_ops_bit.cs	fetchdat	22	private static OpFn OpBTx(Func<uint32_t, uint32_t, uint32_t> operation, bool l, bool a32) => fetchdat =>
+iXtal26/Cpu/386_ops_bit.cs	func	22	private static OpFn OpBTx(Func<uint32_t, uint32_t, uint32_t> operation, bool l, bool a32) => fetchdat =>
+iXtal26/Cpu/386_ops_bit.cs	func	77	foreach (var (op, fn) in new (int, Func<uint32_t, uint32_t, uint32_t>)[]
+iXtal26/Cpu/386_ops_bit.cs	new	77	foreach (var (op, fn) in new (int, Func<uint32_t, uint32_t, uint32_t>)[]
+iXtal26/Cpu/386_ops_bit.cs	lambda	78	{ (0xBB, (t, b) => t ^ b), (0xB3, (t, b) => t & ~b), (0xAB, (t, b) => t | b) })
+iXtal26/Cpu/386_ops_fpu.cs	new	66	var t = new OpFn[256];
+iXtal26/Cpu/386_ops_fpu.cs	chaine	123	pc.fatal($"not implemented: x87_ops.h — handler x87 non transcrit (G4.2 à G4.5), ESC ModRM {fetchdat & 0xff:X2}\n");
+iXtal26/Cpu/386_ops_fpu.cs	new	129	var t = new OpFn[n];
+iXtal26/Cpu/386_ops_fpu.cs	new	178	var t = new OpFn[256];
+iXtal26/Cpu/386_ops_inc_dec.cs	lambda	45	ops_286[0x40 + reg] = fetchdat =>
+iXtal26/Cpu/386_ops_inc_dec.cs	fetchdat	45	ops_286[0x40 + reg] = fetchdat =>
+iXtal26/Cpu/386_ops_inc_dec.cs	lambda	55	ops_286[0x48 + reg] = fetchdat =>
+iXtal26/Cpu/386_ops_inc_dec.cs	fetchdat	55	ops_286[0x48 + reg] = fetchdat =>
+iXtal26/Cpu/386_ops_inc_dec.cs	lambda	125	OpFn inc = fetchdat =>
+iXtal26/Cpu/386_ops_inc_dec.cs	fetchdat	125	OpFn inc = fetchdat =>
+iXtal26/Cpu/386_ops_inc_dec.cs	lambda	134	OpFn dec = fetchdat =>
+iXtal26/Cpu/386_ops_inc_dec.cs	fetchdat	134	OpFn dec = fetchdat =>
+iXtal26/Cpu/386_ops_jump.cs	lambda	56	() => VF_SET() != 0,
+iXtal26/Cpu/386_ops_jump.cs	lambda	57	() => VF_SET() == 0,
+iXtal26/Cpu/386_ops_jump.cs	lambda	58	() => CF_SET() != 0,
+iXtal26/Cpu/386_ops_jump.cs	lambda	59	() => CF_SET() == 0,
+iXtal26/Cpu/386_ops_jump.cs	lambda	60	() => ZF_SET() != 0,
+iXtal26/Cpu/386_ops_jump.cs	lambda	61	() => ZF_SET() == 0,
+iXtal26/Cpu/386_ops_jump.cs	lambda	62	() => CF_SET() != 0 || ZF_SET() != 0,
+iXtal26/Cpu/386_ops_jump.cs	lambda	63	() => CF_SET() == 0 && ZF_SET() == 0,
+iXtal26/Cpu/386_ops_jump.cs	lambda	64	() => NF_SET() != 0,
+iXtal26/Cpu/386_ops_jump.cs	lambda	65	() => NF_SET() == 0,
+iXtal26/Cpu/386_ops_jump.cs	lambda	66	() => PF_SET() != 0,
+iXtal26/Cpu/386_ops_jump.cs	lambda	67	() => PF_SET() == 0,
+iXtal26/Cpu/386_ops_jump.cs	lambda	68	() => (NF_SET() != 0 ? 1 : 0) != (VF_SET() != 0 ? 1 : 0),
+iXtal26/Cpu/386_ops_jump.cs	lambda	69	() => (NF_SET() != 0 ? 1 : 0) == (VF_SET() != 0 ? 1 : 0),
+iXtal26/Cpu/386_ops_jump.cs	lambda	70	() => (NF_SET() != 0 ? 1 : 0) != (VF_SET() != 0 ? 1 : 0) || ZF_SET() != 0,
+iXtal26/Cpu/386_ops_jump.cs	lambda	71	() => (NF_SET() != 0 ? 1 : 0) == (VF_SET() != 0 ? 1 : 0) && ZF_SET() == 0,
+iXtal26/Cpu/386_ops_jump.cs	lambda	83	ops_286[0x70 + n] = fetchdat =>
+iXtal26/Cpu/386_ops_jump.cs	fetchdat	83	ops_286[0x70 + n] = fetchdat =>
+iXtal26/Cpu/386_ops_jump.cs	lambda	114	OpFn w = fetchdat =>
+iXtal26/Cpu/386_ops_jump.cs	fetchdat	114	OpFn w = fetchdat =>
+iXtal26/Cpu/386_ops_jump.cs	lambda	133	OpFn l = fetchdat =>
+iXtal26/Cpu/386_ops_jump.cs	fetchdat	133	OpFn l = fetchdat =>
+iXtal26/Cpu/386_ops_jump.cs	lambda	159	OpFn set16 = fetchdat =>
+iXtal26/Cpu/386_ops_jump.cs	fetchdat	159	OpFn set16 = fetchdat =>
+iXtal26/Cpu/386_ops_jump.cs	lambda	168	OpFn set32 = fetchdat =>
+iXtal26/Cpu/386_ops_jump.cs	fetchdat	168	OpFn set32 = fetchdat =>
+iXtal26/Cpu/386_ops_jump.cs	fetchdat	195	private static OpFn Loop(CondFn? extra) => fetchdat =>
+iXtal26/Cpu/386_ops_jump.cs	lambda	370	ops_286[0xE0] = Loop(() => ZF_SET() == 0);
+iXtal26/Cpu/386_ops_jump.cs	lambda	371	ops_286[0xE1] = Loop(() => ZF_SET() != 0);
+iXtal26/Cpu/386_ops_mov_seg.cs	fetchdat	219	private static OpFn OpLsel(x86seg sel, bool l, bool a32) => fetchdat =>
+iXtal26/Cpu/386_ops_mov_seg.cs	new	250	foreach (var (op, sel) in new[] { (0xB4, cpu_state.seg_fs), (0xB5, cpu_state.seg_gs) })
+iXtal26/Cpu/386_ops_prefix.cs	lambda	90	private static OpFn PrefixeSegment(x86seg seg, uint32_t quadrant = 0) => fetchdat =>
+iXtal26/Cpu/386_ops_prefix.cs	fetchdat	90	private static OpFn PrefixeSegment(x86seg seg, uint32_t quadrant = 0) => fetchdat =>
+iXtal26/Cpu/386_ops_prefix.cs	fetchdat	244	private static OpFn Op0F(int quadrant) => fetchdat =>
+iXtal26/Cpu/386_ops_rep.cs	fetchdat	81	private static OpFn PrefixeRep(OpFn?[] table) => fetchdat =>
+iXtal26/Cpu/386_ops_rep.cs	new	95	internal static readonly OpFn?[] ops_REPE = new OpFn?[1024];
+iXtal26/Cpu/386_ops_rep.cs	new	96	internal static readonly OpFn?[] ops_REPNE = new OpFn?[1024];
+iXtal26/Cpu/386_ops_rep.cs	lambda	112	private static OpFn PrefixeSegmentRep(x86seg seg, OpFn?[] table, uint32_t quadrant = 0) => fetchdat =>
+iXtal26/Cpu/386_ops_rep.cs	fetchdat	112	private static OpFn PrefixeSegmentRep(x86seg seg, OpFn?[] table, uint32_t quadrant = 0) => fetchdat =>
+iXtal26/Cpu/386_ops_rep.cs	fetchdat	144	private static OpFn PrefixeTaille(uint32_t masque, OpFn?[] table) => fetchdat =>
+iXtal26/Cpu/386_ops_rep.cs	new	974	foreach (var t in new[] { ops_REPE, ops_REPNE })
+iXtal26/Cpu/386_ops_rep.cs	new	999	foreach (var (t, nom) in new[] { (ops_REPE, "E"), (ops_REPNE, "NE") })
+iXtal26/Cpu/386_ops_shift.cs	fetchdat	595	private static OpFn OpSHxD(Func<int, bool> operation, bool imm, bool a32) => fetchdat =>
+iXtal26/Cpu/386_ops_shift.cs	func	595	private static OpFn OpSHxD(Func<int, bool> operation, bool imm, bool a32) => fetchdat =>
+iXtal26/Cpu/386_ops_shift.cs	func	610	foreach (var (op, w, l) in new (int, Func<int, bool>, Func<int, bool>)[]
+iXtal26/Cpu/386_ops_shift.cs	new	610	foreach (var (op, w, l) in new (int, Func<int, bool>, Func<int, bool>)[]
+iXtal26/Cpu/386_ops_shift.cs	new	613	foreach (var (o, imm) in new[] { (op, true), (op + 1, false) })
+iXtal26/Cpu/386_ops_stack.cs	lambda	52	ops_286[0x50 + reg] = fetchdat =>
+iXtal26/Cpu/386_ops_stack.cs	fetchdat	52	ops_286[0x50 + reg] = fetchdat =>
+iXtal26/Cpu/386_ops_stack.cs	lambda	61	ops_286[0x58 + reg] = fetchdat =>
+iXtal26/Cpu/386_ops_stack.cs	fetchdat	61	ops_286[0x58 + reg] = fetchdat =>
+iXtal26/Cpu/386_ops_stack.cs	fetchdat	296	private static OpFn PushSeg(Func<uint16_t> seg) => fetchdat =>
+iXtal26/Cpu/386_ops_stack.cs	func	296	private static OpFn PushSeg(Func<uint16_t> seg) => fetchdat =>
+iXtal26/Cpu/386_ops_stack.cs	fetchdat	311	private static OpFn PopSeg(x86seg realseg) => fetchdat =>
+iXtal26/Cpu/386_ops_stack.cs	lambda	511	ops_286[0x06] = PushSeg(() => ES);
+iXtal26/Cpu/386_ops_stack.cs	lambda	512	ops_286[0x0E] = PushSeg(() => CS);
+iXtal26/Cpu/386_ops_stack.cs	lambda	513	ops_286[0x16] = PushSeg(() => SS);
+iXtal26/Cpu/386_ops_stack.cs	lambda	514	ops_286[0x1E] = PushSeg(() => DS);
+iXtal26/Cpu/386_ops_stack.cs	lambda	531	OpFn push = fetchdat =>
+iXtal26/Cpu/386_ops_stack.cs	fetchdat	531	OpFn push = fetchdat =>
+iXtal26/Cpu/386_ops_stack.cs	lambda	539	OpFn pop = fetchdat =>
+iXtal26/Cpu/386_ops_stack.cs	fetchdat	539	OpFn pop = fetchdat =>
+iXtal26/Cpu/386_ops_stack.cs	new	556	foreach (var q in new[] { 0x100, 0x300 })
+iXtal26/Cpu/386_ops_stack.cs	lambda	558	ops_386[q | 0x06] = PushSegL(() => ES);
+iXtal26/Cpu/386_ops_stack.cs	lambda	559	ops_386[q | 0x0E] = PushSegL(() => CS);
+iXtal26/Cpu/386_ops_stack.cs	lambda	560	ops_386[q | 0x16] = PushSegL(() => SS);
+iXtal26/Cpu/386_ops_stack.cs	lambda	561	ops_386[q | 0x1E] = PushSegL(() => DS);
+iXtal26/Cpu/386_ops_stack.cs	new	565	foreach (var q in new[] { 0x000, 0x200 })
+iXtal26/Cpu/386_ops_stack.cs	lambda	567	ops_386_0f[q | 0xA0] = PushSeg(() => FS);
+iXtal26/Cpu/386_ops_stack.cs	lambda	569	ops_386_0f[q | 0xA8] = PushSeg(() => GS);
+iXtal26/Cpu/386_ops_stack.cs	new	572	foreach (var q in new[] { 0x100, 0x300 })
+iXtal26/Cpu/386_ops_stack.cs	lambda	574	ops_386_0f[q | 0xA0] = PushSegL(() => FS);
+iXtal26/Cpu/386_ops_stack.cs	lambda	576	ops_386_0f[q | 0xA8] = PushSegL(() => GS);
+iXtal26/Cpu/386_ops_stack.cs	fetchdat	582	private static OpFn PushSegL(Func<uint16_t> seg) => fetchdat =>
+iXtal26/Cpu/386_ops_stack.cs	func	582	private static OpFn PushSegL(Func<uint16_t> seg) => fetchdat =>
+iXtal26/Cpu/386_ops_stack.cs	fetchdat	591	private static OpFn PopSegL(x86seg realseg) => fetchdat =>
+iXtal26/Cpu/386_ops_xchg.cs	lambda	93	ops_286[0x90 + reg] = fetchdat =>
+iXtal26/Cpu/386_ops_xchg.cs	fetchdat	93	ops_286[0x90 + reg] = fetchdat =>
+iXtal26/Cpu/386_ops_xchg.cs	lambda	126	OpFn bswap = fetchdat =>
+iXtal26/Cpu/386_ops_xchg.cs	fetchdat	126	OpFn bswap = fetchdat =>
+iXtal26/Cpu/808x.cs	new	189	private static readonly uint8_t[] prefetchqueue = new uint8_t[6];
+iXtal26/Cpu/808x.cs	new	351	private static readonly int[,] mod1add = new int[2, 8];
+iXtal26/Cpu/808x.cs	new	352	private static readonly int[] mod1seg = new int[8];
+iXtal26/Cpu/808x.cs	new	353	internal static readonly int[] slowrm = new int[8];
+iXtal26/Cpu/808x.cs	new	525	internal static readonly uint8_t[] znptable8 = new uint8_t[256];
+iXtal26/Cpu/808x.cs	new	526	private static readonly uint16_t[] znptable16 = new uint16_t[65536];
+iXtal26/Cpu/cpu.cs	chaine	546	pc.fatal($"cpu_set : unknown CPU type {cpu_s.cpu_type}\n");
+iXtal26/Cpu/cpu_tables.cs	instance	17	internal sealed class FPU
+iXtal26/Cpu/cpu_tables.cs	instance	34	internal sealed class CPU
+iXtal26/Cpu/cpu_tables.cs	new	84	internal static readonly FPU[] fpus_none = {new("None", "none", FPU_NONE), new(null, null, 0)};
+iXtal26/Cpu/cpu_tables.cs	new	85	internal static readonly FPU[] fpus_8088 = {new("None", "none", FPU_NONE), new("8087", "8087", FPU_8087), new(null, null, 0)};
+iXtal26/Cpu/cpu_tables.cs	new	86	internal static readonly FPU[] fpus_80286 = {new("None", "none", FPU_NONE), new("287", "287", FPU_287), new("287XL", "287xl", FPU_287XL), new(null, null, 0)};
+iXtal26/Cpu/cpu_tables.cs	new	87	internal static readonly FPU[] fpus_80386 = {new("None", "none", FPU_NONE), new("387", "387", FPU_387), new(null, null, 0)};
+iXtal26/Cpu/cpu_tables.cs	new	88	internal static readonly FPU[] fpus_builtin = {new("Built-in", "builtin", FPU_BUILTIN), new(null, null, 0)};
+iXtal26/Cpu/cpu_tables.cs	new	97	new("8088/4.77", CPU_8088, fpus_8088, 0, 4772728, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1),
+iXtal26/Cpu/cpu_tables.cs	new	98	new("8088/7.16", CPU_8088, fpus_8088, 1, 14318184 / 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1),
+iXtal26/Cpu/cpu_tables.cs	new	99	new("8088/8", CPU_8088, fpus_8088, 1, 8000000, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1),
+iXtal26/Cpu/cpu_tables.cs	new	100	new("8088/10", CPU_8088, fpus_8088, 2, 10000000, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1),
+iXtal26/Cpu/cpu_tables.cs	new	101	new("8088/12", CPU_8088, fpus_8088, 3, 12000000, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1),
+iXtal26/Cpu/cpu_tables.cs	new	102	new("8088/16", CPU_8088, fpus_8088, 4, 16000000, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1),
+iXtal26/Cpu/cpu_tables.cs	new	103	new("", -1, null, 0, 0, 0),
+iXtal26/Cpu/cpu_tables.cs	new	110	new("8086/7.16", CPU_8086, fpus_8088, 1, 14318184 / 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1),
+iXtal26/Cpu/cpu_tables.cs	new	111	new("8086/8", CPU_8086, fpus_8088, 1, 8000000, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1),
+iXtal26/Cpu/cpu_tables.cs	new	112	new("8086/9.54", CPU_8086, fpus_8088, 1, 4772728 * 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1),
+iXtal26/Cpu/cpu_tables.cs	new	113	new("8086/10", CPU_8086, fpus_8088, 2, 10000000, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1),
+iXtal26/Cpu/cpu_tables.cs	new	114	new("8086/12", CPU_8086, fpus_8088, 3, 12000000, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1),
+iXtal26/Cpu/cpu_tables.cs	new	115	new("8086/16", CPU_8086, fpus_8088, 4, 16000000, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2),
+iXtal26/Cpu/cpu_tables.cs	new	116	new("", -1, null, 0, 0, 0),
+iXtal26/Cpu/cpu_tables.cs	new	123	new("8086/8", CPU_8086, fpus_8088, 1, 8000000, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1),
+iXtal26/Cpu/cpu_tables.cs	new	124	new("", -1, null, 0, 0, 0),
+iXtal26/Cpu/cpu_tables.cs	new	131	new("286/6", CPU_286, fpus_80286, 0, 6000000, 1, 0, 0, 0, 0, 0, 2, 2, 2, 2, 1),
+iXtal26/Cpu/cpu_tables.cs	new	132	new("286/8", CPU_286, fpus_80286, 1, 8000000, 1, 0, 0, 0, 0, 0, 2, 2, 2, 2, 1),
+iXtal26/Cpu/cpu_tables.cs	new	133	new("286/10", CPU_286, fpus_80286, 2, 10000000, 1, 0, 0, 0, 0, 0, 2, 2, 2, 2, 1),
+iXtal26/Cpu/cpu_tables.cs	new	134	new("286/12", CPU_286, fpus_80286, 3, 12000000, 1, 0, 0, 0, 0, 0, 3, 3, 3, 3, 2),
+iXtal26/Cpu/cpu_tables.cs	new	135	new("286/16", CPU_286, fpus_80286, 4, 16000000, 1, 0, 0, 0, 0, 0, 3, 3, 3, 3, 2),
+iXtal26/Cpu/cpu_tables.cs	new	136	new("286/20", CPU_286, fpus_80286, 5, 20000000, 1, 0, 0, 0, 0, 0, 4, 4, 4, 4, 3),
+iXtal26/Cpu/cpu_tables.cs	new	137	new("286/25", CPU_286, fpus_80286, 6, 25000000, 1, 0, 0, 0, 0, 0, 4, 4, 4, 4, 3),
+iXtal26/Cpu/cpu_tables.cs	new	138	new("", -1, null, 0, 0, 0),
+iXtal26/Cpu/cpu_tables.cs	new	145	new("286/6", CPU_286, fpus_80286, 0, 6000000, 1, 0, 0, 0, 0, 0, 3, 3, 3, 3, 1),
+iXtal26/Cpu/cpu_tables.cs	new	146	new("286/8", CPU_286, fpus_80286, 0, 8000000, 1, 0, 0, 0, 0, 0, 3, 3, 3, 3, 1),
+iXtal26/Cpu/cpu_tables.cs	new	147	new("", -1, null, 0, 0, 0),
+iXtal26/Cpu/cpu_tables.cs	new	155	new("i386SX/16", CPU_386SX, fpus_80386, 0, 16000000, 1, 0, 0x2308, 0, 0, 0, 3, 3, 3, 3, 2),
+iXtal26/Cpu/cpu_tables.cs	new	156	new("i386SX/20", CPU_386SX, fpus_80386, 1, 20000000, 1, 0, 0x2308, 0, 0, 0, 4, 4, 3, 3, 3),
+iXtal26/Cpu/cpu_tables.cs	new	157	new("i386SX/25", CPU_386SX, fpus_80386, 2, 25000000, 1, 0, 0x2308, 0, 0, 0, 4, 4, 3, 3, 3),
+iXtal26/Cpu/cpu_tables.cs	new	158	new("i386SX/33", CPU_386SX, fpus_80386, 3, 33333333, 1, 0, 0x2308, 0, 0, 0, 6, 6, 3, 3, 4),
+iXtal26/Cpu/cpu_tables.cs	new	159	new("", -1, null, 0, 0, 0),
+iXtal26/Cpu/cpu_tables.cs	new	166	new("i386DX/16", CPU_386DX, fpus_80386, 0, 16000000, 1, 0, 0x0308, 0, 0, 0, 3, 3, 3, 3, 2),
+iXtal26/Cpu/cpu_tables.cs	new	167	new("i386DX/20", CPU_386DX, fpus_80386, 1, 20000000, 1, 0, 0x0308, 0, 0, 0, 4, 4, 3, 3, 3),
+iXtal26/Cpu/cpu_tables.cs	new	168	new("i386DX/25", CPU_386DX, fpus_80386, 2, 25000000, 1, 0, 0x0308, 0, 0, 0, 4, 4, 3, 3, 3),
+iXtal26/Cpu/cpu_tables.cs	new	169	new("i386DX/33", CPU_386DX, fpus_80386, 3, 33333333, 1, 0, 0x0308, 0, 0, 0, 6, 6, 3, 3, 4),
+iXtal26/Cpu/cpu_tables.cs	new	170	new("", -1, null, 0, 0, 0),
+iXtal26/Cpu/cpu_tables.cs	new	177	new("i486SX/16", CPU_i486SX, fpus_none, 0, 16000000, 1, 16000000, 0x42a, 0, 0, cpu_c.CPU_SUPPORTS_DYNAREC, 3, 3, 3, 3, 2),
+iXtal26/Cpu/cpu_tables.cs	new	178	new("i486SX/20", CPU_i486SX, fpus_none, 1, 20000000, 1, 20000000, 0x42a, 0, 0, cpu_c.CPU_SUPPORTS_DYNAREC, 4, 4, 3, 3, 3),
+iXtal26/Cpu/cpu_tables.cs	new	179	new("i486SX/25", CPU_i486SX, fpus_none, 2, 25000000, 1, 25000000, 0x42a, 0, 0, cpu_c.CPU_SUPPORTS_DYNAREC, 4, 4, 3, 3, 3),
+iXtal26/Cpu/cpu_tables.cs	new	180	new("i486SX/33", CPU_i486SX, fpus_none, 3, 33333333, 1, 33333333, 0x42a, 0, 0, cpu_c.CPU_SUPPORTS_DYNAREC, 6, 6, 3, 3, 4),
+iXtal26/Cpu/cpu_tables.cs	new	181	new("i486SX2/50", CPU_i486SX, fpus_none, 5, 50000000, 2, 25000000, 0x45b, 0, 0, cpu_c.CPU_SUPPORTS_DYNAREC, 8, 8, 6, 6, 2 * 3),
+iXtal26/Cpu/cpu_tables.cs	new	182	new("i486DX/25", CPU_i486DX, fpus_builtin, 2, 25000000, 1, 25000000, 0x404, 0, 0, cpu_c.CPU_SUPPORTS_DYNAREC, 4, 4, 3, 3, 3),
+iXtal26/Cpu/cpu_tables.cs	new	183	new("i486DX/33", CPU_i486DX, fpus_builtin, 3, 33333333, 1, 33333333, 0x404, 0, 0, cpu_c.CPU_SUPPORTS_DYNAREC, 6, 6, 3, 3, 4),
+iXtal26/Cpu/cpu_tables.cs	new	184	new("i486DX/50", CPU_i486DX, fpus_builtin, 5, 50000000, 1, 25000000, 0x404, 0, 0, cpu_c.CPU_SUPPORTS_DYNAREC, 8, 8, 4, 4, 6),
+iXtal26/Cpu/cpu_tables.cs	new	185	new("i486DX2/40", CPU_i486DX, fpus_builtin, 4, 40000000, 2, 20000000, 0x430, 0, 0, cpu_c.CPU_SUPPORTS_DYNAREC, 8, 8, 6, 6, 2 * 3),
+iXtal26/Cpu/cpu_tables.cs	new	186	new("i486DX2/50", CPU_i486DX, fpus_builtin, 5, 50000000, 2, 25000000, 0x430, 0, 0, cpu_c.CPU_SUPPORTS_DYNAREC, 8, 8, 6, 6, 2 * 3),
+iXtal26/Cpu/cpu_tables.cs	new	187	new("i486DX2/66", CPU_i486DX, fpus_builtin, 6, 66666666, 2, 33333333, 0x430, 0, 0, cpu_c.CPU_SUPPORTS_DYNAREC, 12, 12, 6, 6, 2 * 4),
+iXtal26/Cpu/cpu_tables.cs	new	188	new("iDX4/75", CPU_iDX4, fpus_builtin, 7, 75000000, 3, 25000000, 0x481, 0x481, 0, cpu_c.CPU_SUPPORTS_DYNAREC, 12, 12, 9, 9, 3 * 3),
+iXtal26/Cpu/cpu_tables.cs	new	189	new("iDX4/100", CPU_iDX4, fpus_builtin, 10, 100000000, 3, 33333333, 0x481, 0x481, 0, cpu_c.CPU_SUPPORTS_DYNAREC, 18, 18, 9, 9, 3 * 4),
+iXtal26/Cpu/cpu_tables.cs	new	190	new("Pentium OverDrive/63", CPU_PENTIUM, fpus_builtin, 6, 62500000, 3, 25000000, 0x1531, 0x1531, 0, cpu_c.CPU_SUPPORTS_DYNAREC | cpu_c.CPU_REQUIRES_DYNAREC, 10, 10, 7, 7, (5 * 3) / 2),
+iXtal26/Cpu/cpu_tables.cs	new	191	new("Pentium OverDrive/83", CPU_PENTIUM, fpus_builtin, 8, 83333333, 3, 33333333, 0x1532, 0x1532, 0, cpu_c.CPU_SUPPORTS_DYNAREC | cpu_c.CPU_REQUIRES_DYNAREC, 15, 15, 8, 8, (5 * 4) / 2),
+iXtal26/Cpu/cpu_tables.cs	new	192	new("", -1, null, 0, 0, 0),
+iXtal26/Cpu/x86.cs	instance	45	internal sealed class x86seg
+iXtal26/Cpu/x86.cs	instance	56	internal sealed class cpu_state_t
+iXtal26/Cpu/x86.cs	new	58	internal readonly x86reg[] regs = new x86reg[8];
+iXtal26/Cpu/x86.cs	new	75	internal readonly x86seg seg_cs = new(), seg_ds = new(), seg_es = new();
+iXtal26/Cpu/x86.cs	new	76	internal readonly x86seg seg_ss = new(), seg_fs = new(), seg_gs = new();
+iXtal26/Cpu/x86.cs	new	110	internal readonly uint8_t[] tag = new uint8_t[8];
+iXtal26/Cpu/x86.cs	new	114	internal readonly double[] ST = new double[8];
+iXtal26/Cpu/x86.cs	new	115	internal readonly uint16_t[] MM_w4 = new uint16_t[8];
+iXtal26/Cpu/x86.cs	new	116	internal readonly MMX_REG[] MM = new MMX_REG[8];
+iXtal26/Cpu/x86.cs	lambda	138	internal static ref int cycles { [MethodImpl(MethodImplOptions.AggressiveInlining)] get => ref cpu_state._cycles; }
+iXtal26/Cpu/x86.cs	lambda	139	internal static ref uint32_t cr0 { [MethodImpl(MethodImplOptions.AggressiveInlining)] get => ref cpu_state.CR0; }
+iXtal26/Cpu/x86.cs	lambda	153	internal static ref uint16_t CS { get => ref cpu_state.seg_cs.seg; }
+iXtal26/Cpu/x86.cs	lambda	154	internal static ref uint16_t DS { get => ref cpu_state.seg_ds.seg; }
+iXtal26/Cpu/x86.cs	lambda	155	internal static ref uint16_t ES { get => ref cpu_state.seg_es.seg; }
+iXtal26/Cpu/x86.cs	lambda	156	internal static ref uint16_t SS { get => ref cpu_state.seg_ss.seg; }
+iXtal26/Cpu/x86.cs	lambda	157	internal static ref uint16_t FS { get => ref cpu_state.seg_fs.seg; }
+iXtal26/Cpu/x86.cs	lambda	158	internal static ref uint16_t GS { get => ref cpu_state.seg_gs.seg; }
+iXtal26/Cpu/x86.cs	lambda	159	internal static ref uint32_t cs { get => ref cpu_state.seg_cs.@base; }
+iXtal26/Cpu/x86.cs	lambda	160	internal static ref uint32_t ds { get => ref cpu_state.seg_ds.@base; }
+iXtal26/Cpu/x86.cs	lambda	161	internal static ref uint32_t es { get => ref cpu_state.seg_es.@base; }
+iXtal26/Cpu/x86.cs	lambda	162	internal static ref uint32_t ss { get => ref cpu_state.seg_ss.@base; }
+iXtal26/Cpu/x86.cs	lambda	163	internal static ref uint32_t gs { get => ref cpu_state.seg_gs.@base; }
+iXtal26/Cpu/x86.cs	lambda	166	internal static ref uint32_t EAX { get => ref cpu_state.regs[0].l; }
+iXtal26/Cpu/x86.cs	lambda	167	internal static ref uint32_t ECX { get => ref cpu_state.regs[1].l; }
+iXtal26/Cpu/x86.cs	lambda	168	internal static ref uint32_t EDX { get => ref cpu_state.regs[2].l; }
+iXtal26/Cpu/x86.cs	lambda	169	internal static ref uint32_t EBX { get => ref cpu_state.regs[3].l; }
+iXtal26/Cpu/x86.cs	lambda	170	internal static ref uint32_t ESP { get => ref cpu_state.regs[4].l; }
+iXtal26/Cpu/x86.cs	lambda	171	internal static ref uint32_t EBP { get => ref cpu_state.regs[5].l; }
+iXtal26/Cpu/x86.cs	lambda	172	internal static ref uint32_t ESI { get => ref cpu_state.regs[6].l; }
+iXtal26/Cpu/x86.cs	lambda	173	internal static ref uint32_t EDI { get => ref cpu_state.regs[7].l; }
+iXtal26/Cpu/x86.cs	lambda	174	internal static ref uint16_t AX { get => ref cpu_state.regs[0].w; }
+iXtal26/Cpu/x86.cs	lambda	175	internal static ref uint16_t CX { get => ref cpu_state.regs[1].w; }
+iXtal26/Cpu/x86.cs	lambda	176	internal static ref uint16_t DX { get => ref cpu_state.regs[2].w; }
+iXtal26/Cpu/x86.cs	lambda	177	internal static ref uint16_t BX { get => ref cpu_state.regs[3].w; }
+iXtal26/Cpu/x86.cs	lambda	178	internal static ref uint16_t SP { get => ref cpu_state.regs[4].w; }
+iXtal26/Cpu/x86.cs	lambda	179	internal static ref uint16_t BP { get => ref cpu_state.regs[5].w; }
+iXtal26/Cpu/x86.cs	lambda	180	internal static ref uint16_t SI { get => ref cpu_state.regs[6].w; }
+iXtal26/Cpu/x86.cs	lambda	181	internal static ref uint16_t DI { get => ref cpu_state.regs[7].w; }
+iXtal26/Cpu/x86.cs	lambda	182	internal static ref uint8_t AL { get => ref cpu_state.regs[0].b.l; }
+iXtal26/Cpu/x86.cs	lambda	183	internal static ref uint8_t AH { get => ref cpu_state.regs[0].b.h; }
+iXtal26/Cpu/x86.cs	lambda	184	internal static ref uint8_t CL { get => ref cpu_state.regs[1].b.l; }
+iXtal26/Cpu/x86.cs	lambda	185	internal static ref uint8_t CH { get => ref cpu_state.regs[1].b.h; }
+iXtal26/Cpu/x86.cs	lambda	186	internal static ref uint8_t DL { get => ref cpu_state.regs[2].b.l; }
+iXtal26/Cpu/x86.cs	lambda	187	internal static ref uint8_t DH { get => ref cpu_state.regs[2].b.h; }
+iXtal26/Cpu/x86.cs	lambda	188	internal static ref uint8_t BL { get => ref cpu_state.regs[3].b.l; }
+iXtal26/Cpu/x86.cs	lambda	189	internal static ref uint8_t BH { get => ref cpu_state.regs[3].b.h; }
+iXtal26/Cpu/x86.cs	lambda	192	internal static ref int8_t cpu_mod { get => ref cpu_state.mod; }
+iXtal26/Cpu/x86.cs	lambda	193	internal static ref int8_t cpu_reg { get => ref cpu_state.reg; }
+iXtal26/Cpu/x86.cs	lambda	194	internal static ref int8_t cpu_rm { get => ref cpu_state.rm; }
+iXtal26/Cpu/x86.cs	new	252	internal static x86seg gdt = new(), ldt = new(), idt = new(), tr = new();
+iXtal26/Cpu/x86.cs	new	270	internal static readonly uint32_t[] dr = new uint32_t[8];
+iXtal26/Cpu/x86seg.cs	new	80	var segdat = new uint16_t[4];
+iXtal26/Cpu/x86seg.cs	segdat	80	var segdat = new uint16_t[4];
+iXtal26/Cpu/x86seg.cs	chaine	316	pc.fatal($"loadcs en mode protege (seg {seg:X4}) : x86seg.c n'est " +
+iXtal26/Cpu/x86seg.cs	new	378	var segdat = new uint16_t[4];
+iXtal26/Cpu/x86seg.cs	segdat	378	var segdat = new uint16_t[4];
+iXtal26/Cpu/x86seg.cs	new	379	var segdat2 = new uint16_t[4];
+iXtal26/Cpu/x86seg.cs	segdat	379	var segdat2 = new uint16_t[4];
+iXtal26/Cpu/x86seg.cs	chaine	556	x86abort($"Bigger than LDT limit {newss:X4} {addr:X8} {ldt.limit:X4} CSC SS\n");
+iXtal26/Cpu/x86seg.cs	chaine	566	x86abort($"Bigger than GDT limit {newss:X4} {gdt.limit:X4} CSC\n");
+iXtal26/Cpu/x86seg.cs	new	790	var segdat = new uint16_t[4];
+iXtal26/Cpu/x86seg.cs	segdat	790	var segdat = new uint16_t[4];
+iXtal26/Cpu/x86seg.cs	new	791	var segdat2 = new uint16_t[4];
+iXtal26/Cpu/x86seg.cs	segdat	791	var segdat2 = new uint16_t[4];
+iXtal26/Cpu/x86seg.cs	new	1086	var segdat = new uint16_t[4];
+iXtal26/Cpu/x86seg.cs	segdat	1086	var segdat = new uint16_t[4];
+iXtal26/Cpu/x86seg.cs	new	1087	var segdat2 = new uint16_t[4];
+iXtal26/Cpu/x86seg.cs	segdat	1087	var segdat2 = new uint16_t[4];
+iXtal26/Cpu/x86seg.cs	new	1088	var segdat3 = new uint16_t[4];
+iXtal26/Cpu/x86seg.cs	segdat	1088	var segdat3 = new uint16_t[4];
+iXtal26/Cpu/x86seg.cs	new	1498	var segdat = new uint16_t[4];
+iXtal26/Cpu/x86seg.cs	segdat	1498	var segdat = new uint16_t[4];
+iXtal26/Cpu/x86seg.cs	new	1499	var segdat2 = new uint16_t[4];
+iXtal26/Cpu/x86seg.cs	segdat	1499	var segdat2 = new uint16_t[4];
+iXtal26/Cpu/x86seg.cs	new	1500	var segs = new uint16_t[4];
+iXtal26/Cpu/x86seg.cs	segdat	1500	var segs = new uint16_t[4];
+iXtal26/Cpu/x86seg.cs	new	1904	var segdat2 = new uint16_t[4];
+iXtal26/Cpu/x86seg.cs	segdat	1904	var segdat2 = new uint16_t[4];
+iXtal26/Cpu/x86seg.cs	new	2371	var segdat = new uint16_t[4];
+iXtal26/Cpu/x86seg.cs	segdat	2371	var segdat = new uint16_t[4];
+iXtal26/Cpu/x86seg.cs	chaine	2674	=> pc.fatal($"x86abort : {format}\n");
+iXtal26/Cpu/x87.Materiel.cs	lambda	40	partout(h => h.Method.Name == "opFCLEX" ? efface_b(h) : null);
+iXtal26/Cpu/x87.Materiel.cs	func	58	private static void partout(Func<OpFn, OpFn?> f)
+iXtal26/Cpu/x87.Materiel.cs	func	78	private static OpFn[] sur(OpFn[] posee, OpFn[] pcem, Func<OpFn, OpFn?> f)
+iXtal26/Cpu/x87.Materiel.cs	fetchdat	146	private static OpFn efface_b(OpFn pcem) => fetchdat =>
+iXtal26/Cpu/x87.Materiel.cs	lambda	211	0xD9 or 0xDD => i < 0xC0 && ((i >> 3) & 7) is 6 or 7,
+iXtal26/Cpu/x87.Materiel.cs	lambda	212	0xDB => i is 0xE2 or 0xE3 or 0xE4,
+iXtal26/Cpu/x87.Materiel.cs	lambda	213	0xDF => i == 0xE0,
+iXtal26/Cpu/x87.Materiel.cs	lambda	214	_ => false,
+iXtal26/Cpu/x87.Materiel.cs	fetchdat	218	private static OpFn attend(OpFn pcem) => fetchdat => (cr0 & 0xc) == 0 && bloque() ? 1 : pcem(fetchdat);
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	43	internal static readonly extFloat80_t[] R = new extFloat80_t[8];
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	66	internal static readonly extFloat80_t Indefini = new() { signExp = 0xFFFF, signif = 0xC000000000000000 };
+iXtal26/Cpu/x87_noyau.Materiel.cs	lambda	83	Classe.Zero => ZERO,
+iXtal26/Cpu/x87_noyau.Materiel.cs	lambda	84	Classe.Normal => VALIDE,
+iXtal26/Cpu/x87_noyau.Materiel.cs	lambda	85	Classe.NonNormal when seize_bits() => VALIDE,
+iXtal26/Cpu/x87_noyau.Materiel.cs	lambda	86	_ => SPECIAL,
+iXtal26/Cpu/x87_noyau.Materiel.cs	lambda	235	0 => softfloat.softfloat_round_near_even,
+iXtal26/Cpu/x87_noyau.Materiel.cs	lambda	236	1 => softfloat.softfloat_round_min,
+iXtal26/Cpu/x87_noyau.Materiel.cs	lambda	237	2 => softfloat.softfloat_round_max,
+iXtal26/Cpu/x87_noyau.Materiel.cs	lambda	238	_ => softfloat.softfloat_round_minMag,
+iXtal26/Cpu/x87_noyau.Materiel.cs	lambda	242	0 => (byte)32,
+iXtal26/Cpu/x87_noyau.Materiel.cs	lambda	243	2 => (byte)64,
+iXtal26/Cpu/x87_noyau.Materiel.cs	lambda	244	_ => (byte)80,
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	484	return new extFloat80_t { signExp = signe };
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	488	return new extFloat80_t { signExp = (uint16_t)(signe | ((m >> 63) != 0 ? e + 0x3FFF : 0)), signif = m };
+iXtal26/Cpu/x87_noyau.Materiel.cs	lambda	508	var p = !selonPc ? 64 : softfloat.extF80_roundingPrecision switch { 32 => 24, 64 => 53, _ => 64 };
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	522	return new extFloat80_t { signExp = signe };
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	523	return new extFloat80_t { signExp = (uint16_t)(signe | ((m >> 63) != 0 ? e + 0x3FFF : 0)), signif = m };
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	533	return new extFloat80_t { signExp = signe };
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	535	return new extFloat80_t { signExp = (uint16_t)(signe | (e + 0x3FFF)), signif = m };
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	550	return new extFloat80_t { signExp = (uint16_t)(signe | (e + 0x3FFF)), signif = m };
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	563	return new extFloat80_t { signExp = (uint16_t)(signe | 0x7FFE), signif = sig };
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	567	return new extFloat80_t { signExp = (uint16_t)(signe | (er2 + 0x3FFF)), signif = mr };
+iXtal26/Cpu/x87_noyau.Materiel.cs	lambda	586	softfloat.softfloat_round_near_even => reste * 2 > du || reste * 2 == du && !q.IsEven,
+iXtal26/Cpu/x87_noyau.Materiel.cs	lambda	587	softfloat.softfloat_round_min => inexact && s,
+iXtal26/Cpu/x87_noyau.Materiel.cs	lambda	588	softfloat.softfloat_round_max => inexact && !s,
+iXtal26/Cpu/x87_noyau.Materiel.cs	lambda	589	_ => false,
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	602	private static BigInteger grand(uint64_t m) => new(m);
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	677	return new extFloat80_t { signExp = (uint16_t)((neg ? 0x8000 : 0) | (f is > 0 and < 0x7FFF ? f : 0)) };
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	752	empiler(new extFloat80_t
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	760	var r = non_normal_f32(v) ?? softfloat.f32_to_extF80(new float32_t { v = v });
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	787	empiler(new extFloat80_t
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	795	var r = non_normal_f64(v) ?? softfloat.f64_to_extF80(new float64_t { v = v });
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	824	empiler(new extFloat80_t { signExp = signExp, signif = signif });
+iXtal26/Cpu/x87_noyau.Materiel.cs	lambda	876	1 or 3 => c.bas,
+iXtal26/Cpu/x87_noyau.Materiel.cs	lambda	877	2 => c.haut,
+iXtal26/Cpu/x87_noyau.Materiel.cs	lambda	878	_ => c.pres,
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	880	empiler(new extFloat80_t { signExp = c.se, signif = sig });
+iXtal26/Cpu/x87_noyau.Materiel.cs	lambda	960	Classe.Zero => x87_c.C3,
+iXtal26/Cpu/x87_noyau.Materiel.cs	lambda	961	Classe.Normal => x87_c.C2,
+iXtal26/Cpu/x87_noyau.Materiel.cs	lambda	962	Classe.Denormal or Classe.PseudoDenormal => (uint16_t)(x87_c.C3 | x87_c.C2),
+iXtal26/Cpu/x87_noyau.Materiel.cs	lambda	963	Classe.Infini => (uint16_t)(x87_c.C2 | x87_c.C0),
+iXtal26/Cpu/x87_noyau.Materiel.cs	lambda	964	Classe.QNaN or Classe.SNaN => x87_c.C0,
+iXtal26/Cpu/x87_noyau.Materiel.cs	lambda	965	Classe.PseudoInfini or Classe.PseudoNaN when seize_bits() => x87_c.C0,
+iXtal26/Cpu/x87_noyau.Materiel.cs	lambda	966	_ => 0,
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	1250	internal static readonly uint32_t[] off = new uint32_t[64];
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	1251	internal static readonly uint16_t[] mot = new uint16_t[64];
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	1254	private static readonly uint16_t[] image = new uint16_t[54];
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	1465	R[phys(i)] = new extFloat80_t { signif = LL(b) | (uint64_t)LL(b + 4) << 32, signExp = (uint16_t)L(b + 8) };
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	1516	return new extFloat80_t
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	1521	return non_normal_f32(v) ?? softfloat.f32_to_extF80(new float32_t { v = v });
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	1529	return new extFloat80_t
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	1534	return non_normal_f64(v) ?? softfloat.f64_to_extF80(new float64_t { v = v });
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	1546	return new extFloat80_t { signExp = (uint16_t)((v >> 16 & 0x8000) | (0x3FFF - 126)), signif = (uint64_t)(v & 0x007FFFFF) << 40 };
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	1554	return new extFloat80_t { signExp = (uint16_t)((v >> 48 & 0x8000) | (0x3FFF - 1022)), signif = (v & 0x000FFFFFFFFFFFFF) << 11 };
+iXtal26/Cpu/x87_noyau.Materiel.cs	lambda	1637	ADD => softfloat.extF80_add(a, b),
+iXtal26/Cpu/x87_noyau.Materiel.cs	lambda	1638	MUL => softfloat.extF80_mul(a, b),
+iXtal26/Cpu/x87_noyau.Materiel.cs	lambda	1639	SUB => softfloat.extF80_sub(a, b),
+iXtal26/Cpu/x87_noyau.Materiel.cs	lambda	1640	_ => softfloat.extF80_div(a, b),
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	1838	comparer(x, new extFloat80_t(), true);
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	1866	return new extFloat80_t { signExp = (uint16_t)z.v64, signif = z.v0 };
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	1975	: new extFloat80_t { signExp = (uint16_t)((x.signExp & 0x8000) | (moins ? 0 : 0x7FFF)), signif = moins ? 0 : 0x8000000000000000 };
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	2054	ex = new extFloat80_t { signExp = 0xFFFF, signif = 0x8000000000000000 };
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	2064	ex = new extFloat80_t { signExp = 0x7FFF, signif = 0x8000000000000000 };
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	2075	sig = new extFloat80_t { signExp = (uint16_t)((s ? 0x8000 : 0) | 0x3FFF), signif = m };
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	2083	sig = new extFloat80_t { signExp = (uint16_t)((s ? 0x8000 : 0) | 0x3FFF), signif = m };
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	2217	return new extFloat80_t { signExp = (uint16_t)(sx ? 0x8000 : 0) };
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	2226	private static extFloat80_t infini(bool neg) => new() { signExp = (uint16_t)(neg ? 0xFFFF : 0x7FFF), signif = 0x8000000000000000 };
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	2228	private static extFloat80_t zero(bool neg) => new() { signExp = (uint16_t)(neg ? 0x8000 : 0) };
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	2283	r = negatif(x) ? new extFloat80_t { signExp = 0xBFFF, signif = 0x8000000000000000 } : x;
+iXtal26/Cpu/x87_noyau.Materiel.cs	new	2370	private static readonly extFloat80_t Un = new() { signExp = 0x3FFF, signif = 0x8000000000000000 };
+iXtal26/Cpu/x87_ops.cs	lambda	381	1 => err < 0 ? Math.BitDecrement(r) : r,
+iXtal26/Cpu/x87_ops.cs	lambda	382	2 => err > 0 ? Math.BitIncrement(r) : r,
+iXtal26/Cpu/x87_ops.cs	lambda	383	_ => (r > 0 && err < 0) ? Math.BitDecrement(r) : (r < 0 && err > 0) ? Math.BitIncrement(r) : r,
+iXtal26/Cpu/x87_timings.cs	new	79	internal static readonly x87_timings_t x87_timings_8087 = new()
+iXtal26/Cpu/x87_timings.cs	new	158	internal static readonly x87_timings_t x87_timings_287 = new()
+iXtal26/Cpu/x87_timings.cs	new	236	internal static readonly x87_timings_t x87_timings_387 = new()
+iXtal26/Cpu/x87_timings.cs	new	311	internal static readonly x87_timings_t x87_timings_486 = new()
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	51	private static readonly Reel Un = new(false, 0, (UInt128)1 << 127);
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	52	private static readonly Reel Deux = new(false, 1, (UInt128)1 << 127);
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	60	return new Reel(s, 0, 0);
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	64	return new Reel(s, e - 0x3FFF - z, (UInt128)(v.signif << z) << 64);
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	71	return new Reel(false, 0, 0);
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	74	return new Reel(k < 0, 63 - z, (UInt128)(a << z) << 64);
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	77	internal static Reel oppose(in Reel a) => new(!a.s, a.e, a.m);
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	79	internal static Reel echelle(in Reel a, int n) => new(a.s, a.e + n, a.m);
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	88	return new Reel(a.s ^ b.s, 0, 0);
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	102	return new Reel(a.s ^ b.s, e, hi | (lo != 0 ? UInt128.One : UInt128.Zero));
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	118	return new Reel(x.s, x.e, m);
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	119	return new Reel(x.s, x.e + 1, (m >> 1) | (m & 1) | (UInt128.One << 127));
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	123	return new Reel(false, 0, 0);
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	125	return new Reel(x.s, x.e - z, d << z);
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	136	var r = new Reel(b.s, 63 - z - b.e, q << z);
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	155	return new Reel(a.s ^ b.s, a.e - b.e - z, q << z | (r2 != 0 ? UInt128.One : UInt128.Zero));
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	182	private static readonly Reel Ln2 = new(false, -1, new UInt128(0xB17217F7D1CF79AB, 0xC9E3B39803F2F6AF));
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	184	private static readonly Reel Log2e = new(false, 0, new UInt128(0xB8AA3B295C17F0BB, 0xBE87FED0691D3E89));
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	186	private static readonly Reel Racine2 = new(false, 0, new UInt128(0xB504F333F9DE6484, 0x597D89B3754ABE9F));
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	188	private static readonly Reel Pi = new(false, 1, new UInt128(0xC90FDAA22168C234, 0xC4C6628B80DC1CD1));
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	190	private static readonly Reel PiSur2 = new(false, 0, new UInt128(0xC90FDAA22168C234, 0xC4C6628B80DC1CD1));
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	192	private static readonly Reel PiSur4 = new(false, -1, new UInt128(0xC90FDAA22168C234, 0xC4C6628B80DC1CD1));
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	194	private static readonly Reel TroisPiSur4 = new(false, 1, new UInt128(0x96CBE3F9990E91A7, 0x9394C9E8A0A5159D));
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	198	new(false, 0, new UInt128(0x8000000000000000, 0x0000000000000000)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	199	new(false, -1, new UInt128(0x8000000000000000, 0x0000000000000000)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	200	new(false, -3, new UInt128(0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAB)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	201	new(false, -5, new UInt128(0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAB)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	202	new(false, -7, new UInt128(0x8888888888888888, 0x8888888888888889)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	203	new(false, -10, new UInt128(0xB60B60B60B60B60B, 0x60B60B60B60B60B6)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	204	new(false, -13, new UInt128(0xD00D00D00D00D00D, 0x00D00D00D00D00D0)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	205	new(false, -16, new UInt128(0xD00D00D00D00D00D, 0x00D00D00D00D00D0)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	206	new(false, -19, new UInt128(0xB8EF1D2AB6399C7D, 0x560E4472800B8EF2)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	207	new(false, -22, new UInt128(0x93F27DBBC4FAE397, 0x780B69F5333C725B)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	208	new(false, -26, new UInt128(0xD7322B3FAA271C7F, 0x3A3F25C1BEE38F10)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	209	new(false, -29, new UInt128(0x8F76C77FC6C4BDAA, 0x26D4C3D67F425F60)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	210	new(false, -33, new UInt128(0xB092309D43684BE5, 0x1C198E91D7B4269E)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	211	new(false, -37, new UInt128(0xC9CBA54603E4E905, 0xD6F8A2EFD1F27546)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	212	new(false, -41, new UInt128(0xD73F9F399DC0F88E, 0xC32B58774657F48F)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	213	new(false, -45, new UInt128(0xD73F9F399DC0F88E, 0xC32B58774657F48F)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	214	new(false, -49, new UInt128(0xCA963B81856A5359, 0x3028CBBB8D7FF53C)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	215	new(false, -53, new UInt128(0xB413C31DCBECBBDD, 0x8024435161554BC3)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	216	new(false, -57, new UInt128(0x97A4DA340A0AB926, 0x50F61DBDCB3A5ABF)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	217	new(false, -62, new UInt128(0xF2A15D201011283D, 0x4E5695FC785D5DFF)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	218	new(false, -66, new UInt128(0xB8DC77B6E7AB8C5F, 0x78A37E77372290C2)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	219	new(false, -70, new UInt128(0x8671CB6DBFC294A2, 0x86485BF99C763ABC)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	220	new(false, -75, new UInt128(0xBB0DA098B1C0CECB, 0xDC3826EBFB13CC27)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	221	new(false, -80, new UInt128(0xF96780CB97ABBE65, 0x25A033E54EC51034)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	222	new(false, -84, new UInt128(0x9F9E66E8B2FD46A7, 0x22520CBBB7885C4A)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	223	new(false, -89, new UInt128(0xC4742FE35272CD1C, 0x790285D3580A4A34)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	224	new(false, -94, new UInt128(0xE8D58E16E6751905, 0x4D0C78AEA13B9A50)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	229	new(false, 0, new UInt128(0x8000000000000000, 0x0000000000000000)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	230	new(false, -2, new UInt128(0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAB)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	231	new(false, -3, new UInt128(0xCCCCCCCCCCCCCCCC, 0xCCCCCCCCCCCCCCCD)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	232	new(false, -3, new UInt128(0x9249249249249249, 0x2492492492492492)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	233	new(false, -4, new UInt128(0xE38E38E38E38E38E, 0x38E38E38E38E38E4)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	234	new(false, -4, new UInt128(0xBA2E8BA2E8BA2E8B, 0xA2E8BA2E8BA2E8BA)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	235	new(false, -4, new UInt128(0x9D89D89D89D89D89, 0xD89D89D89D89D89E)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	236	new(false, -4, new UInt128(0x8888888888888888, 0x8888888888888889)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	237	new(false, -5, new UInt128(0xF0F0F0F0F0F0F0F0, 0xF0F0F0F0F0F0F0F1)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	238	new(false, -5, new UInt128(0xD79435E50D79435E, 0x50D79435E50D7943)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	239	new(false, -5, new UInt128(0xC30C30C30C30C30C, 0x30C30C30C30C30C3)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	240	new(false, -5, new UInt128(0xB21642C8590B2164, 0x2C8590B21642C859)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	241	new(false, -5, new UInt128(0xA3D70A3D70A3D70A, 0x3D70A3D70A3D70A4)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	242	new(false, -5, new UInt128(0x97B425ED097B425E, 0xD097B425ED097B42)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	243	new(false, -5, new UInt128(0x8D3DCB08D3DCB08D, 0x3DCB08D3DCB08D3E)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	244	new(false, -5, new UInt128(0x8421084210842108, 0x4210842108421084)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	245	new(false, -6, new UInt128(0xF83E0F83E0F83E0F, 0x83E0F83E0F83E0F8)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	246	new(false, -6, new UInt128(0xEA0EA0EA0EA0EA0E, 0xA0EA0EA0EA0EA0EA)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	247	new(false, -6, new UInt128(0xDD67C8A60DD67C8A, 0x60DD67C8A60DD67D)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	248	new(false, -6, new UInt128(0xD20D20D20D20D20D, 0x20D20D20D20D20D2)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	249	new(false, -6, new UInt128(0xC7CE0C7CE0C7CE0C, 0x7CE0C7CE0C7CE0C8)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	250	new(false, -6, new UInt128(0xBE82FA0BE82FA0BE, 0x82FA0BE82FA0BE83)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	251	new(false, -6, new UInt128(0xB60B60B60B60B60B, 0x60B60B60B60B60B6)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	252	new(false, -6, new UInt128(0xAE4C415C9882B931, 0x0572620AE4C415CA)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	253	new(false, -6, new UInt128(0xA72F05397829CBC1, 0x4E5E0A72F0539783)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	254	new(false, -6, new UInt128(0xA0A0A0A0A0A0A0A0, 0xA0A0A0A0A0A0A0A1)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	259	new(false, 0, new UInt128(0x8000000000000000, 0x0000000000000000)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	260	new(true, -3, new UInt128(0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAB)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	261	new(false, -7, new UInt128(0x8888888888888888, 0x8888888888888889)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	262	new(true, -13, new UInt128(0xD00D00D00D00D00D, 0x00D00D00D00D00D0)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	263	new(false, -19, new UInt128(0xB8EF1D2AB6399C7D, 0x560E4472800B8EF2)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	264	new(true, -26, new UInt128(0xD7322B3FAA271C7F, 0x3A3F25C1BEE38F10)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	265	new(false, -33, new UInt128(0xB092309D43684BE5, 0x1C198E91D7B4269E)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	266	new(true, -41, new UInt128(0xD73F9F399DC0F88E, 0xC32B58774657F48F)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	267	new(false, -49, new UInt128(0xCA963B81856A5359, 0x3028CBBB8D7FF53C)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	268	new(true, -57, new UInt128(0x97A4DA340A0AB926, 0x50F61DBDCB3A5ABF)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	269	new(false, -66, new UInt128(0xB8DC77B6E7AB8C5F, 0x78A37E77372290C2)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	270	new(true, -75, new UInt128(0xBB0DA098B1C0CECB, 0xDC3826EBFB13CC27)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	271	new(false, -84, new UInt128(0x9F9E66E8B2FD46A7, 0x22520CBBB7885C4A)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	272	new(true, -94, new UInt128(0xE8D58E16E6751905, 0x4D0C78AEA13B9A50)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	273	new(false, -103, new UInt128(0x92CFCC5A1AC56BD5, 0xF1873BB378948EB3)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	274	new(true, -113, new UInt128(0xA1A6973C1FADE217, 0x0F7237D35FE1C89E)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	279	new(false, 0, new UInt128(0x8000000000000000, 0x0000000000000000)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	280	new(true, -1, new UInt128(0x8000000000000000, 0x0000000000000000)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	281	new(false, -5, new UInt128(0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAB)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	282	new(true, -10, new UInt128(0xB60B60B60B60B60B, 0x60B60B60B60B60B6)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	283	new(false, -16, new UInt128(0xD00D00D00D00D00D, 0x00D00D00D00D00D0)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	284	new(true, -22, new UInt128(0x93F27DBBC4FAE397, 0x780B69F5333C725B)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	285	new(false, -29, new UInt128(0x8F76C77FC6C4BDAA, 0x26D4C3D67F425F60)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	286	new(true, -37, new UInt128(0xC9CBA54603E4E905, 0xD6F8A2EFD1F27546)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	287	new(false, -45, new UInt128(0xD73F9F399DC0F88E, 0xC32B58774657F48F)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	288	new(true, -53, new UInt128(0xB413C31DCBECBBDD, 0x8024435161554BC3)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	289	new(false, -62, new UInt128(0xF2A15D201011283D, 0x4E5695FC785D5DFF)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	290	new(true, -70, new UInt128(0x8671CB6DBFC294A2, 0x86485BF99C763ABC)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	291	new(false, -80, new UInt128(0xF96780CB97ABBE65, 0x25A033E54EC51034)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	292	new(true, -89, new UInt128(0xC4742FE35272CD1C, 0x790285D3580A4A34)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	293	new(false, -98, new UInt128(0x850C5131A842E9B9, 0xE2E28E1AA546A152)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	294	new(true, -108, new UInt128(0x9C9962823EB07306, 0x56F6A614C4E2BA59)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	295	new(false, -118, new UInt128(0xA1A6973C1FADE217, 0x0F7237D35FE1C89E)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	300	new(false, 0, new UInt128(0x8000000000000000, 0x0000000000000000)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	301	new(true, -2, new UInt128(0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAB)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	302	new(false, -3, new UInt128(0xCCCCCCCCCCCCCCCC, 0xCCCCCCCCCCCCCCCD)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	303	new(true, -3, new UInt128(0x9249249249249249, 0x2492492492492492)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	304	new(false, -4, new UInt128(0xE38E38E38E38E38E, 0x38E38E38E38E38E4)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	305	new(true, -4, new UInt128(0xBA2E8BA2E8BA2E8B, 0xA2E8BA2E8BA2E8BA)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	306	new(false, -4, new UInt128(0x9D89D89D89D89D89, 0xD89D89D89D89D89E)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	307	new(true, -4, new UInt128(0x8888888888888888, 0x8888888888888889)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	308	new(false, -5, new UInt128(0xF0F0F0F0F0F0F0F0, 0xF0F0F0F0F0F0F0F1)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	309	new(true, -5, new UInt128(0xD79435E50D79435E, 0x50D79435E50D7943)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	310	new(false, -5, new UInt128(0xC30C30C30C30C30C, 0x30C30C30C30C30C3)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	311	new(true, -5, new UInt128(0xB21642C8590B2164, 0x2C8590B21642C859)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	312	new(false, -5, new UInt128(0xA3D70A3D70A3D70A, 0x3D70A3D70A3D70A4)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	313	new(true, -5, new UInt128(0x97B425ED097B425E, 0xD097B425ED097B42)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	314	new(false, -5, new UInt128(0x8D3DCB08D3DCB08D, 0x3DCB08D3DCB08D3E)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	315	new(true, -5, new UInt128(0x8421084210842108, 0x4210842108421084)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	316	new(false, -6, new UInt128(0xF83E0F83E0F83E0F, 0x83E0F83E0F83E0F8)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	321	new(false, -4, new UInt128(0xFEADD4D5617B6E32, 0xC897989F3E888EF8)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	322	new(false, -3, new UInt128(0xFADBAFC96406EB15, 0x6DC79EF5F7A217E6)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	323	new(false, -2, new UInt128(0xB7B0CA0F26F78473, 0x8AA32122DCFE4483)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	324	new(false, -2, new UInt128(0xED63382B0DDA7B45, 0x6FE445ECBC3A8D03)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	325	new(false, -1, new UInt128(0x8F005D5EF7F59F9B, 0x5C835E1665C43748)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	326	new(false, -1, new UInt128(0xA4BC7D1934F70924, 0x19A87F2A457DAC9F)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	327	new(false, -1, new UInt128(0xB8053E2BC2319E73, 0xCB2DA55210A4443D)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	328	new(false, -1, new UInt128(0xC90FDAA22168C234, 0xC4C6628B80DC1CD1)),
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	362	var f = x.e >= 15 ? new Reel(false, 0, 0) : sub(x, entier(n));
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	364	var e = exact ? new Reel(false, 0, 0) : expm1(mul(f, Ln2));
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	375	var m = new Reel(false, 0, x.m);
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	392	private static readonly UInt128 P66 = new(0xC, 0x90FDAA22168C234C);
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	424	return new Reel(neg, 60 - z, a << z);
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	436	var r = reduire(new Reel(false, x.e, x.m), out var k);
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	447	var inv = r.m == UInt128.One << 127 ? new Reel(r.s, -r.e, r.m) : inverse(r);
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	new	487	Reel a = new(false, y.e, y.m), b = new(false, x.e, x.m);
+iXtal26/Cpu/x87_transcendantes.Materiel.cs	lambda	498	var a = k switch { 4 => Pi, 2 => PiSur2, 1 => PiSur4, _ => TroisPiSur4 };
+iXtal26/Ics/Emu8000.cs	instance	74	internal sealed class emu8k_envelope_t
+iXtal26/Ics/Emu8000.cs	instance	86	internal sealed class emu8k_chorus_eng_t
+iXtal26/Ics/Emu8000.cs	new	96	internal readonly int32_t[] chorus_buffer = new int32_t[Emu8000.EMU8K_LFOCHORUS_SIZE * 2];
+iXtal26/Ics/Emu8000.cs	instance	102	internal sealed class emu8k_reverb_combfilter_t
+iXtal26/Ics/Emu8000.cs	new	105	internal readonly int32_t[] reflection = new int32_t[Emu8000.REFL_TAMPON];
+iXtal26/Ics/Emu8000.cs	instance	115	internal sealed class emu8k_reverb_eng_t
+iXtal26/Ics/Emu8000.cs	new	125	internal readonly emu8k_reverb_combfilter_t tailL = new();
+iXtal26/Ics/Emu8000.cs	new	126	internal readonly emu8k_reverb_combfilter_t tailR = new();
+iXtal26/Ics/Emu8000.cs	new	128	internal readonly emu8k_reverb_combfilter_t damper = new();
+iXtal26/Ics/Emu8000.cs	new	132	var t = new emu8k_reverb_combfilter_t[n];
+iXtal26/Ics/Emu8000.cs	new	134	t[i] = new emu8k_reverb_combfilter_t();
+iXtal26/Ics/Emu8000.cs	instance	140	internal sealed class emu8k_slide_t
+iXtal26/Ics/Emu8000.cs	instance	248	internal sealed class emu8k_voice_t
+iXtal26/Ics/Emu8000.cs	new	253	internal readonly emu8k_slide_t volumeslide = new();
+iXtal26/Ics/Emu8000.cs	new	287	internal readonly emu8k_envelope_t vol_envelope = new();
+iXtal26/Ics/Emu8000.cs	new	288	internal readonly emu8k_envelope_t mod_envelope = new();
+iXtal26/Ics/Emu8000.cs	new	305	internal readonly int64_t[] filt_buffer = new int64_t[5];
+iXtal26/Ics/Emu8000.cs	instance	309	internal sealed class emu8k_t
+iXtal26/Ics/Emu8000.cs	new	316	internal readonly uint16_t[] init1 = new uint16_t[32], init2 = new uint16_t[32], init3 = new uint16_t[32], init4 = new uint16_t[32];
+iXtal26/Ics/Emu8000.cs	new	331	internal readonly int[] ram_pointers = new int[0x100];
+iXtal26/Ics/Emu8000.cs	new	338	internal readonly emu8k_chorus_eng_t chorus_engine = new();
+iXtal26/Ics/Emu8000.cs	new	339	internal readonly int32_t[] chorus_in_buffer = new int32_t[MAXSOUNDBUFLEN];
+iXtal26/Ics/Emu8000.cs	new	340	internal readonly emu8k_reverb_eng_t reverb_engine = new();
+iXtal26/Ics/Emu8000.cs	new	341	internal readonly int32_t[] reverb_in_buffer = new int32_t[MAXSOUNDBUFLEN];
+iXtal26/Ics/Emu8000.cs	new	344	internal readonly int32_t[] buffer = new int32_t[MAXSOUNDBUFLEN * 2];
+iXtal26/Ics/Emu8000.cs	new	348	var t = new emu8k_voice_t[32];
+iXtal26/Ics/Emu8000.cs	new	350	t[i] = new emu8k_voice_t();
+iXtal26/Ics/Emu8000.cs	new	397	internal static readonly float[] cubic_table = new float[CUBIC_RESOLUTION * 4];
+iXtal26/Ics/Emu8000.cs	new	401	internal static readonly int64_t[] freqtable = new int64_t[65536];
+iXtal26/Ics/Emu8000.cs	new	404	internal static readonly int32_t[] attentable = new int32_t[256];
+iXtal26/Ics/Emu8000.cs	new	407	internal static readonly int32_t[] env_vol_db_to_vol_target = new int32_t[65537];
+iXtal26/Ics/Emu8000.cs	new	410	internal static readonly int32_t[] env_vol_amplitude_to_db = new int32_t[65537];
+iXtal26/Ics/Emu8000.cs	new	413	internal static readonly int32_t[] env_mod_hertz_to_octave = new int32_t[65537];
+iXtal26/Ics/Emu8000.cs	new	415	internal static readonly int32_t[] env_attack_to_samples = new int32_t[128];
+iXtal26/Ics/Emu8000.cs	new	432	internal static readonly int32_t[] lfotable = new int32_t[65536];
+iXtal26/Ics/Emu8000.cs	new	434	internal static readonly int64_t[] lfofreqtospeed = new int64_t[256];
+iXtal26/Ics/Emu8000.cs	new	437	internal static readonly double[] chortable = new double[65536];
+iXtal26/Ics/Emu8000.cs	new	451	internal static readonly int32_t[] filt_coeffs = new int32_t[16 * 256 * 3];
+iXtal26/Ics/Emu8000.cs	new	2053	var rom = new byte[1024 * 1024];
+iXtal26/Ics/Emu8000.cs	new	2054	using (var f = Flash.rom.romfopen("awe32.raw", "rb") ?? throw new InvalidOperationException("AWE32.RAW not found"))
+iXtal26/Ics/Emu8000.cs	new	2065	emu8k.mem = new int16_t[RAM_DEBUT + ram_mots];
+iXtal26/Ics/Intel8253.cs	instance	49	internal sealed class PIT_nr
+iXtal26/Ics/Intel8253.cs	instance	59	internal sealed class PIT
+iXtal26/Ics/Intel8253.cs	new	61	internal uint32_t[] l = new uint32_t[3];
+iXtal26/Ics/Intel8253.cs	new	62	internal pc_timer_t[] timer = { new(), new(), new() };
+iXtal26/Ics/Intel8253.cs	new	63	internal uint8_t[] m = new uint8_t[3];
+iXtal26/Ics/Intel8253.cs	new	65	internal uint8_t[] ctrls = new uint8_t[3];
+iXtal26/Ics/Intel8253.cs	new	67	internal int[] rm = new int[3], wm = new int[3];
+iXtal26/Ics/Intel8253.cs	new	68	internal uint16_t[] rl = new uint16_t[3];
+iXtal26/Ics/Intel8253.cs	new	69	internal int[] thit = new int[3];
+iXtal26/Ics/Intel8253.cs	new	70	internal int[] delay = new int[3];
+iXtal26/Ics/Intel8253.cs	new	71	internal int[] rereadlatch = new int[3];
+iXtal26/Ics/Intel8253.cs	new	72	internal int[] gate = new int[3];
+iXtal26/Ics/Intel8253.cs	new	73	internal int[] @out = new int[3];
+iXtal26/Ics/Intel8253.cs	new	74	internal int[] running = new int[3];
+iXtal26/Ics/Intel8253.cs	new	75	internal int[] enabled = new int[3];
+iXtal26/Ics/Intel8253.cs	new	76	internal int[] newcount = new int[3];
+iXtal26/Ics/Intel8253.cs	new	77	internal int[] count = new int[3];
+iXtal26/Ics/Intel8253.cs	new	78	internal int[] using_timer = new int[3];
+iXtal26/Ics/Intel8253.cs	new	79	internal int[] initial = new int[3];
+iXtal26/Ics/Intel8253.cs	new	80	internal int[] latched = new int[3];
+iXtal26/Ics/Intel8253.cs	new	81	internal int[] disabled = new int[3];
+iXtal26/Ics/Intel8253.cs	new	83	internal uint8_t[] read_status = new uint8_t[3];
+iXtal26/Ics/Intel8253.cs	new	84	internal int[] do_read_status = new int[3];
+iXtal26/Ics/Intel8253.cs	new	86	internal PIT_nr[] pit_nr = { new(), new(), new() };
+iXtal26/Ics/Intel8253.cs	new	88	internal set_out_func_t?[] set_out_funcs = new set_out_func_t?[3];
+iXtal26/Ics/Intel8253.cs	new	96	internal static readonly PIT pit_ = new();
+iXtal26/Ics/Intel8253.cs	new	158	pit.timer[t] = new pc_timer_t();
+iXtal26/Ics/Intel8253.cs	new	178	pit.pit_nr[t] = new PIT_nr();
+iXtal26/Ics/SierraSC1502x.cs	instance	28	internal sealed class unk_ramdac_t
+iXtal26/Ics/TridentTKD8001.cs	instance	24	internal sealed class tkd8001_ramdac_t
+iXtal26/Lpt/lpt_dac.cs	instance	21	internal sealed class lpt_dac_t
+iXtal26/Lpt/lpt_dac.cs	new	28	internal int16_t[][] buffer = { new int16_t[MAXSOUNDBUFLEN], new int16_t[MAXSOUNDBUFLEN] };
+iXtal26/Lpt/lpt_dac.cs	new	38	private static readonly float[][] dac_iir_y = { new float[NCoef + 1], new float[NCoef + 1] };
+iXtal26/Lpt/lpt_dac.cs	new	39	private static readonly float[][] dac_iir_x = { new float[NCoef + 1], new float[NCoef + 1] };
+iXtal26/Lpt/lpt_dac.cs	new	123	lpt_dac_t lpt_dac = new lpt_dac_t();
+iXtal26/Lpt/lpt_dac.cs	new	145	internal static readonly lpt_device_t lpt_dac_device = new()
+iXtal26/Lpt/lpt_dac.cs	new	152	internal static readonly lpt_device_t lpt_dac_stereo_device = new()
+iXtal26/Lpt/lpt_dss.cs	instance	20	internal sealed class dss_t
+iXtal26/Lpt/lpt_dss.cs	new	22	internal uint8_t[] fifo = new uint8_t[16];
+iXtal26/Lpt/lpt_dss.cs	new	27	internal pc_timer_t timer = new();
+iXtal26/Lpt/lpt_dss.cs	new	29	internal int16_t[] buffer = new int16_t[MAXSOUNDBUFLEN];
+iXtal26/Lpt/lpt_dss.cs	new	40	private static readonly float[] dss_iir_y = new float[NCoef + 1];
+iXtal26/Lpt/lpt_dss.cs	new	41	private static readonly float[] dss_iir_x = new float[NCoef + 1];
+iXtal26/Lpt/lpt_dss.cs	new	137	dss_t dss = new dss_t();
+iXtal26/Lpt/lpt_dss.cs	new	150	internal static readonly lpt_device_t dss_device = new()
+iXtal26/Memory/mem.cs	instance	37	internal sealed class mem_mapping_t
+iXtal26/Memory/mem.cs	new	85	private static readonly mem_mapping_t?[] read_mapping = new mem_mapping_t?[0x40000];
+iXtal26/Memory/mem.cs	new	86	private static readonly mem_mapping_t?[] write_mapping = new mem_mapping_t?[0x40000];
+iXtal26/Memory/mem.cs	new	87	private static readonly uint8_t[] _mem_state = new uint8_t[0x40000];
+iXtal26/Memory/mem.cs	new	103	private static readonly byte[]?[] _mem_exec = new byte[0x40000][];
+iXtal26/Memory/mem.cs	new	104	private static readonly int[] _mem_exec_off = new int[0x40000];
+iXtal26/Memory/mem.cs	new	109	private static readonly byte[] ff_array = new byte[0x1000];
+iXtal26/Memory/mem.cs	new	111	private static readonly mem_mapping_t base_mapping = new();
+iXtal26/Memory/mem.cs	new	112	internal static readonly mem_mapping_t ram_low_mapping = new();
+iXtal26/Memory/mem.cs	new	117	internal static readonly mem_mapping_t ram_high_mapping = new();
+iXtal26/Memory/mem.cs	new	118	internal static readonly mem_mapping_t ram_mid_mapping = new();
+iXtal26/Memory/mem.cs	new	124	var a = new mem_mapping_t[n];
+iXtal26/Memory/mem.cs	new	126	a[i] = new mem_mapping_t();
+iXtal26/Memory/mem.cs	new	138	internal static byte[] rom = new byte[0x40000];
+iXtal26/Memory/mem.cs	new	139	internal static readonly byte[] romext = new byte[32768];
+iXtal26/Memory/mem.cs	new	151	internal static readonly int[] readlookup = new int[256];
+iXtal26/Memory/mem.cs	new	152	internal static readonly int[] readlookupp = new int[256];
+iXtal26/Memory/mem.cs	new	154	internal static readonly int[] writelookup = new int[256];
+iXtal26/Memory/mem.cs	new	155	internal static readonly int[] writelookupp = new int[256];
+iXtal26/Memory/mem.cs	chaine	1164	fatal($"mem_mapping_read_allowed : bad state {state:x}\n");
+iXtal26/Memory/mem.cs	chaine	1183	fatal($"mem_mapping_write_allowed : bad state {state:x}\n");
+iXtal26/Memory/mem.cs	new	1402	readlookup2 = new int[1024 * 1024];
+iXtal26/Memory/mem.cs	new	1403	writelookup2 = new int[1024 * 1024];
+iXtal26/Memory/mem.cs	new	1420	ram = new byte[mem_size * 1024 + 4];
+iXtal26/Memory/mem.cs	new	1506	internal static readonly uint32_t[] wlog_addr = new uint32_t[WLOG_MAX];
+iXtal26/Memory/mem.cs	new	1507	internal static readonly uint8_t[] wlog_val = new uint8_t[WLOG_MAX];
+iXtal26/Sound/dbopl.cs	new	111	internal static readonly int16_t[] WaveTable = new int16_t[8 * 512];
+iXtal26/Sound/dbopl.cs	new	135	internal static readonly uint16_t[] MulTable = new uint16_t[384];
+iXtal26/Sound/dbopl.cs	new	138	internal static readonly uint8_t[] KslTable = new uint8_t[8 * 16];
+iXtal26/Sound/dbopl.cs	new	139	internal static readonly uint8_t[] TremoloTable = new uint8_t[TREMOLO_TABLE];
+iXtal26/Sound/dbopl.cs	new	143	internal static readonly int16_t[] ChanOffsetTable = new int16_t[32];
+iXtal26/Sound/dbopl.cs	new	145	internal static readonly int16_t[] OpOffsetTable = new int16_t[64];
+iXtal26/Sound/dbopl.cs	instance	199	internal sealed class Operator
+iXtal26/Sound/dbopl.cs	instance	607	internal sealed class Channel
+iXtal26/Sound/dbopl.cs	new	609	internal readonly Operator[] op = { new Operator(), new Operator() };
+iXtal26/Sound/dbopl.cs	new	625	internal readonly int32_t[] old = new int32_t[2];
+iXtal26/Sound/dbopl.cs	instance	1005	internal sealed class Chip
+iXtal26/Sound/dbopl.cs	new	1016	internal readonly uint32_t[] freqMul = new uint32_t[16];
+iXtal26/Sound/dbopl.cs	new	1018	internal readonly uint32_t[] linearRates = new uint32_t[76];
+iXtal26/Sound/dbopl.cs	new	1020	internal readonly uint32_t[] attackRates = new uint32_t[76];
+iXtal26/Sound/dbopl.cs	new	1023	internal readonly Channel[] chan = new Channel[18];
+iXtal26/Sound/dbopl.cs	new	1048	chan[i] = new Channel(this, i);
+iXtal26/Sound/sound.Materiel.cs	new	28	internal static int16_t[] bloc = new int16_t[CD_BUFLEN * 2];
+iXtal26/Sound/sound.Materiel.cs	new	29	internal static int16_t[] precedent = new int16_t[CD_BUFLEN * 2];
+iXtal26/Sound/sound.Materiel.cs	stackalloc	48	Span<int> channel_select = stackalloc int[2];
+iXtal26/Sound/sound.cs	new	46	internal static sound_handler_t[] sound_handlers = new sound_handler_t[8];
+iXtal26/Sound/sound.cs	new	52	internal static pc_timer_t sound_poll_timer = new();
+iXtal26/Sound/sound.cs	new	79	internal static int32_t[] outbuffer = new int32_t[MAXSOUNDBUFLEN * 2];
+iXtal26/Sound/sound.cs	instance	190	internal sealed class SOUND_CARD
+iXtal26/Sound/sound.cs	new	197	internal static readonly SOUND_CARD sc_none = new() { name = "None", internal_name = "none", device = null };
+iXtal26/Sound/sound.cs	new	198	internal static readonly SOUND_CARD sc_adlib = new() { name = "Adlib", internal_name = "adlib", device = sound_adlib.adlib_device };
+iXtal26/Sound/sound.cs	new	200	internal static readonly SOUND_CARD sc_sb = new() { name = "Sound Blaster 1.0", internal_name = "sb", device = sound_sb.sb_1_device };
+iXtal26/Sound/sound.cs	new	201	internal static readonly SOUND_CARD sc_sb1_5 = new() { name = "Sound Blaster 1.5", internal_name = "sb1.5", device = sound_sb.sb_15_device };
+iXtal26/Sound/sound.cs	new	202	internal static readonly SOUND_CARD sc_sb2_0 = new() { name = "Sound Blaster 2.0", internal_name = "sb2.0", device = sound_sb.sb_2_device };
+iXtal26/Sound/sound.cs	new	203	internal static readonly SOUND_CARD sc_sbprov1 = new() { name = "Sound Blaster Pro v1", internal_name = "sbprov1", device = sound_sb.sb_pro_v1_device };
+iXtal26/Sound/sound.cs	new	205	internal static readonly SOUND_CARD sc_sbprov2 = new() { name = "Sound Blaster Pro v2", internal_name = "sbprov2", device = sound_sb.sb_pro_v2_device };
+iXtal26/Sound/sound.cs	new	207	internal static readonly SOUND_CARD sc_sb16 = new() { name = "Sound Blaster 16", internal_name = "sb16", device = sound_sb.sb_16_device };
+iXtal26/Sound/sound.cs	new	209	internal static readonly SOUND_CARD sc_sbawe32 = new() { name = "Sound Blaster AWE32", internal_name = "sbawe32", device = sound_sb.sb_awe32_device };
+iXtal26/Sound/sound.cs	new	229	private static readonly int16_t[] cd_buffer = new int16_t[CD_BUFLEN * 2];
+iXtal26/Sound/sound.cs	stackalloc	275	Span<int> channel_select = stackalloc int[2];
+iXtal26/Sound/sound_adlib.cs	instance	21	internal sealed class adlib_t
+iXtal26/Sound/sound_adlib.cs	new	23	internal readonly opl_t opl = new opl_t();
+iXtal26/Sound/sound_adlib.cs	new	25	internal readonly uint8_t[] pos_regs = new uint8_t[8];
+iXtal26/Sound/sound_adlib.cs	new	49	adlib_t adlib = new adlib_t();
+iXtal26/Sound/sound_adlib.cs	new	71	internal static device_t adlib_device = new device_t("AdLib", 0, adlib_init, adlib_close, null, null, null, null, null);
+iXtal26/Sound/sound_dbopl.cs	instance	26	private sealed class opl_state_t
+iXtal26/Sound/sound_dbopl.cs	new	28	internal readonly DBOPL.Chip chip = new DBOPL.Chip();
+iXtal26/Sound/sound_dbopl.cs	new	31	internal readonly int[] timer = new int[2];
+iXtal26/Sound/sound_dbopl.cs	new	43	private static readonly opl_state_t[] opl = { new opl_state_t(), new opl_state_t() };
+iXtal26/Sound/sound_dbopl.cs	new	78	opl[nr] = new opl_state_t();
+iXtal26/Sound/sound_dbopl.cs	new	172	private static readonly int32_t[] buffer_32_2 = new int32_t[chunk_size];
+iXtal26/Sound/sound_dbopl.cs	new	173	private static readonly int32_t[] buffer_32_3 = new int32_t[chunk_size * 2];
+iXtal26/Sound/sound_mpu401_uart.cs	instance	25	internal sealed class mpu401_uart_t
+iXtal26/Sound/sound_opl.cs	instance	26	internal sealed class opl_t
+iXtal26/Sound/sound_opl.cs	new	28	internal readonly int[] chip_nr = new int[2];
+iXtal26/Sound/sound_opl.cs	new	32	new pc_timer_t[] { new pc_timer_t(), new pc_timer_t() },
+iXtal26/Sound/sound_opl.cs	new	33	new pc_timer_t[] { new pc_timer_t(), new pc_timer_t() },
+iXtal26/Sound/sound_opl.cs	new	36	internal readonly int16_t[] filtbuf = new int16_t[2];
+iXtal26/Sound/sound_opl.cs	new	38	internal readonly int16_t[] buffer = new int16_t[MAXSOUNDBUFLEN * 2];
+iXtal26/Sound/sound_sb.Materiel.cs	new	390	return new(Un(gl, INPUT_MIDI_L), Un(gl, INPUT_MIDI_R), Un(dr, INPUT_MIDI_L), Un(dr, INPUT_MIDI_R),
+iXtal26/Sound/sound_sb.Materiel.cs	new	392	return new(Un(gl, INPUT_MIDI_L), Sinon(gl, INPUT_MIDI_L, INPUT_MIDI_R),
+iXtal26/Sound/sound_sb.Materiel.cs	chaine	552	Console.Error.WriteLine($"iXtal26 : [{current_device!.name}] emu_addr = {cle} ({emu_addr:X}h) ignorée en " +
+iXtal26/Sound/sound_sb.Materiel.cs	chaine	553	$"mode matériel : l'EMU8000 suit la base du DSP (addr + 400h = {emu:X}h).");
+iXtal26/Sound/sound_sb.cs	instance	39	internal sealed class sb_ct1335_mixer_t
+iXtal26/Sound/sound_sb.cs	new	47	internal readonly uint8_t[] regs = new uint8_t[256];
+iXtal26/Sound/sound_sb.cs	instance	51	internal sealed class sb_ct1345_mixer_t
+iXtal26/Sound/sound_sb.cs	new	70	internal readonly uint8_t[] regs = new uint8_t[256];
+iXtal26/Sound/sound_sb.cs	instance	74	internal sealed class sb_ct1745_mixer_t
+iXtal26/Sound/sound_sb.cs	new	101	internal readonly uint8_t[] regs = new uint8_t[256];
+iXtal26/Sound/sound_sb.cs	instance	108	internal sealed class sb_t
+iXtal26/Sound/sound_sb.cs	new	110	internal readonly opl_t opl = new opl_t();
+iXtal26/Sound/sound_sb.cs	new	111	internal readonly sb_dsp_t dsp = new sb_dsp_t();
+iXtal26/Sound/sound_sb.cs	new	112	internal readonly sb_ct1335_mixer_t mixer_sb2 = new sb_ct1335_mixer_t();
+iXtal26/Sound/sound_sb.cs	new	113	internal readonly sb_ct1345_mixer_t mixer_sbpro = new sb_ct1345_mixer_t();
+iXtal26/Sound/sound_sb.cs	new	114	internal readonly sb_ct1745_mixer_t mixer_sb16 = new sb_ct1745_mixer_t();
+iXtal26/Sound/sound_sb.cs	new	116	internal readonly mpu401_uart_t mpu = new mpu401_uart_t();
+iXtal26/Sound/sound_sb.cs	new	123	internal readonly uint8_t[] pos_regs = new uint8_t[8];
+iXtal26/Sound/sound_sb.cs	new	183	private static readonly float[][] sb_iir_y = {new float[NCoef + 1], new float[NCoef + 1]};
+iXtal26/Sound/sound_sb.cs	new	184	private static readonly float[][] sb_iir_x = {new float[NCoef + 1], new float[NCoef + 1]};
+iXtal26/Sound/sound_sb.cs	new	194	private static readonly float[][] low_iir_y = {new float[NCoef + 1], new float[NCoef + 1]};
+iXtal26/Sound/sound_sb.cs	new	195	private static readonly float[][] low_iir_x = {new float[NCoef + 1], new float[NCoef + 1]};
+iXtal26/Sound/sound_sb.cs	new	202	private static readonly float[][] low_cut_iir_y = {new float[NCoef + 1], new float[NCoef + 1]};
+iXtal26/Sound/sound_sb.cs	new	203	private static readonly float[][] low_cut_iir_x = {new float[NCoef + 1], new float[NCoef + 1]};
+iXtal26/Sound/sound_sb.cs	new	210	private static readonly float[][] high_iir_y = {new float[NCoef + 1], new float[NCoef + 1]};
+iXtal26/Sound/sound_sb.cs	new	211	private static readonly float[][] high_iir_x = {new float[NCoef + 1], new float[NCoef + 1]};
+iXtal26/Sound/sound_sb.cs	new	218	private static readonly float[][] high_cut_iir_y = {new float[NCoef + 1], new float[NCoef + 1]};
+iXtal26/Sound/sound_sb.cs	new	219	private static readonly float[][] high_cut_iir_x = {new float[NCoef + 1], new float[NCoef + 1]};
+iXtal26/Sound/sound_sb.cs	new	247	private static readonly float[][] low_fir_sb16_x = {new float[SB16_NCoef + 1], new float[SB16_NCoef + 1]};
+iXtal26/Sound/sound_sb.cs	new	1193	sb_t sb = new sb_t();
+iXtal26/Sound/sound_sb.cs	new	1222	sb_t sb = new sb_t();
+iXtal26/Sound/sound_sb.cs	new	1263	sb_t sb = new sb_t();
+iXtal26/Sound/sound_sb.cs	new	1310	sb_t sb = new sb_t();
+iXtal26/Sound/sound_sb.cs	lambda	1340	SB2 => 1,
+iXtal26/Sound/sound_sb.cs	lambda	1341	SBPRO or SBPRO2 => 2,
+iXtal26/Sound/sound_sb.cs	lambda	1342	>= SB16 => 3,
+iXtal26/Sound/sound_sb.cs	lambda	1343	_ => 0,
+iXtal26/Sound/sound_sb.cs	lambda	1357	uint8_t[]? regs = kind switch { 1 => sb.mixer_sb2.regs, 2 => sb.mixer_sbpro.regs, 3 => m16.regs, _ => null };
+iXtal26/Sound/sound_sb.cs	lambda	1358	uint8_t index = kind switch { 1 => sb.mixer_sb2.index, 2 => sb.mixer_sbpro.index, 3 => m16.index, _ => 0 };
+iXtal26/Sound/sound_sb.cs	lambda	1361	1 => (sb.mixer_sb2.master, sb.mixer_sb2.master, sb.mixer_sb2.voice, sb.mixer_sb2.voice, sb.mixer_sb2.fm, sb.mixer_sb2.fm),
+iXtal26/Sound/sound_sb.cs	lambda	1362	2 => (sb.mixer_sbpro.master_l, sb.mixer_sbpro.master_r, sb.mixer_sbpro.voice_l, sb.mixer_sbpro.voice_r,
+iXtal26/Sound/sound_sb.cs	lambda	1364	3 => (m16.master_l, m16.master_r, m16.voice_l, m16.voice_r, m16.fm_l, m16.fm_r),
+iXtal26/Sound/sound_sb.cs	lambda	1365	_ => (0, 0, 0, 0, 0, 0),
+iXtal26/Sound/sound_sb.cs	new	1447	sb_t sb = new sb_t();
+iXtal26/Sound/sound_sb.cs	chaine	1459	Console.Error.WriteLine($"iXtal26 : opl_emu = {sb.opl_emu} — NukedOPL n'est pas transcrit, DBOPL à sa place.");
+iXtal26/Sound/sound_sb.cs	new	1489	sb_t sb = new sb_t();
+iXtal26/Sound/sound_sb.cs	chaine	1498	Console.Error.WriteLine($"iXtal26 : opl_emu = {sb.opl_emu} — NukedOPL n'est pas transcrit, DBOPL à sa place.");
+iXtal26/Sound/sound_sb.cs	new	1558	sb_t sb = new sb_t();
+iXtal26/Sound/sound_sb.cs	chaine	1572	Console.Error.WriteLine($"iXtal26 : opl_emu = {sb.opl_emu} — NukedOPL n'est pas transcrit, DBOPL à sa place.");
+iXtal26/Sound/sound_sb.cs	new	1594	sb.emu8k = new emu8k_t();
+iXtal26/Sound/sound_sb.cs	new	1638	new device_config_t { name = "addr", type = CONFIG_SELECTION, default_int = 0x220,
+iXtal26/Sound/sound_sb.cs	new	1639	selection = [new() { description = "0x210", value = 0x210 }, new() { description = "0x220", value = 0x220 },
+iXtal26/Sound/sound_sb.cs	new	1640	new() { description = "0x230", value = 0x230 }, new() { description = "0x240", value = 0x240 },
+iXtal26/Sound/sound_sb.cs	new	1641	new() { description = "0x250", value = 0x250 }, new() { description = "0x260", value = 0x260 }] },
+iXtal26/Sound/sound_sb.cs	new	1642	new device_config_t { name = "irq", type = CONFIG_SELECTION, default_int = 7,
+iXtal26/Sound/sound_sb.cs	new	1643	selection = [new() { description = "IRQ 2", value = 2 }, new() { description = "IRQ 3", value = 3 }, new() { description = "IRQ 5", value = 5 }, new() { description = "IRQ 7", value = 7 }] },
+iXtal26/Sound/sound_sb.cs	new	1644	new device_config_t { name = "dma", type = CONFIG_SELECTION, default_int = 1,
+iXtal26/Sound/sound_sb.cs	new	1645	selection = [new() { description = "DMA 1", value = 1 }, new() { description = "DMA 3", value = 3 }] },
+iXtal26/Sound/sound_sb.cs	new	1646	new device_config_t { type = -1 },
+iXtal26/Sound/sound_sb.cs	new	1653	new device_config_t { name = "addr", type = CONFIG_SELECTION, default_int = 0x220,
+iXtal26/Sound/sound_sb.cs	new	1654	selection = [new() { description = "0x220", value = 0x220 }, new() { description = "0x240", value = 0x240 }] },
+iXtal26/Sound/sound_sb.cs	new	1655	new device_config_t { name = "mixaddr", type = CONFIG_SELECTION, default_int = 0,
+iXtal26/Sound/sound_sb.cs	new	1656	selection = [new() { description = "No mixer", value = 0 }, new() { description = "0x250", value = 0x250 }, new() { description = "0x260", value = 0x260 }] },
+iXtal26/Sound/sound_sb.cs	new	1657	new device_config_t { name = "irq", type = CONFIG_SELECTION, default_int = 7,
+iXtal26/Sound/sound_sb.cs	new	1658	selection = [new() { description = "IRQ 2", value = 2 }, new() { description = "IRQ 3", value = 3 }, new() { description = "IRQ 5", value = 5 }, new() { description = "IRQ 7", value = 7 }] },
+iXtal26/Sound/sound_sb.cs	new	1659	new device_config_t { name = "dma", type = CONFIG_SELECTION, default_int = 1,
+iXtal26/Sound/sound_sb.cs	new	1660	selection = [new() { description = "DMA 1", value = 1 }, new() { description = "DMA 3", value = 3 }] },
+iXtal26/Sound/sound_sb.cs	new	1661	new device_config_t { type = -1 },
+iXtal26/Sound/sound_sb.cs	new	1670	new device_config_t { name = "addr", type = CONFIG_SELECTION, default_int = 0x220,
+iXtal26/Sound/sound_sb.cs	new	1671	selection = [new() { description = "0x220", value = 0x220 }, new() { description = "0x240", value = 0x240 }] },
+iXtal26/Sound/sound_sb.cs	new	1672	new device_config_t { name = "irq", type = CONFIG_SELECTION, default_int = 7,
+iXtal26/Sound/sound_sb.cs	new	1673	selection = [new() { description = "IRQ 2", value = 2 }, new() { description = "IRQ 5", value = 5 }, new() { description = "IRQ 7", value = 7 }, new() { description = "IRQ 10", value = 10 }] },
+iXtal26/Sound/sound_sb.cs	new	1674	new device_config_t { name = "dma", type = CONFIG_SELECTION, default_int = 1,
+iXtal26/Sound/sound_sb.cs	new	1675	selection = [new() { description = "DMA 1", value = 1 }, new() { description = "DMA 3", value = 3 }] },
+iXtal26/Sound/sound_sb.cs	new	1676	new device_config_t { type = -1 },
+iXtal26/Sound/sound_sb.cs	new	1684	new device_config_t { name = "addr", type = CONFIG_SELECTION, default_int = 0x220,
+iXtal26/Sound/sound_sb.cs	new	1685	selection = [new() { description = "0x220", value = 0x220 }, new() { description = "0x240", value = 0x240 }] },
+iXtal26/Sound/sound_sb.cs	new	1686	new device_config_t { name = "irq", type = CONFIG_SELECTION, default_int = 7,
+iXtal26/Sound/sound_sb.cs	new	1687	selection = [new() { description = "IRQ 2", value = 2 }, new() { description = "IRQ 5", value = 5 }, new() { description = "IRQ 7", value = 7 }, new() { description = "IRQ 10", value = 10 }] },
+iXtal26/Sound/sound_sb.cs	new	1688	new device_config_t { name = "dma", type = CONFIG_SELECTION, default_int = 1,
+iXtal26/Sound/sound_sb.cs	new	1689	selection = [new() { description = "DMA 1", value = 1 }, new() { description = "DMA 3", value = 3 }] },
+iXtal26/Sound/sound_sb.cs	new	1690	new device_config_t { name = "opl_emu", type = CONFIG_SELECTION, default_int = OPL_DBOPL,
+iXtal26/Sound/sound_sb.cs	new	1691	selection = [new() { description = "DBOPL", value = OPL_DBOPL }, new() { description = "NukedOPL", value = OPL_NUKED }] },
+iXtal26/Sound/sound_sb.cs	new	1692	new device_config_t { type = -1 },
+iXtal26/Sound/sound_sb.cs	new	1701	new device_config_t { name = "addr", type = CONFIG_SELECTION, default_int = 0x220,
+iXtal26/Sound/sound_sb.cs	new	1702	selection = [new() { description = "0x220", value = 0x220 }, new() { description = "0x240", value = 0x240 },
+iXtal26/Sound/sound_sb.cs	new	1703	new() { description = "0x260", value = 0x260 }, new() { description = "0x280", value = 0x280 }] },
+iXtal26/Sound/sound_sb.cs	new	1706	new device_config_t { name = "irq", type = CONFIG_SELECTION, default_int = 7,
+iXtal26/Sound/sound_sb.cs	new	1707	selection = [new() { description = "IRQ 2", value = 2 }, new() { description = "IRQ 5", value = 5 },
+iXtal26/Sound/sound_sb.cs	new	1708	new() { description = "IRQ 7", value = 7 }, new() { description = "IRQ 10", value = 10 }] },
+iXtal26/Sound/sound_sb.cs	new	1709	new device_config_t { name = "dma", type = CONFIG_SELECTION, default_int = 1,
+iXtal26/Sound/sound_sb.cs	new	1710	selection = [new() { description = "DMA 0", value = 0 }, new() { description = "DMA 1", value = 1 },
+iXtal26/Sound/sound_sb.cs	new	1711	new() { description = "DMA 3", value = 3 }] },
+iXtal26/Sound/sound_sb.cs	new	1712	new device_config_t { name = "dma16", type = CONFIG_SELECTION, default_int = 5,
+iXtal26/Sound/sound_sb.cs	new	1713	selection = [new() { description = "Use Low", value = 0 }, new() { description = "DMA 5", value = 5 },
+iXtal26/Sound/sound_sb.cs	new	1714	new() { description = "DMA 6", value = 6 }, new() { description = "DMA 7", value = 7 }] },
+iXtal26/Sound/sound_sb.cs	new	1715	new device_config_t { name = "mpu_addr", type = CONFIG_SELECTION, default_int = 0x330,
+iXtal26/Sound/sound_sb.cs	new	1716	selection = [new() { description = "Disabled", value = 0 }, new() { description = "0x300", value = 0x300 },
+iXtal26/Sound/sound_sb.cs	new	1717	new() { description = "0x330", value = 0x330 }] },
+iXtal26/Sound/sound_sb.cs	new	1718	new device_config_t { name = "midi", type = CONFIG_MIDI, default_int = 0 },
+iXtal26/Sound/sound_sb.cs	new	1719	new device_config_t { name = "opl_emu", type = CONFIG_SELECTION, default_int = OPL_DBOPL,
+iXtal26/Sound/sound_sb.cs	new	1720	selection = [new() { description = "DBOPL", value = OPL_DBOPL }, new() { description = "NukedOPL", value = OPL_NUKED }] },
+iXtal26/Sound/sound_sb.cs	new	1721	new device_config_t { type = -1 },
+iXtal26/Sound/sound_sb.cs	new	1727	new device_config_t { name = "addr", type = CONFIG_SELECTION, default_int = 0x220,
+iXtal26/Sound/sound_sb.cs	new	1728	selection = [new() { description = "0x220", value = 0x220 }, new() { description = "0x240", value = 0x240 },
+iXtal26/Sound/sound_sb.cs	new	1729	new() { description = "0x260", value = 0x260 }, new() { description = "0x280", value = 0x280 }] },
+iXtal26/Sound/sound_sb.cs	new	1732	new device_config_t { name = "irq", type = CONFIG_SELECTION, default_int = 7,
+iXtal26/Sound/sound_sb.cs	new	1733	selection = [new() { description = "IRQ 2", value = 2 }, new() { description = "IRQ 5", value = 5 },
+iXtal26/Sound/sound_sb.cs	new	1734	new() { description = "IRQ 7", value = 7 }, new() { description = "IRQ 10", value = 10 }] },
+iXtal26/Sound/sound_sb.cs	new	1735	new device_config_t { name = "dma", type = CONFIG_SELECTION, default_int = 1,
+iXtal26/Sound/sound_sb.cs	new	1736	selection = [new() { description = "DMA 0", value = 0 }, new() { description = "DMA 1", value = 1 },
+iXtal26/Sound/sound_sb.cs	new	1737	new() { description = "DMA 3", value = 3 }] },
+iXtal26/Sound/sound_sb.cs	new	1738	new device_config_t { name = "dma16", type = CONFIG_SELECTION, default_int = 5,
+iXtal26/Sound/sound_sb.cs	new	1739	selection = [new() { description = "Use Low", value = 0 }, new() { description = "DMA 5", value = 5 },
+iXtal26/Sound/sound_sb.cs	new	1740	new() { description = "DMA 6", value = 6 }, new() { description = "DMA 7", value = 7 }] },
+iXtal26/Sound/sound_sb.cs	new	1741	new device_config_t { name = "mpu_addr", type = CONFIG_SELECTION, default_int = 0x330,
+iXtal26/Sound/sound_sb.cs	new	1742	selection = [new() { description = "Disabled", value = 0 }, new() { description = "0x300", value = 0x300 },
+iXtal26/Sound/sound_sb.cs	new	1743	new() { description = "0x330", value = 0x330 }] },
+iXtal26/Sound/sound_sb.cs	new	1744	new device_config_t { name = "emu_addr", type = CONFIG_SELECTION, default_int = 0x620,
+iXtal26/Sound/sound_sb.cs	new	1745	selection = [new() { description = "0x620", value = 0x620 }, new() { description = "0x640", value = 0x640 },
+iXtal26/Sound/sound_sb.cs	new	1746	new() { description = "0x660", value = 0x660 }, new() { description = "0x680", value = 0x680 }] },
+iXtal26/Sound/sound_sb.cs	new	1747	new device_config_t { name = "midi", type = CONFIG_MIDI, default_int = 0 },
+iXtal26/Sound/sound_sb.cs	new	1748	new device_config_t { name = "onboard_ram", type = CONFIG_SELECTION, default_int = 512,
+iXtal26/Sound/sound_sb.cs	new	1749	selection = [new() { description = "None", value = 0 }, new() { description = "512 KB", value = 512 },
+iXtal26/Sound/sound_sb.cs	new	1750	new() { description = "2 MB", value = 2048 }, new() { description = "8 MB", value = 8192 },
+iXtal26/Sound/sound_sb.cs	new	1751	new() { description = "28 MB", value = 28 * 1024 }] },
+iXtal26/Sound/sound_sb.cs	new	1752	new device_config_t { name = "opl_emu", type = CONFIG_SELECTION, default_int = OPL_DBOPL,
+iXtal26/Sound/sound_sb.cs	new	1753	selection = [new() { description = "DBOPL", value = OPL_DBOPL }, new() { description = "NukedOPL", value = OPL_NUKED }] },
+iXtal26/Sound/sound_sb.cs	new	1754	new device_config_t { type = -1 },
+iXtal26/Sound/sound_sb.cs	new	1761	internal static readonly device_t sb_1_device = new device_t("Sound Blaster v1.0", 0, sb_1_init, sb_close, null,
+iXtal26/Sound/sound_sb.cs	new	1763	internal static readonly device_t sb_15_device = new device_t("Sound Blaster v1.5", 0, sb_15_init, sb_close, null,
+iXtal26/Sound/sound_sb.cs	new	1765	internal static readonly device_t sb_2_device = new device_t("Sound Blaster v2.0", 0, sb_2_init, sb_close, null,
+iXtal26/Sound/sound_sb.cs	new	1767	internal static readonly device_t sb_pro_v1_device = new device_t("Sound Blaster Pro v1", 0, sb_pro_v1_init, sb_close, null,
+iXtal26/Sound/sound_sb.cs	new	1769	internal static readonly device_t sb_pro_v2_device = new device_t("Sound Blaster Pro v2", 0, sb_pro_v2_init, sb_close, null,
+iXtal26/Sound/sound_sb.cs	new	1776	internal static readonly device_t sb_16_device = new device_t("Sound Blaster 16", 0, sb_16_init, sb_close, null,
+iXtal26/Sound/sound_sb.cs	new	1780	internal static readonly device_t sb_awe32_device = new device_t("Sound Blaster AWE32", 0, sb_awe32_init, sb_awe32_close,
+iXtal26/Sound/sound_sb_dsp.Materiel.cs	instance	29	internal sealed class Etat
+iXtal26/Sound/sound_sb_dsp.Materiel.cs	new	65	internal readonly AnneauEntree anneau = new();
+iXtal26/Sound/sound_sb_dsp.Materiel.cs	new	68	internal static readonly ConditionalWeakTable<sb_dsp_t, Etat> Etats = new();
+iXtal26/Sound/sound_sb_dsp.Materiel.cs	lambda	375	0x1 or 0x2 => (c & 0x0C) != 0,
+iXtal26/Sound/sound_sb_dsp.Materiel.cs	lambda	376	0x7 or 0x8 or 0x9 or 0xB or 0xC => true,
+iXtal26/Sound/sound_sb_dsp.Materiel.cs	lambda	377	0xD => c is 0xD4 or 0xD6,
+iXtal26/Sound/sound_sb_dsp.Materiel.cs	lambda	378	_ => false,
+iXtal26/Sound/sound_sb_dsp.Materiel.cs	instance	1378	internal sealed class AnneauEntree
+iXtal26/Sound/sound_sb_dsp.Materiel.cs	new	1380	internal readonly int16_t[] e = new int16_t[0x10000];
+iXtal26/Sound/sound_sb_dsp.cs	instance	35	internal sealed class sb_dsp_t
+iXtal26/Sound/sound_sb_dsp.cs	new	47	internal readonly uint8_t[] sb_read_data = new uint8_t[256];
+iXtal26/Sound/sound_sb_dsp.cs	new	59	internal readonly uint8_t[] sb_data = new uint8_t[8];
+iXtal26/Sound/sound_sb_dsp.cs	new	82	internal readonly uint8_t[] sb_asp_regs = new uint8_t[256];
+iXtal26/Sound/sound_sb_dsp.cs	new	90	internal readonly pc_timer_t output_timer = new pc_timer_t(), input_timer = new pc_timer_t();
+iXtal26/Sound/sound_sb_dsp.cs	new	100	internal readonly pc_timer_t wb_timer = new pc_timer_t();
+iXtal26/Sound/sound_sb_dsp.cs	new	107	internal readonly int16_t[] record_buffer = new int16_t[0xFFFF];
+iXtal26/Sound/sound_sb_dsp.cs	new	108	internal readonly int16_t[] buffer = new int16_t[MAXSOUNDBUFLEN * 2];
+iXtal26/Sound/sound_sb_dsp.cs	new	135	new int[] {0x01, -0x02, -0x04, 0x08, -0x10, 0x20, 0x40, -0x80, -106},
+iXtal26/Sound/sound_sb_dsp.cs	new	136	new int[] {-0x01, 0x02, -0x04, 0x08, 0x10, -0x20, 0x40, -0x80, 165},
+iXtal26/Sound/sound_sb_dsp.cs	new	137	new int[] {-0x01, 0x02, 0x04, -0x08, 0x10, -0x20, -0x40, 0x80, -151},
+iXtal26/Sound/sound_sb_dsp.cs	new	138	new int[] {0x01, -0x02, 0x04, -0x08, -0x10, 0x20, -0x40, 0x80, 90},
+iXtal26/Sound/sound_sb_dsp.cs	new	145	internal static readonly int[] sb_commands = new int[256] {
+iXtal26/Sound/sound_sb_dsp.cs	new	194	internal static readonly float[] low_fir_sb16_coef = new float[SB16_NCoef];
+iXtal26/Sound/sound_sb_dsp.cs	stackalloc	1269	Span<int> data = stackalloc int[2];
+iXtal26/Sound/sound_sb_dsp.cs	stackalloc	1534	Span<int> data = stackalloc int[2];
+iXtal26/Sound/sound_speaker.cs	new	23	private static int16_t[] speaker_buffer = new int16_t[sound.MAXSOUNDBUFLEN];
+iXtal26/Video/vid_cga.cs	instance	39	internal sealed class cga_t
+iXtal26/Video/vid_cga.cs	new	41	internal mem_mapping_t mapping = new();
+iXtal26/Video/vid_cga.cs	new	44	internal uint8_t[] crtc = new uint8_t[32];
+iXtal26/Video/vid_cga.cs	new	60	internal pc_timer_t timer = new();
+iXtal26/Video/vid_cga.cs	new	73	internal uint8_t[] charbuffer = new uint8_t[512];
+iXtal26/Video/vid_cga.cs	new	90	private static uint8_t[] crtcmask = new uint8_t[32] {0xff, 0xff, 0xff, 0xff, 0x7f, 0x1f, 0x7f, 0x7f, 0xf3, 0x1f, 0x7f, 0x1f, 0x3f, 0xff, 0x3f, 0xff,
+iXtal26/Video/vid_cga.cs	new	220	private static readonly uint32_t[] cols_buf = new uint32_t[4];
+iXtal26/Video/vid_cga.cs	new	653	cga_t cga = new cga_t();
+iXtal26/Video/vid_cga.cs	new	666	cga.vram = new uint8_t[0x4000];
+iXtal26/Video/vid_cga.cs	new	719	new device_config_t { name = "display_type", type = CONFIG_SELECTION, default_int = DISPLAY_RGB,
+iXtal26/Video/vid_cga.cs	new	720	selection = [new() { description = "RGB", value = DISPLAY_RGB }, new() { description = "RGB (no brown)", value = DISPLAY_RGB_NO_BROWN }, new() { description = "Green Monochrome", value = DISPLAY_GREEN }, new() { description = "Amber Monochrome", value = DISPLAY_AMBER }, new() { description = "White Monochrome", value = DISPLAY_WHITE }, new() { description = "Composite", value = DISPLAY_COMPOSITE }] },
+iXtal26/Video/vid_cga.cs	new	721	new device_config_t { name = "composite_type", type = CONFIG_SELECTION, default_int = COMPOSITE_OLD,
+iXtal26/Video/vid_cga.cs	new	722	selection = [new() { description = "Old", value = COMPOSITE_OLD }, new() { description = "New", value = COMPOSITE_NEW }] },
+iXtal26/Video/vid_cga.cs	new	723	new device_config_t { name = "snow_enabled", type = CONFIG_BINARY, default_int = 1 },
+iXtal26/Video/vid_cga.cs	new	724	new device_config_t { name = "contrast", type = CONFIG_BINARY, default_int = 0 },
+iXtal26/Video/vid_cga.cs	new	727	new device_config_t { name = "font", type = CONFIG_SELECTION, default_int = 0,
+iXtal26/Video/vid_cga.cs	new	728	selection = [new() { description = "Double dot", value = 0 },
+iXtal26/Video/vid_cga.cs	new	729	new() { description = "Single dot", value = 1 }] },
+iXtal26/Video/vid_cga.cs	new	730	new device_config_t { type = -1 },
+iXtal26/Video/vid_cga.cs	new	734	internal static device_t cga_device = new device_t("CGA", 0, cga_standalone_init, cga_close, null, cga_speed_changed, null,
+iXtal26/Video/vid_cl5429.cs	instance	39	internal sealed class gd5429_blt_t
+iXtal26/Video/vid_cl5429.cs	instance	59	internal sealed class gd5429_t
+iXtal26/Video/vid_cl5429.cs	new	61	internal mem_mapping_t mmio_mapping = new();
+iXtal26/Video/vid_cl5429.cs	new	62	internal mem_mapping_t linear_mapping = new();
+iXtal26/Video/vid_cl5429.cs	new	64	internal svga_t svga = new();
+iXtal26/Video/vid_cl5429.cs	new	66	internal rom_t bios_rom = new();
+iXtal26/Video/vid_cl5429.cs	new	68	internal uint32_t[] bank = new uint32_t[2];
+iXtal26/Video/vid_cl5429.cs	new	75	internal gd5429_blt_t blt = new();
+iXtal26/Video/vid_cl5429.cs	new	80	internal uint8_t[] pci_regs = new uint8_t[256];
+iXtal26/Video/vid_cl5429.cs	new	84	internal uint8_t[] pos_regs = new uint8_t[8];
+iXtal26/Video/vid_cl5429.cs	new	93	internal uint8_t[] latch_ext = new uint8_t[4];
+iXtal26/Video/vid_cl5429.cs	stackalloc	717	Span<uint8_t> dat = stackalloc uint8_t[2];
+iXtal26/Video/vid_cl5429.cs	new	2030	gd5429_t gd5429 = new gd5429_t();
+iXtal26/Video/vid_cl5429.cs	new	2144	new device_config_t { name = "memory", type = CONFIG_SELECTION, default_int = 2,
+iXtal26/Video/vid_cl5429.cs	new	2145	selection = [new() { description = "1 MB", value = 1 }, new() { description = "2 MB", value = 2 }] },
+iXtal26/Video/vid_cl5429.cs	new	2146	new device_config_t { type = -1 },
+iXtal26/Video/vid_cl5429.cs	new	2153	internal static device_t gd5429_device = new device_t("Cirrus Logic GD5429", 0, gd5429_init, gd5429_close, gd5429_available,
+iXtal26/Video/vid_ega.Materiel.cs	lambda	241	0xc => (egaswitches & 1) != 0 ? 0x10 : 0,
+iXtal26/Video/vid_ega.Materiel.cs	lambda	242	0x8 => (egaswitches & 2) != 0 ? 0x10 : 0,
+iXtal26/Video/vid_ega.Materiel.cs	lambda	243	0x4 => (egaswitches & 4) != 0 ? 0x10 : 0,
+iXtal26/Video/vid_ega.Materiel.cs	lambda	244	0x0 => (egaswitches & 8) != 0 ? 0x10 : 0,
+iXtal26/Video/vid_ega.Materiel.cs	lambda	245	_ => 0xff
+iXtal26/Video/vid_ega.Materiel.cs	chaine	267	Console.Error.WriteLine($"iXtal26 : [EGA] monitor_type = {brut} : l'EGA en carte secondaire (SW1-SW4 " +
+iXtal26/Video/vid_ega.Materiel.cs	lambda	290	io_sethandler(0x02a0, 0x0040, (addr, p) => ega_in((uint16_t)(addr + 0x100), p), null, null,
+iXtal26/Video/vid_ega.Materiel.cs	lambda	291	(addr, val, p) => ega_out((uint16_t)(addr + 0x100), val, p), null, null, ega);
+iXtal26/Video/vid_ega.cs	instance	36	internal sealed class ega_t
+iXtal26/Video/vid_ega.cs	new	38	internal mem_mapping_t mapping = new();
+iXtal26/Video/vid_ega.cs	new	40	internal rom_t bios_rom = new();
+iXtal26/Video/vid_ega.cs	new	43	internal uint8_t[] crtc = new uint8_t[32];
+iXtal26/Video/vid_ega.cs	new	44	internal uint8_t[] gdcreg = new uint8_t[16];
+iXtal26/Video/vid_ega.cs	new	46	internal uint8_t[] attrregs = new uint8_t[32];
+iXtal26/Video/vid_ega.cs	new	48	internal uint8_t[] seqregs = new uint8_t[64];
+iXtal26/Video/vid_ega.cs	new	65	internal uint8_t[] egapal = new uint8_t[16];
+iXtal26/Video/vid_ega.cs	new	78	internal pc_timer_t timer = new();
+iXtal26/Video/vid_ega.cs	new	108	private static readonly uint8_t[] ega_rotate = new uint8_t[8 * 256];
+iXtal26/Video/vid_ega.cs	new	111	private static readonly uint32_t[] pallook16 = new uint32_t[256], pallook64 = new uint32_t[256];
+iXtal26/Video/vid_ega.cs	new	1149	ega.vram = new uint8_t[0x40000];
+iXtal26/Video/vid_ega.cs	new	1248	ega_t ega = new ega_t();
+iXtal26/Video/vid_ega.cs	chaine	1328	s.Append($"EGA colour depth : {ega.video_bpp} bpp\n");
+iXtal26/Video/vid_ega.cs	chaine	1330	s.Append($"EGA resolution : {ega.video_res_x} x {ega.video_res_y}\n");
+iXtal26/Video/vid_ega.cs	chaine	1332	s.Append($"EGA refresh rate : {ega.frames} Hz\n\n");
+iXtal26/Video/vid_ega.cs	new	1339	new device_config_t { name = "memory", type = CONFIG_SELECTION, default_int = 256,
+iXtal26/Video/vid_ega.cs	new	1340	selection = [new() { description = "64 kB", value = 64 }, new() { description = "128 kB", value = 128 }, new() { description = "256 kB", value = 256 }] },
+iXtal26/Video/vid_ega.cs	new	1341	new device_config_t { name = "monitor_type", type = CONFIG_SELECTION, default_int = 9,
+iXtal26/Video/vid_ega.cs	new	1342	selection = [new() { description = "EGA Colour, 40x25", value = 6 }, new() { description = "EGA Colour, 80x25", value = 7 },
+iXtal26/Video/vid_ega.cs	new	1343	new() { description = "EGA Colour, ECD", value = 9 },
+iXtal26/Video/vid_ega.cs	new	1344	new() { description = "EGA Monochrome (white)", value = 10 | (DISPLAY_WHITE << 4) },
+iXtal26/Video/vid_ega.cs	new	1345	new() { description = "EGA Monochrome (green)", value = 10 | (DISPLAY_GREEN << 4) },
+iXtal26/Video/vid_ega.cs	new	1346	new() { description = "EGA Monochrome (amber)", value = 10 | (DISPLAY_AMBER << 4) }] },
+iXtal26/Video/vid_ega.cs	new	1349	new device_config_t { name = "io_base", type = CONFIG_SELECTION, default_int = 0x300,
+iXtal26/Video/vid_ega.cs	new	1350	selection = [new() { description = "3XX", value = 0x300 }, new() { description = "2XX", value = 0x200 }] },
+iXtal26/Video/vid_ega.cs	new	1351	new device_config_t { type = -1 },
+iXtal26/Video/vid_ega.cs	new	1355	internal static device_t ega_device = new device_t("EGA", 0, ega_standalone_init, ega_close, ega_standalone_available,
+iXtal26/Video/vid_et4000.Materiel.cs	instance	30	internal sealed class Etat
+iXtal26/Video/vid_et4000.Materiel.cs	new	46	internal static readonly ConditionalWeakTable<et4000_t, Etat> Etats = new();
+iXtal26/Video/vid_et4000.cs	instance	35	internal sealed class et4000_t
+iXtal26/Video/vid_et4000.cs	new	37	internal svga_t svga = new();
+iXtal26/Video/vid_et4000.cs	new	38	internal unk_ramdac_t ramdac = new();
+iXtal26/Video/vid_et4000.cs	new	40	internal rom_t bios_rom = new();
+iXtal26/Video/vid_et4000.cs	new	53	private static readonly uint8_t[] crtc_mask = new uint8_t[0x40]
+iXtal26/Video/vid_et4000.cs	new	269	et4000_t et4000 = new et4000_t();
+iXtal26/Video/vid_et4000.cs	new	325	internal static device_t et4000_device = new device_t("Tseng Labs ET4000AX", 0, et4000_init, et4000_close, et4000_available,
+iXtal26/Video/vid_hercules.Materiel.cs	instance	29	internal sealed class Etat
+iXtal26/Video/vid_hercules.Materiel.cs	new	32	internal readonly uint8_t[] brut = new uint8_t[32];
+iXtal26/Video/vid_hercules.Materiel.cs	new	35	internal static readonly ConditionalWeakTable<hercules_t, Etat> Etats = new();
+iXtal26/Video/vid_hercules.cs	instance	35	internal sealed class hercules_t
+iXtal26/Video/vid_hercules.cs	new	37	internal mem_mapping_t mapping = new();
+iXtal26/Video/vid_hercules.cs	new	39	internal uint8_t[] crtc = new uint8_t[32];
+iXtal26/Video/vid_hercules.cs	new	45	internal pc_timer_t timer = new();
+iXtal26/Video/vid_hercules.cs	new	64	internal static readonly uint32_t[] mdacols = new uint32_t[256 * 2 * 2];
+iXtal26/Video/vid_hercules.cs	new	428	hercules_t hercules = new hercules_t();
+iXtal26/Video/vid_hercules.cs	new	433	hercules.vram = new uint8_t[0x10000];
+iXtal26/Video/vid_hercules.cs	new	494	new device_config_t { name = "display_type", type = CONFIG_SELECTION, default_int = DISPLAY_WHITE,
+iXtal26/Video/vid_hercules.cs	new	495	selection = [new() { description = "Green", value = DISPLAY_GREEN }, new() { description = "Amber", value = DISPLAY_AMBER }, new() { description = "White", value = DISPLAY_WHITE }] },
+iXtal26/Video/vid_hercules.cs	new	496	new device_config_t { type = -1 },
+iXtal26/Video/vid_hercules.cs	new	500	internal static device_t hercules_device = new device_t("Hercules", 0, hercules_init, hercules_close, null,
+iXtal26/Video/vid_mda.Materiel.cs	instance	28	internal sealed class Etat
+iXtal26/Video/vid_mda.Materiel.cs	new	31	internal readonly uint8_t[] brut = new uint8_t[32];
+iXtal26/Video/vid_mda.Materiel.cs	new	34	internal static readonly ConditionalWeakTable<mda_t, Etat> Etats = new();
+iXtal26/Video/vid_mda.cs	instance	35	internal sealed class mda_t
+iXtal26/Video/vid_mda.cs	new	37	internal mem_mapping_t mapping = new();
+iXtal26/Video/vid_mda.cs	new	39	internal uint8_t[] crtc = new uint8_t[32];
+iXtal26/Video/vid_mda.cs	new	45	internal pc_timer_t timer = new();
+iXtal26/Video/vid_mda.cs	new	62	internal static readonly uint32_t[] mdacols = new uint32_t[256 * 2 * 2];
+iXtal26/Video/vid_mda.cs	new	388	mda_t mda = new mda_t();
+iXtal26/Video/vid_mda.cs	new	395	mda.vram = new uint8_t[0x1000];
+iXtal26/Video/vid_mda.cs	new	469	new device_config_t { name = "display_type", type = CONFIG_SELECTION, default_int = DISPLAY_WHITE,
+iXtal26/Video/vid_mda.cs	new	470	selection = [new() { description = "Green", value = DISPLAY_GREEN }, new() { description = "Amber", value = DISPLAY_AMBER }, new() { description = "White", value = DISPLAY_WHITE }] },
+iXtal26/Video/vid_mda.cs	new	471	new device_config_t { type = -1 },
+iXtal26/Video/vid_mda.cs	new	475	internal static device_t mda_device = new device_t("MDA", 0, mda_standalone_init, mda_close, null, mda_speed_changed, null,
+iXtal26/Video/vid_olivetti_m24.cs	instance	35	internal sealed class m24_t
+iXtal26/Video/vid_olivetti_m24.cs	new	37	internal mem_mapping_t mapping = new();
+iXtal26/Video/vid_olivetti_m24.cs	new	39	internal uint8_t[] crtc = new uint8_t[32];
+iXtal26/Video/vid_olivetti_m24.cs	new	43	internal uint8_t[] charbuffer = new uint8_t[256];
+iXtal26/Video/vid_olivetti_m24.cs	new	60	internal pc_timer_t timer = new();
+iXtal26/Video/vid_olivetti_m24.cs	new	70	private static uint8_t[] crtcmask = new uint8_t[32] {0xff, 0xff, 0xff, 0xff, 0x7f, 0x1f, 0x7f, 0x7f, 0xf3, 0x1f, 0x7f, 0x1f, 0x3f, 0xff, 0x3f, 0xff,
+iXtal26/Video/vid_olivetti_m24.cs	stackalloc	179	Span<uint32_t> cols = stackalloc uint32_t[4];
+iXtal26/Video/vid_olivetti_m24.cs	new	581	m24_t m24 = new m24_t();
+iXtal26/Video/vid_olivetti_m24.cs	new	587	m24.vram = new uint8_t[0x8000];
+iXtal26/Video/vid_olivetti_m24.cs	new	618	internal static device_t m24_device = new device_t("Olivetti M24 (video)", 0, m24_init, m24_close, null, m24_speed_changed, null,
+iXtal26/Video/vid_pc1512.cs	instance	44	internal sealed class pc1512_t
+iXtal26/Video/vid_pc1512.cs	new	46	internal mem_mapping_t mapping = new();
+iXtal26/Video/vid_pc1512.cs	new	48	internal uint8_t[] crtc = new uint8_t[32];
+iXtal26/Video/vid_pc1512.cs	new	66	internal pc_timer_t timer = new();
+iXtal26/Video/vid_pc1512.cs	new	77	private static uint8_t[] crtcmask = new uint8_t[32] {0xff, 0xff, 0xff, 0xff, 0x7f, 0x1f, 0x7f, 0x7f, 0xf3, 0x1f, 0x7f, 0x1f, 0x3f, 0xff, 0x3f, 0xff,
+iXtal26/Video/vid_pc1512.cs	stackalloc	216	Span<uint32_t> cols = stackalloc uint32_t[4];
+iXtal26/Video/vid_pc1512.cs	new	582	pc1512_t pc1512 = new pc1512_t();
+iXtal26/Video/vid_pc1512.cs	new	588	pc1512.vram = new uint8_t[0x10000];
+iXtal26/Video/vid_pc1512.cs	new	629	new device_config_t { name = "display_type", type = CONFIG_SELECTION, default_int = 0,
+iXtal26/Video/vid_pc1512.cs	new	630	selection = [new() { description = "PC-CM (Colour)", value = DISPLAY_RGB }, new() { description = "PC-MM (Monochrome)", value = DISPLAY_WHITE }] },
+iXtal26/Video/vid_pc1512.cs	new	631	new device_config_t { name = "codepage", type = CONFIG_SELECTION, default_int = 3,
+iXtal26/Video/vid_pc1512.cs	new	632	selection = [new() { description = "US English", value = 3 }, new() { description = "Danish", value = 1 }, new() { description = "Greek", value = 0 }] },
+iXtal26/Video/vid_pc1512.cs	new	633	new device_config_t { type = -1 },
+iXtal26/Video/vid_pc1512.cs	new	637	internal static device_t pc1512_device = new device_t("Amstrad PC1512 (video)", 0, pc1512_init, pc1512_close, null,
+iXtal26/Video/vid_s3.cs	instance	61	internal sealed class s3_accel_t
+iXtal26/Video/vid_s3.cs	new	83	internal uint16_t[] multifunc = new uint16_t[16];
+iXtal26/Video/vid_s3.cs	new	84	internal uint8_t[] pix_trans = new uint8_t[4];
+iXtal26/Video/vid_s3.cs	instance	104	internal sealed class s3_t
+iXtal26/Video/vid_s3.cs	new	106	internal mem_mapping_t linear_mapping = new();
+iXtal26/Video/vid_s3.cs	new	107	internal mem_mapping_t mmio_mapping = new();
+iXtal26/Video/vid_s3.cs	new	109	internal rom_t bios_rom = new();
+iXtal26/Video/vid_s3.cs	new	111	internal svga_t svga = new();
+iXtal26/Video/vid_s3.cs	new	131	internal uint8_t[] pci_regs = new uint8_t[256];
+iXtal26/Video/vid_s3.cs	new	139	internal s3_accel_t accel = new();
+iXtal26/Video/vid_s3.cs	new	141	internal fifo_entry_t[] fifo = new fifo_entry_t[vid_s3.FIFO_SIZE];
+iXtal26/Video/vid_s3.cs	new	1394	throw new InvalidOperationException("vid_s3: sdac_ramdac_in non transcrit (Vision864)");
+iXtal26/Video/vid_s3.cs	stackalloc	3046	Span<uint16_t> dat = stackalloc uint16_t[2];
+iXtal26/Video/vid_s3.cs	new	3321	s3_t s3 = new s3_t();
+iXtal26/Video/vid_s3.cs	new	3485	new device_config_t { name = "memory", type = CONFIG_SELECTION, default_int = 2,
+iXtal26/Video/vid_s3.cs	new	3486	selection = [new() { description = "1 MB", value = 1 }, new() { description = "2 MB", value = 2 }, new() { description = "4 MB", value = 4 }] },
+iXtal26/Video/vid_s3.cs	new	3487	new device_config_t { type = -1 },
+iXtal26/Video/vid_s3.cs	new	3495	internal static device_t s3_phoenix_trio64_device = new device_t("Phoenix S3 Trio64", 0, s3_phoenix_trio64_init, s3_close,
+iXtal26/Video/vid_svga.cs	instance	61	internal sealed class svga_t
+iXtal26/Video/vid_svga.cs	new	63	internal mem_mapping_t mapping = new();
+iXtal26/Video/vid_svga.cs	new	66	internal uint8_t[] crtc = new uint8_t[128];
+iXtal26/Video/vid_svga.cs	new	67	internal uint8_t[] gdcreg = new uint8_t[64];
+iXtal26/Video/vid_svga.cs	new	69	internal uint8_t[] attrregs = new uint8_t[32];
+iXtal26/Video/vid_svga.cs	new	72	internal uint8_t[] seqregs = new uint8_t[64];
+iXtal26/Video/vid_svga.cs	new	112	internal uint8_t[] egapal = new uint8_t[16];
+iXtal26/Video/vid_svga.cs	new	113	internal uint32_t[] pallook = new uint32_t[512];
+iXtal26/Video/vid_svga.cs	new	114	internal RGB[] vgapal = new RGB[256];
+iXtal26/Video/vid_svga.cs	new	127	internal pc_timer_t timer = new();
+iXtal26/Video/vid_svga.cs	new	194	internal uint8_t[] ksc5601_udc_area_msb = new uint8_t[2];
+iXtal26/Video/vid_svga.cs	new	231	internal static readonly uint8_t[,] svga_rotate = new uint8_t[8, 256];
+iXtal26/Video/vid_svga.cs	new	262	return new RGB { r = (uint8_t)(v >> 8), g = (uint8_t)(v >> 16), b = (uint8_t)(v >> 24) };
+iXtal26/Video/vid_svga.cs	new	1050	svga.vram = new uint8_t[memsize];
+iXtal26/Video/vid_svga.cs	new	1055	svga.changedvram = new uint8_t[ 0x1000000 >> 12];
+iXtal26/Video/vid_svga.cs	chaine	1101	pclog($"Writeega {addr:X6} ");
+iXtal26/Video/vid_svga.cs	chaine	1138	pclog($"{addr:X8} ({addr & 1023}, {addr >> 10}) {val:X2} {writemask2} {svga.writemode} {svga.chain4} {svga.gdcreg[8]:X2}\n");
+iXtal26/Video/vid_svga.cs	chaine	1452	pclog($"Write LFB {addr:X8} {val:X2} ");
+iXtal26/Video/vid_svga.cs	chaine	1488	pclog($"{addr:X8} ({addr & 1023}, {addr >> 10}) {val:X2} {writemask2} {svga.writemode} {svga.chain4} {svga.gdcreg[8]:X2}\n");
+iXtal26/Video/vid_svga.cs	chaine	1843	pclog($"svga_writew: {addr:X5} ");
+iXtal26/Video/vid_svga.cs	chaine	1850	pclog($"{addr:X8} ({addr & 1023}, {addr >> 10}) {val:X4}\n");
+iXtal26/Video/vid_svga.cs	chaine	1881	pclog($"svga_writel: {addr:X5} ");
+iXtal26/Video/vid_svga.cs	chaine	1888	pclog($"{addr:X8} ({addr & 1023}, {addr >> 10}) {val:X8}\n");
+iXtal26/Video/vid_svga.cs	chaine	1978	pclog($"Write LFBw {addr:X8} {val:X4}\n");
+iXtal26/Video/vid_svga.cs	chaine	2013	pclog($"Write LFBl {addr:X8} {val:X8}\n");
+iXtal26/Video/vid_svga.cs	new	2096	var pal = new uint8_t[256 * 3];
+iXtal26/Video/vid_svga.cs	chaine	2511	temps = $"SVGA colour depth : {svga.video_bpp} bpp\n";
+iXtal26/Video/vid_svga.cs	chaine	2514	temps = $"SVGA resolution : {svga.video_res_x} x {svga.video_res_y}\n";
+iXtal26/Video/vid_svga.cs	chaine	2517	temps = $"SVGA refresh rate : {svga.frames} Hz\n\n";
+iXtal26/Video/vid_tvga.cs	instance	33	internal sealed class tvga_t
+iXtal26/Video/vid_tvga.cs	new	35	internal svga_t svga = new();
+iXtal26/Video/vid_tvga.cs	new	36	internal tkd8001_ramdac_t ramdac = new();
+iXtal26/Video/vid_tvga.cs	new	38	internal rom_t bios_rom = new();
+iXtal26/Video/vid_tvga.cs	new	393	tvga_t tvga = new tvga_t();
+iXtal26/Video/vid_tvga.cs	new	461	new device_config_t { name = "memory", type = CONFIG_SELECTION, default_int = 1024,
+iXtal26/Video/vid_tvga.cs	new	462	selection = [new() { description = "256 kB", value = 256 }, new() { description = "512 kB", value = 512 }, new() { description = "1 MB", value = 1024 }] },
+iXtal26/Video/vid_tvga.cs	new	463	new device_config_t { type = -1 },
+iXtal26/Video/vid_tvga.cs	new	467	internal static device_t tvga8900d_device = new device_t("Trident TVGA 8900D", 0, tvga8900d_init, tvga_close, tvga8900d_available,
+iXtal26/Video/vid_tvga.cs	new	469	internal static device_t tvga9000b_device = new device_t("Trident TVGA 9000B", 0, tvga9000b_init, tvga_close, tvga9000b_available,
+iXtal26/Video/vid_vga.cs	instance	25	internal sealed class vga_t
+iXtal26/Video/vid_vga.cs	new	27	internal svga_t svga = new();
+iXtal26/Video/vid_vga.cs	new	29	internal rom_t bios_rom = new();
+iXtal26/Video/vid_vga.cs	new	129	vga_t vga = new vga_t();
+iXtal26/Video/vid_vga.cs	new	190	internal static device_t vga_device = new device_t("VGA", 0, vga_init, vga_close, vga_available, vga_speed_changed,
+iXtal26/Video/video.Materiel.cs	new	32	private static readonly uint32_t[] suivantes = new uint32_t[2 * Stride];
+iXtal26/Video/video.Materiel.cs	linq	59	internal static readonly uint32_t[] identite = Enumerable.Range(0, 512).Select(i => (uint32_t)i).ToArray();
+iXtal26/Video/video.Materiel.cs	lambda	59	internal static readonly uint32_t[] identite = Enumerable.Range(0, 512).Select(i => (uint32_t)i).ToArray();
+iXtal26/Video/video.Materiel.cs	new	63	private static readonly uint32_t[] gardees = new uint32_t[3 * Stride];
+iXtal26/Video/video.Materiel.cs	new	67	private static readonly uint32_t[] points = new uint32_t[3 * Stride];
+iXtal26/Video/video.Materiel.cs	func	96	internal static uint32_t[] ligne(object p, pc_timer_t timer, int displine, int largeur, Action<object> rendu)
+iXtal26/Video/video.cs	instance	38	internal sealed class VIDEO_CARD
+iXtal26/Video/video.cs	new	125	internal static readonly uint32_t[] Buffer32 = new uint32_t[Stride * Height];
+iXtal26/Video/video.cs	new	140	internal static readonly uint8_t[,] edatlookup = new uint8_t[4, 4];
+iXtal26/Video/video.cs	new	183	internal static readonly int[,] video_timing = new int[7, 4] { { VIDEO_ISA, 8, 16, 32 }, { VIDEO_ISA, 6, 8, 16 }, { VIDEO_ISA, 3, 3, 6 },
+iXtal26/Video/video.cs	new	193	private static readonly video_timings_t timing_pc1512 = new video_timings_t
+iXtal26/Video/video.cs	new	197	private static readonly video_timings_t timing_m24 = new video_timings_t
+iXtal26/Video/video.cs	new	290	internal static readonly VIDEO_CARD v_cga = new VIDEO_CARD
+iXtal26/Video/video.cs	new	294	timing = new video_timings_t { type = VIDEO_ISA, write_b = 8, write_w = 16, write_l = 32, read_b = 8, read_w = 16, read_l = 32 },
+iXtal26/Video/video.cs	new	298	internal static readonly VIDEO_CARD v_et4000ax = new VIDEO_CARD
+iXtal26/Video/video.cs	new	302	timing = new video_timings_t { type = VIDEO_ISA, write_b = 3, write_w = 3, write_l = 6, read_b = 5, read_w = 5, read_l = 10 },
+iXtal26/Video/video.cs	new	306	internal static readonly VIDEO_CARD v_ega = new VIDEO_CARD
+iXtal26/Video/video.cs	new	310	timing = new video_timings_t { type = VIDEO_ISA, write_b = 8, write_w = 16, write_l = 32, read_b = 8, read_w = 16, read_l = 32 },
+iXtal26/Video/video.cs	new	314	internal static readonly VIDEO_CARD v_hercules = new VIDEO_CARD
+iXtal26/Video/video.cs	new	318	timing = new video_timings_t { type = VIDEO_ISA, write_b = 8, write_w = 16, write_l = 32, read_b = 8, read_w = 16, read_l = 32 },
+iXtal26/Video/video.cs	new	322	internal static readonly VIDEO_CARD v_mda = new VIDEO_CARD
+iXtal26/Video/video.cs	new	326	timing = new video_timings_t { type = VIDEO_ISA, write_b = 8, write_w = 16, write_l = 32, read_b = 8, read_w = 16, read_l = 32 },
+iXtal26/Video/video.cs	new	330	internal static readonly VIDEO_CARD v_cl_gd5429 = new VIDEO_CARD
+iXtal26/Video/video.cs	new	334	timing = new video_timings_t { type = VIDEO_BUS, write_b = 4, write_w = 4, write_l = 8, read_b = 10, read_w = 10, read_l = 20 },
+iXtal26/Video/video.cs	new	338	internal static readonly VIDEO_CARD v_px_trio64 = new VIDEO_CARD
+iXtal26/Video/video.cs	new	342	timing = new video_timings_t { type = VIDEO_BUS, write_b = 3, write_w = 2, write_l = 4, read_b = 25, read_w = 25, read_l = 40 },
+iXtal26/Video/video.cs	new	346	internal static readonly VIDEO_CARD v_tvga8900d = new VIDEO_CARD
+iXtal26/Video/video.cs	new	350	timing = new video_timings_t { type = VIDEO_ISA, write_b = 3, write_w = 3, write_l = 6, read_b = 8, read_w = 8, read_l = 12 },
+iXtal26/Video/video.cs	new	354	internal static readonly VIDEO_CARD v_tvga9000b = new VIDEO_CARD
+iXtal26/Video/video.cs	new	358	timing = new video_timings_t { type = VIDEO_ISA, write_b = 7, write_w = 7, write_l = 12, read_b = 7, read_w = 7, read_l = 12 },
+iXtal26/Video/video.cs	new	362	internal static readonly VIDEO_CARD v_vga = new VIDEO_CARD
+iXtal26/Video/video.cs	new	366	timing = new video_timings_t { type = VIDEO_ISA, write_b = 8, write_w = 16, write_l = 32, read_b = 8, read_w = 16, read_l = 32 },
+iXtal26/Video/video.cs	new	533	internal static readonly uint8_t[] fontdat = new uint8_t[2048 * 8];
+iXtal26/Video/video.cs	new	534	internal static readonly uint8_t[,] fontdatm = new uint8_t[2048, 16];
+iXtal26/Video/video.cs	chaine	553	pclog($"loadfont : {s} introuvable — police non chargée.\n");
+iXtal26/Video/video.cs	new	648	internal static readonly uint32_t[] cgapal = new uint32_t[16];
+iXtal26/Video/video.cs	new	680	video_15to32 = new uint32_t[65536];
+iXtal26/Video/video.cs	new	684	video_16to32 = new uint32_t[65536];
+iXtal26/io.cs	new	33	internal static inb_fn?[,] port_inb = new inb_fn?[0x10000, 2];
+iXtal26/io.cs	new	34	internal static inw_fn?[,] port_inw = new inw_fn?[0x10000, 2];
+iXtal26/io.cs	new	35	internal static inl_fn?[,] port_inl = new inl_fn?[0x10000, 2];
+iXtal26/io.cs	new	37	internal static outb_fn?[,] port_outb = new outb_fn?[0x10000, 2];
+iXtal26/io.cs	new	38	internal static outw_fn?[,] port_outw = new outw_fn?[0x10000, 2];
+iXtal26/io.cs	new	39	internal static outl_fn?[,] port_outl = new outl_fn?[0x10000, 2];
+iXtal26/io.cs	new	41	internal static object?[,] port_priv = new object?[0x10000, 2];
+iXtal26/timer.cs	instance	17	internal sealed class pc_timer_t
+iXtal26/timer.cs	new	63	private static readonly pc_timer_t?[] all_timers = new pc_timer_t?[MAX_TIMERS];

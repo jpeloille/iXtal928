@@ -1,0 +1,755 @@
+iXtal26.Cpu._386+<>c::.cctor() : Void [static]	newobj	1
+iXtal26.Cpu._386+<>c__DisplayClass135_0::<OpBTx>b__0(UInt32) : Int32	callvirt	2
+iXtal26.Cpu._386+<>c__DisplayClass269_0::<PoserSautsConditionnels>b__0(UInt32) : Int32	callvirt	1
+iXtal26.Cpu._386+<>c__DisplayClass270_0::<PoserSautsLongs386>b__0(UInt32) : Int32	callvirt	1
+iXtal26.Cpu._386+<>c__DisplayClass270_0::<PoserSautsLongs386>b__1(UInt32) : Int32	callvirt	1
+iXtal26.Cpu._386+<>c__DisplayClass270_0::<PoserSautsLongs386>b__2(UInt32) : Int32	callvirt	1
+iXtal26.Cpu._386+<>c__DisplayClass270_0::<PoserSautsLongs386>b__3(UInt32) : Int32	callvirt	1
+iXtal26.Cpu._386+<>c__DisplayClass271_0::<Loop>b__0(UInt32) : Int32	callvirt	1
+iXtal26.Cpu._386+<>c__DisplayClass457_0::<Op0F>b__0(UInt32) : Int32	callvirt	1
+iXtal26.Cpu._386+<>c__DisplayClass545_0::<OpSHxD>b__0(UInt32) : Int32	callvirt	1
+iXtal26.Cpu._386+<>c__DisplayClass566_0::<PushSeg>b__0(UInt32) : Int32	callvirt	1
+iXtal26.Cpu._386+<>c__DisplayClass575_0::<PushSegL>b__0(UInt32) : Int32	callvirt	1
+iXtal26.Cpu._386+<>c__DisplayClass70_0::<OP_ARITH>b__0(UInt32) : Int32	callvirt	4
+iXtal26.Cpu._386+<>c__DisplayClass70_0::<OP_ARITH>b__1(UInt32) : Int32	callvirt	4
+iXtal26.Cpu._386+<>c__DisplayClass70_0::<OP_ARITH>b__2(UInt32) : Int32	callvirt	2
+iXtal26.Cpu._386+<>c__DisplayClass70_0::<OP_ARITH>b__3(UInt32) : Int32	callvirt	2
+iXtal26.Cpu._386+<>c__DisplayClass70_0::<OP_ARITH>b__4(UInt32) : Int32	callvirt	2
+iXtal26.Cpu._386+<>c__DisplayClass70_0::<OP_ARITH>b__5(UInt32) : Int32	callvirt	2
+iXtal26.Cpu._386+<>c__DisplayClass91_0::<OP_ARITH_386>b__0(UInt32) : Int32	callvirt	4
+iXtal26.Cpu._386+<>c__DisplayClass91_0::<OP_ARITH_386>b__1(UInt32) : Int32	callvirt	4
+iXtal26.Cpu._386+<>c__DisplayClass91_0::<OP_ARITH_386>b__3(UInt32) : Int32	callvirt	2
+iXtal26.Cpu._386+<>c__DisplayClass91_0::<OP_ARITH_386>b__4(UInt32) : Int32	callvirt	2
+iXtal26.Cpu._386+<>c__DisplayClass91_0::<OP_ARITH_386>b__6(UInt32) : Int32	callvirt	2
+iXtal26.Cpu._386+<>c__DisplayClass91_0::<OP_ARITH_386>g__LRm|5(Boolean) : iXtal26.Cpu.OpFn	ldftn	1
+iXtal26.Cpu._386+<>c__DisplayClass91_0::<OP_ARITH_386>g__LRm|5(Boolean) : iXtal26.Cpu.OpFn	newobj	2
+iXtal26.Cpu._386+<>c__DisplayClass91_0::<OP_ARITH_386>g__LRmw|2(Boolean) : iXtal26.Cpu.OpFn	ldftn	1
+iXtal26.Cpu._386+<>c__DisplayClass91_0::<OP_ARITH_386>g__LRmw|2(Boolean) : iXtal26.Cpu.OpFn	newobj	2
+iXtal26.Cpu._386+<>c__DisplayClass91_1::<OP_ARITH_386>b__7(UInt32) : Int32	callvirt	4
+iXtal26.Cpu._386+<>c__DisplayClass91_2::<OP_ARITH_386>b__8(UInt32) : Int32	callvirt	2
+iXtal26.Cpu._386::BuildEmpty() : iXtal26.Cpu.OpFn[] [static]	ldftn	1
+iXtal26.Cpu._386::BuildEmpty() : iXtal26.Cpu.OpFn[] [static]	newarr	1
+iXtal26.Cpu._386::BuildEmpty() : iXtal26.Cpu.OpFn[] [static]	newobj	1
+iXtal26.Cpu._386::BuildNofpu32() : iXtal26.Cpu.OpFn[] [static]	ldftn	1
+iXtal26.Cpu._386::BuildNofpu32() : iXtal26.Cpu.OpFn[] [static]	newarr	1
+iXtal26.Cpu._386::BuildNofpu32() : iXtal26.Cpu.OpFn[] [static]	newobj	1
+iXtal26.Cpu._386::BuildNofpu() : iXtal26.Cpu.OpFn[] [static]	ldftn	1
+iXtal26.Cpu._386::BuildNofpu() : iXtal26.Cpu.OpFn[] [static]	newarr	1
+iXtal26.Cpu._386::BuildNofpu() : iXtal26.Cpu.OpFn[] [static]	newobj	1
+iXtal26.Cpu._386::.cctor() : Void [static]	ldftn	16
+iXtal26.Cpu._386::.cctor() : Void [static]	newarr	3
+iXtal26.Cpu._386::.cctor() : Void [static]	newobj	16
+iXtal26.Cpu._386_common::.cctor() : Void [static]	newobj	1
+iXtal26.Cpu._386_common::x86_int(Int32) : Void [static]	call	5
+iXtal26.Cpu._386::Dispatch(iXtal26.Cpu.OpFn, UInt32) : Int32 [static]	callvirt	2
+iXtal26.Cpu._386::Loop(iXtal26.Cpu._386+CondFn) : iXtal26.Cpu.OpFn [static]	ldftn	1
+iXtal26.Cpu._386::Loop(iXtal26.Cpu._386+CondFn) : iXtal26.Cpu.OpFn [static]	newobj	2
+iXtal26.Cpu._386_materiel::.cctor() : Void [static]	newobj	1
+iXtal26.Cpu._386_materiel::longueur_materiel(UInt32, UInt32) : Boolean [static]	callvirt	2
+iXtal26.Cpu._386_materiel::opMOVSX_w_w_a16_materiel(UInt32) : Int32 [static]	callvirt	1
+iXtal26.Cpu._386_materiel::opMOVSX_w_w_a32_materiel(UInt32) : Int32 [static]	callvirt	1
+iXtal26.Cpu._386_materiel::porte_tache_materiel(UInt16, UInt16[], UInt32, Int32) : Boolean [static]	newarr	1
+iXtal26.Cpu._386_materiel::table_0f_materiel() : iXtal26.Cpu.OpFn[] [static]	callvirt	1
+iXtal26.Cpu._386_materiel::table_0f_materiel() : iXtal26.Cpu.OpFn[] [static]	ldftn	2
+iXtal26.Cpu._386_materiel::table_0f_materiel() : iXtal26.Cpu.OpFn[] [static]	newobj	2
+iXtal26.Cpu._386_noyau::poser_tables() : Void [static]	ldftn	444
+iXtal26.Cpu._386_noyau::poser_tables() : Void [static]	newobj	444
+iXtal26.Cpu._386::Op0F(Int32) : iXtal26.Cpu.OpFn [static]	ldftn	1
+iXtal26.Cpu._386::Op0F(Int32) : iXtal26.Cpu.OpFn [static]	newobj	2
+iXtal26.Cpu._386::op0F_w_a16(UInt32) : Int32 [static]	callvirt	1
+iXtal26.Cpu._386::OP_ARITH_386(Int32, iXtal26.Cpu._386+ArithOp8, iXtal26.Cpu._386+ArithOp16, iXtal26.Cpu._386+ArithOp32, iXtal26.Cpu._386+ArithFlags8, iXtal26.Cpu._386+ArithFlags16, iXtal26.Cpu._386+ArithFlags32, Boolean) : Void [static]	callvirt	4
+iXtal26.Cpu._386::OP_ARITH_386(Int32, iXtal26.Cpu._386+ArithOp8, iXtal26.Cpu._386+ArithOp16, iXtal26.Cpu._386+ArithOp32, iXtal26.Cpu._386+ArithFlags8, iXtal26.Cpu._386+ArithFlags16, iXtal26.Cpu._386+ArithFlags32, Boolean) : Void [static]	ldftn	5
+iXtal26.Cpu._386::OP_ARITH_386(Int32, iXtal26.Cpu._386+ArithOp8, iXtal26.Cpu._386+ArithOp16, iXtal26.Cpu._386+ArithOp32, iXtal26.Cpu._386+ArithFlags8, iXtal26.Cpu._386+ArithFlags16, iXtal26.Cpu._386+ArithFlags32, Boolean) : Void [static]	newobj	6
+iXtal26.Cpu._386::OP_ARITH(Int32, Int32, Int32, Int32, Int32, Int32, iXtal26.Cpu._386+ArithOp8, iXtal26.Cpu._386+ArithOp16, iXtal26.Cpu._386+ArithFlags8, iXtal26.Cpu._386+ArithFlags16, Boolean) : Void [static]	ldftn	6
+iXtal26.Cpu._386::OP_ARITH(Int32, Int32, Int32, Int32, Int32, Int32, iXtal26.Cpu._386+ArithOp8, iXtal26.Cpu._386+ArithOp16, iXtal26.Cpu._386+ArithFlags8, iXtal26.Cpu._386+ArithFlags16, Boolean) : Void [static]	newobj	7
+iXtal26.Cpu._386::OpBTx([System.Runtime]System.Func`3<UInt32, UInt32, UInt32>, Boolean, Boolean) : iXtal26.Cpu.OpFn [static]	ldftn	1
+iXtal26.Cpu._386::OpBTx([System.Runtime]System.Func`3<UInt32, UInt32, UInt32>, Boolean, Boolean) : iXtal26.Cpu.OpFn [static]	newobj	2
+iXtal26.Cpu._386::opESCAPE_d8_a16(UInt32) : Int32 [static]	callvirt	1
+iXtal26.Cpu._386::opESCAPE_d8_a32(UInt32) : Int32 [static]	callvirt	1
+iXtal26.Cpu._386::opESCAPE_d9_a16(UInt32) : Int32 [static]	callvirt	1
+iXtal26.Cpu._386::opESCAPE_d9_a32(UInt32) : Int32 [static]	callvirt	1
+iXtal26.Cpu._386::opESCAPE_da_a16(UInt32) : Int32 [static]	callvirt	1
+iXtal26.Cpu._386::opESCAPE_da_a32(UInt32) : Int32 [static]	callvirt	1
+iXtal26.Cpu._386::opESCAPE_db_a16(UInt32) : Int32 [static]	callvirt	1
+iXtal26.Cpu._386::opESCAPE_db_a32(UInt32) : Int32 [static]	callvirt	1
+iXtal26.Cpu._386::opESCAPE_dc_a16(UInt32) : Int32 [static]	callvirt	1
+iXtal26.Cpu._386::opESCAPE_dc_a32(UInt32) : Int32 [static]	callvirt	1
+iXtal26.Cpu._386::opESCAPE_dd_a16(UInt32) : Int32 [static]	callvirt	1
+iXtal26.Cpu._386::opESCAPE_dd_a32(UInt32) : Int32 [static]	callvirt	1
+iXtal26.Cpu._386::opESCAPE_de_a16(UInt32) : Int32 [static]	callvirt	1
+iXtal26.Cpu._386::opESCAPE_de_a32(UInt32) : Int32 [static]	callvirt	1
+iXtal26.Cpu._386::opESCAPE_df_a16(UInt32) : Int32 [static]	callvirt	1
+iXtal26.Cpu._386::opESCAPE_df_a32(UInt32) : Int32 [static]	callvirt	1
+iXtal26.Cpu._386::OpLsel(iXtal26.Cpu.x86seg, Boolean, Boolean) : iXtal26.Cpu.OpFn [static]	ldftn	1
+iXtal26.Cpu._386::OpLsel(iXtal26.Cpu.x86seg, Boolean, Boolean) : iXtal26.Cpu.OpFn [static]	newobj	2
+iXtal26.Cpu._386::opNonTranscrit(UInt32) : Int32 [static]	call	28
+iXtal26.Cpu._386::OpSHxD([System.Runtime]System.Func`2<Int32, Boolean>, Boolean, Boolean) : iXtal26.Cpu.OpFn [static]	ldftn	1
+iXtal26.Cpu._386::OpSHxD([System.Runtime]System.Func`2<Int32, Boolean>, Boolean, Boolean) : iXtal26.Cpu.OpFn [static]	newobj	2
+iXtal26.Cpu._386::opX87NonTranscrit(UInt32) : Int32 [static]	call	5
+iXtal26.Cpu._386::PopSeg(iXtal26.Cpu.x86seg) : iXtal26.Cpu.OpFn [static]	ldftn	1
+iXtal26.Cpu._386::PopSeg(iXtal26.Cpu.x86seg) : iXtal26.Cpu.OpFn [static]	newobj	2
+iXtal26.Cpu._386::PopSegL(iXtal26.Cpu.x86seg) : iXtal26.Cpu.OpFn [static]	ldftn	1
+iXtal26.Cpu._386::PopSegL(iXtal26.Cpu.x86seg) : iXtal26.Cpu.OpFn [static]	newobj	2
+iXtal26.Cpu._386::PoserBSWAP386() : Void [static]	ldftn	1
+iXtal26.Cpu._386::PoserBSWAP386() : Void [static]	newobj	2
+iXtal26.Cpu._386::PoserBTx386() : Void [static]	ldftn	3
+iXtal26.Cpu._386::PoserBTx386() : Void [static]	newarr	1
+iXtal26.Cpu._386::PoserBTx386() : Void [static]	newobj	6
+iXtal26.Cpu._386::PoserCmp() : Void [static]	ldftn	6
+iXtal26.Cpu._386::PoserCmp() : Void [static]	newobj	6
+iXtal26.Cpu._386::PoserGroupeAppel() : Void [static]	ldftn	2
+iXtal26.Cpu._386::PoserGroupeAppel() : Void [static]	newobj	2
+iXtal26.Cpu._386::PoserGroupe_arith_386() : Void [static]	ldftn	29
+iXtal26.Cpu._386::PoserGroupeArith386() : Void [static]	ldftn	42
+iXtal26.Cpu._386::PoserGroupe_arith_386() : Void [static]	newobj	29
+iXtal26.Cpu._386::PoserGroupeArith386() : Void [static]	newobj	42
+iXtal26.Cpu._386::PoserGroupeArith() : Void [static]	ldftn	28
+iXtal26.Cpu._386::PoserGroupeArith() : Void [static]	newobj	28
+iXtal26.Cpu._386::PoserGroupe_atomic_0f_386() : Void [static]	ldftn	16
+iXtal26.Cpu._386::PoserGroupe_atomic_0f_386() : Void [static]	newobj	16
+iXtal26.Cpu._386::PoserGroupeBCD() : Void [static]	ldftn	6
+iXtal26.Cpu._386::PoserGroupeBCD() : Void [static]	newobj	6
+iXtal26.Cpu._386::PoserGroupe_bit_0f_386() : Void [static]	ldftn	8
+iXtal26.Cpu._386::PoserGroupe_bit_0f_386() : Void [static]	newobj	8
+iXtal26.Cpu._386::PoserGroupe_bitscan_0f_386() : Void [static]	ldftn	8
+iXtal26.Cpu._386::PoserGroupe_bitscan_0f_386() : Void [static]	newobj	8
+iXtal26.Cpu._386::PoserGroupe_call_386() : Void [static]	ldftn	5
+iXtal26.Cpu._386::PoserGroupe_call_386() : Void [static]	newobj	5
+iXtal26.Cpu._386::PoserGroupeChaines() : Void [static]	ldftn	14
+iXtal26.Cpu._386::PoserGroupeChaines() : Void [static]	newobj	14
+iXtal26.Cpu._386::PoserGroupeDecalages() : Void [static]	ldftn	6
+iXtal26.Cpu._386::PoserGroupeDecalages() : Void [static]	newobj	6
+iXtal26.Cpu._386::PoserGroupeDrapeaux() : Void [static]	ldftn	11
+iXtal26.Cpu._386::PoserGroupeDrapeaux() : Void [static]	newobj	11
+iXtal26.Cpu._386::PoserGroupeES() : Void [static]	ldftn	8
+iXtal26.Cpu._386::PoserGroupeES() : Void [static]	newobj	8
+iXtal26.Cpu._386::PoserGroupe_flag_386() : Void [static]	ldftn	6
+iXtal26.Cpu._386::PoserGroupe_flag_386() : Void [static]	newobj	6
+iXtal26.Cpu._386::PoserGroupe_fpu_386() : Void [static]	ldftn	16
+iXtal26.Cpu._386::PoserGroupe_fpu_386() : Void [static]	newobj	16
+iXtal26.Cpu._386::PoserGroupeFPU() : Void [static]	ldftn	9
+iXtal26.Cpu._386::PoserGroupeFPU() : Void [static]	newobj	9
+iXtal26.Cpu._386::PoserGroupeImmediat() : Void [static]	ldftn	4
+iXtal26.Cpu._386::PoserGroupeImmediat() : Void [static]	newobj	4
+iXtal26.Cpu._386::PoserGroupe_inc_dec_386() : Void [static]	ldftn	2
+iXtal26.Cpu._386::PoserGroupe_inc_dec_386() : Void [static]	newobj	2
+iXtal26.Cpu._386::PoserGroupeIncDec() : Void [static]	ldftn	1
+iXtal26.Cpu._386::PoserGroupeIncDec() : Void [static]	newobj	1
+iXtal26.Cpu._386::PoserGroupe_int_386() : Void [static]	ldftn	4
+iXtal26.Cpu._386::PoserGroupe_int_386() : Void [static]	newobj	4
+iXtal26.Cpu._386::PoserGroupeInterruptions() : Void [static]	ldftn	3
+iXtal26.Cpu._386::PoserGroupeInterruptions() : Void [static]	newobj	3
+iXtal26.Cpu._386::PoserGroupe_io_386() : Void [static]	ldftn	8
+iXtal26.Cpu._386::PoserGroupe_io_386() : Void [static]	newobj	8
+iXtal26.Cpu._386::PoserGroupe_jump_386() : Void [static]	ldftn	18
+iXtal26.Cpu._386::PoserGroupe_jump_386() : Void [static]	newobj	18
+iXtal26.Cpu._386::PoserGroupe_misc_0f_386() : Void [static]	ldftn	12
+iXtal26.Cpu._386::PoserGroupe_misc_0f_386() : Void [static]	newobj	12
+iXtal26.Cpu._386::PoserGroupe_misc_386() : Void [static]	ldftn	12
+iXtal26.Cpu._386::PoserGroupe_misc_386() : Void [static]	newobj	12
+iXtal26.Cpu._386::PoserGroupeMisc() : Void [static]	ldftn	7
+iXtal26.Cpu._386::PoserGroupeMisc() : Void [static]	newobj	7
+iXtal26.Cpu._386::PoserGroupeModeProtege() : Void [static]	ldftn	1
+iXtal26.Cpu._386::PoserGroupeModeProtege() : Void [static]	newobj	1
+iXtal26.Cpu._386::PoserGroupeMov386() : Void [static]	ldftn	46
+iXtal26.Cpu._386::PoserGroupeMov386() : Void [static]	newobj	46
+iXtal26.Cpu._386::PoserGroupe_mov_ctrl_0f_386() : Void [static]	ldftn	12
+iXtal26.Cpu._386::PoserGroupe_mov_ctrl_0f_386() : Void [static]	newobj	12
+iXtal26.Cpu._386::PoserGroupe_mov_seg_0f_386() : Void [static]	ldftn	4
+iXtal26.Cpu._386::PoserGroupe_mov_seg_0f_386() : Void [static]	newobj	4
+iXtal26.Cpu._386::PoserGroupeMovSeg386() : Void [static]	ldftn	8
+iXtal26.Cpu._386::PoserGroupeMovSeg386() : Void [static]	newobj	8
+iXtal26.Cpu._386::PoserGroupeMovSeg() : Void [static]	ldftn	4
+iXtal26.Cpu._386::PoserGroupeMovSeg() : Void [static]	newobj	4
+iXtal26.Cpu._386::PoserGroupeMov() : Void [static]	ldftn	28
+iXtal26.Cpu._386::PoserGroupeMov() : Void [static]	newobj	28
+iXtal26.Cpu._386::PoserGroupe_movx_0f_386() : Void [static]	ldftn	14
+iXtal26.Cpu._386::PoserGroupe_movx_0f_386() : Void [static]	newobj	14
+iXtal26.Cpu._386::PoserGroupe_mul_0f_386() : Void [static]	ldftn	4
+iXtal26.Cpu._386::PoserGroupe_mul_0f_386() : Void [static]	newobj	4
+iXtal26.Cpu._386::PoserGroupe_mul_386() : Void [static]	ldftn	6
+iXtal26.Cpu._386::PoserGroupe_mul_386() : Void [static]	newobj	6
+iXtal26.Cpu._386::PoserGroupeMul() : Void [static]	ldftn	2
+iXtal26.Cpu._386::PoserGroupeMul() : Void [static]	newobj	2
+iXtal26.Cpu._386::PoserGroupePile() : Void [static]	ldftn	12
+iXtal26.Cpu._386::PoserGroupePile() : Void [static]	newobj	12
+iXtal26.Cpu._386::PoserGroupe_pmode_0f_386() : Void [static]	ldftn	13
+iXtal26.Cpu._386::PoserGroupe_pmode_0f_386() : Void [static]	newobj	13
+iXtal26.Cpu._386::PoserGroupe_pmode_386() : Void [static]	ldftn	2
+iXtal26.Cpu._386::PoserGroupe_pmode_386() : Void [static]	newobj	2
+iXtal26.Cpu._386::PoserGroupePrefixes() : Void [static]	ldftn	7
+iXtal26.Cpu._386::PoserGroupePrefixes() : Void [static]	newobj	7
+iXtal26.Cpu._386::PoserGroupeRep() : Void [static]	ldftn	18
+iXtal26.Cpu._386::PoserGroupeRep() : Void [static]	newarr	2
+iXtal26.Cpu._386::PoserGroupeRep() : Void [static]	newobj	20
+iXtal26.Cpu._386::PoserGroupe_ret_386() : Void [static]	ldftn	8
+iXtal26.Cpu._386::PoserGroupe_ret_386() : Void [static]	newobj	8
+iXtal26.Cpu._386::PoserGroupeRetour() : Void [static]	ldftn	3
+iXtal26.Cpu._386::PoserGroupeRetour() : Void [static]	newobj	3
+iXtal26.Cpu._386::PoserGroupeSauts() : Void [static]	ldftn	9
+iXtal26.Cpu._386::PoserGroupeSauts() : Void [static]	newobj	9
+iXtal26.Cpu._386::PoserGroupe_shift_386() : Void [static]	ldftn	15
+iXtal26.Cpu._386::PoserGroupe_shift_386() : Void [static]	newobj	15
+iXtal26.Cpu._386::PoserGroupe_stack_386() : Void [static]	ldftn	17
+iXtal26.Cpu._386::PoserGroupe_stack_386() : Void [static]	newobj	17
+iXtal26.Cpu._386::PoserGroupe_string_386() : Void [static]	ldftn	35
+iXtal26.Cpu._386::PoserGroupe_string_386() : Void [static]	newobj	35
+iXtal26.Cpu._386::PoserGroupe_xchg_386() : Void [static]	ldftn	19
+iXtal26.Cpu._386::PoserGroupe_xchg_386() : Void [static]	newobj	19
+iXtal26.Cpu._386::PoserGroupeXchg() : Void [static]	ldftn	2
+iXtal26.Cpu._386::PoserGroupeXchg() : Void [static]	newobj	2
+iXtal26.Cpu._386::PoserIncDec386() : Void [static]	ldftn	2
+iXtal26.Cpu._386::PoserIncDec386() : Void [static]	newobj	3
+iXtal26.Cpu._386::PoserIncDecRegistres() : Void [static]	ldftn	2
+iXtal26.Cpu._386::PoserIncDecRegistres() : Void [static]	newobj	3
+iXtal26.Cpu._386::PoserLsel386() : Void [static]	newarr	1
+iXtal26.Cpu._386::PoserLsel386() : Void [static]	newobj	2
+iXtal26.Cpu._386::PoserNop() : Void [static]	ldftn	1
+iXtal26.Cpu._386::PoserNop() : Void [static]	newobj	1
+iXtal26.Cpu._386::PoserPile386() : Void [static]	ldftn	10
+iXtal26.Cpu._386::PoserPile386() : Void [static]	newarr	3
+iXtal26.Cpu._386::PoserPile386() : Void [static]	newobj	11
+iXtal26.Cpu._386::PoserPrefixes386() : Void [static]	ldftn	2
+iXtal26.Cpu._386::PoserPrefixes386() : Void [static]	newobj	2
+iXtal26.Cpu._386::PoserPushPopRegistres() : Void [static]	ldftn	2
+iXtal26.Cpu._386::PoserPushPopRegistres() : Void [static]	newobj	3
+iXtal26.Cpu._386::PoserRep386() : Void [static]	ldftn	112
+iXtal26.Cpu._386::PoserRep386() : Void [static]	newobj	112
+iXtal26.Cpu._386::PoserSautsConditionnels() : Void [static]	ldftn	1
+iXtal26.Cpu._386::PoserSautsConditionnels() : Void [static]	newobj	2
+iXtal26.Cpu._386::PoserSautsLongs386() : Void [static]	ldftn	4
+iXtal26.Cpu._386::PoserSautsLongs386() : Void [static]	newobj	5
+iXtal26.Cpu._386::PoserSHxD386() : Void [static]	ldftn	4
+iXtal26.Cpu._386::PoserSHxD386() : Void [static]	newarr	2
+iXtal26.Cpu._386::PoserSHxD386() : Void [static]	newobj	8
+iXtal26.Cpu._386::PoserTable0F() : Void [static]	ldftn	7
+iXtal26.Cpu._386::PoserTable0F() : Void [static]	newobj	7
+iXtal26.Cpu._386::PoserTest() : Void [static]	ldftn	4
+iXtal26.Cpu._386::PoserTest() : Void [static]	newobj	4
+iXtal26.Cpu._386::PoserXchgAccumulateur() : Void [static]	ldftn	1
+iXtal26.Cpu._386::PoserXchgAccumulateur() : Void [static]	newobj	2
+iXtal26.Cpu._386::PrefixeRep(iXtal26.Cpu.OpFn[]) : iXtal26.Cpu.OpFn [static]	ldftn	1
+iXtal26.Cpu._386::PrefixeRep(iXtal26.Cpu.OpFn[]) : iXtal26.Cpu.OpFn [static]	newobj	2
+iXtal26.Cpu._386::PrefixeSegment(iXtal26.Cpu.x86seg, UInt32) : iXtal26.Cpu.OpFn [static]	ldftn	1
+iXtal26.Cpu._386::PrefixeSegment(iXtal26.Cpu.x86seg, UInt32) : iXtal26.Cpu.OpFn [static]	newobj	2
+iXtal26.Cpu._386::PrefixeSegmentRep(iXtal26.Cpu.x86seg, iXtal26.Cpu.OpFn[], UInt32) : iXtal26.Cpu.OpFn [static]	ldftn	1
+iXtal26.Cpu._386::PrefixeSegmentRep(iXtal26.Cpu.x86seg, iXtal26.Cpu.OpFn[], UInt32) : iXtal26.Cpu.OpFn [static]	newobj	2
+iXtal26.Cpu._386::PrefixeTaille(UInt32, iXtal26.Cpu.OpFn[]) : iXtal26.Cpu.OpFn [static]	ldftn	1
+iXtal26.Cpu._386::PrefixeTaille(UInt32, iXtal26.Cpu.OpFn[]) : iXtal26.Cpu.OpFn [static]	newobj	2
+iXtal26.Cpu._386::PushSegL([System.Runtime]System.Func`1<UInt16>) : iXtal26.Cpu.OpFn [static]	ldftn	1
+iXtal26.Cpu._386::PushSegL([System.Runtime]System.Func`1<UInt16>) : iXtal26.Cpu.OpFn [static]	newobj	2
+iXtal26.Cpu._386::PushSeg([System.Runtime]System.Func`1<UInt16>) : iXtal26.Cpu.OpFn [static]	ldftn	1
+iXtal26.Cpu._386::PushSeg([System.Runtime]System.Func`1<UInt16>) : iXtal26.Cpu.OpFn [static]	newobj	2
+iXtal26.Cpu._386::Table486() : iXtal26.Cpu.CPU[] [static]	newarr	1
+iXtal26.Cpu._386::Table486() : iXtal26.Cpu.CPU[] [static]	newobj	1
+iXtal26.Cpu._386::Table_fpu_d8_a16() : iXtal26.Cpu.OpFn[] [static]	ldftn	32
+iXtal26.Cpu._386::Table_fpu_d8_a16() : iXtal26.Cpu.OpFn[] [static]	newarr	1
+iXtal26.Cpu._386::Table_fpu_d8_a16() : iXtal26.Cpu.OpFn[] [static]	newobj	32
+iXtal26.Cpu._386::Table_fpu_d8_a32() : iXtal26.Cpu.OpFn[] [static]	ldftn	32
+iXtal26.Cpu._386::Table_fpu_d8_a32() : iXtal26.Cpu.OpFn[] [static]	newarr	1
+iXtal26.Cpu._386::Table_fpu_d8_a32() : iXtal26.Cpu.OpFn[] [static]	newobj	32
+iXtal26.Cpu._386::Table_fpu_d9_a16() : iXtal26.Cpu.OpFn[] [static]	ldftn	256
+iXtal26.Cpu._386::Table_fpu_d9_a16() : iXtal26.Cpu.OpFn[] [static]	newarr	1
+iXtal26.Cpu._386::Table_fpu_d9_a16() : iXtal26.Cpu.OpFn[] [static]	newobj	256
+iXtal26.Cpu._386::Table_fpu_d9_a32() : iXtal26.Cpu.OpFn[] [static]	ldftn	256
+iXtal26.Cpu._386::Table_fpu_d9_a32() : iXtal26.Cpu.OpFn[] [static]	newarr	1
+iXtal26.Cpu._386::Table_fpu_d9_a32() : iXtal26.Cpu.OpFn[] [static]	newobj	256
+iXtal26.Cpu._386::Table_fpu_da_a16() : iXtal26.Cpu.OpFn[] [static]	ldftn	256
+iXtal26.Cpu._386::Table_fpu_da_a16() : iXtal26.Cpu.OpFn[] [static]	newarr	1
+iXtal26.Cpu._386::Table_fpu_da_a16() : iXtal26.Cpu.OpFn[] [static]	newobj	256
+iXtal26.Cpu._386::Table_fpu_da_a32() : iXtal26.Cpu.OpFn[] [static]	ldftn	256
+iXtal26.Cpu._386::Table_fpu_da_a32() : iXtal26.Cpu.OpFn[] [static]	newarr	1
+iXtal26.Cpu._386::Table_fpu_da_a32() : iXtal26.Cpu.OpFn[] [static]	newobj	256
+iXtal26.Cpu._386::Table_fpu_db_a16() : iXtal26.Cpu.OpFn[] [static]	ldftn	256
+iXtal26.Cpu._386::Table_fpu_db_a16() : iXtal26.Cpu.OpFn[] [static]	newarr	1
+iXtal26.Cpu._386::Table_fpu_db_a16() : iXtal26.Cpu.OpFn[] [static]	newobj	256
+iXtal26.Cpu._386::Table_fpu_db_a32() : iXtal26.Cpu.OpFn[] [static]	ldftn	256
+iXtal26.Cpu._386::Table_fpu_db_a32() : iXtal26.Cpu.OpFn[] [static]	newarr	1
+iXtal26.Cpu._386::Table_fpu_db_a32() : iXtal26.Cpu.OpFn[] [static]	newobj	256
+iXtal26.Cpu._386::Table_fpu_dc_a16() : iXtal26.Cpu.OpFn[] [static]	ldftn	32
+iXtal26.Cpu._386::Table_fpu_dc_a16() : iXtal26.Cpu.OpFn[] [static]	newarr	1
+iXtal26.Cpu._386::Table_fpu_dc_a16() : iXtal26.Cpu.OpFn[] [static]	newobj	32
+iXtal26.Cpu._386::Table_fpu_dc_a32() : iXtal26.Cpu.OpFn[] [static]	ldftn	32
+iXtal26.Cpu._386::Table_fpu_dc_a32() : iXtal26.Cpu.OpFn[] [static]	newarr	1
+iXtal26.Cpu._386::Table_fpu_dc_a32() : iXtal26.Cpu.OpFn[] [static]	newobj	32
+iXtal26.Cpu._386::Table_fpu_dd_a16() : iXtal26.Cpu.OpFn[] [static]	ldftn	256
+iXtal26.Cpu._386::Table_fpu_dd_a16() : iXtal26.Cpu.OpFn[] [static]	newarr	1
+iXtal26.Cpu._386::Table_fpu_dd_a16() : iXtal26.Cpu.OpFn[] [static]	newobj	256
+iXtal26.Cpu._386::Table_fpu_dd_a32() : iXtal26.Cpu.OpFn[] [static]	ldftn	256
+iXtal26.Cpu._386::Table_fpu_dd_a32() : iXtal26.Cpu.OpFn[] [static]	newarr	1
+iXtal26.Cpu._386::Table_fpu_dd_a32() : iXtal26.Cpu.OpFn[] [static]	newobj	256
+iXtal26.Cpu._386::Table_fpu_de_a16() : iXtal26.Cpu.OpFn[] [static]	ldftn	256
+iXtal26.Cpu._386::Table_fpu_de_a16() : iXtal26.Cpu.OpFn[] [static]	newarr	1
+iXtal26.Cpu._386::Table_fpu_de_a16() : iXtal26.Cpu.OpFn[] [static]	newobj	256
+iXtal26.Cpu._386::Table_fpu_de_a32() : iXtal26.Cpu.OpFn[] [static]	ldftn	256
+iXtal26.Cpu._386::Table_fpu_de_a32() : iXtal26.Cpu.OpFn[] [static]	newarr	1
+iXtal26.Cpu._386::Table_fpu_de_a32() : iXtal26.Cpu.OpFn[] [static]	newobj	256
+iXtal26.Cpu._386::Table_fpu_df_a16() : iXtal26.Cpu.OpFn[] [static]	ldftn	256
+iXtal26.Cpu._386::Table_fpu_df_a16() : iXtal26.Cpu.OpFn[] [static]	newarr	1
+iXtal26.Cpu._386::Table_fpu_df_a16() : iXtal26.Cpu.OpFn[] [static]	newobj	256
+iXtal26.Cpu._386::Table_fpu_df_a32() : iXtal26.Cpu.OpFn[] [static]	ldftn	256
+iXtal26.Cpu._386::Table_fpu_df_a32() : iXtal26.Cpu.OpFn[] [static]	newarr	1
+iXtal26.Cpu._386::Table_fpu_df_a32() : iXtal26.Cpu.OpFn[] [static]	newobj	256
+iXtal26.Cpu._386::X87NonTranscrit(Int32) : iXtal26.Cpu.OpFn[] [static]	ldftn	1
+iXtal26.Cpu._386::X87NonTranscrit(Int32) : iXtal26.Cpu.OpFn[] [static]	newarr	1
+iXtal26.Cpu._386::X87NonTranscrit(Int32) : iXtal26.Cpu.OpFn[] [static]	newobj	1
+iXtal26.Cpu._808x+Garde::.ctor() : Void	newarr	1
+iXtal26.Cpu._808x::BalayerRaz() : Void [static]	call	7
+iXtal26.Cpu._808x::BalayerRaz() : Void [static]	callvirt	1
+iXtal26.Cpu._808x::.cctor() : Void [static]	ldftn	1600
+iXtal26.Cpu._808x::.cctor() : Void [static]	newarr	13
+iXtal26.Cpu._808x::.cctor() : Void [static]	newobj	1605
+iXtal26.Cpu._808x::execx86(Int32) : Void [static]	callvirt	8
+iXtal26.Cpu._808x::FlatMap(Int32) : Void [static]	call	5
+iXtal26.Cpu._808x::FlatMap(Int32) : Void [static]	callvirt	2
+iXtal26.Cpu._808x::FlatMap(Int32) : Void [static]	ldftn	6
+iXtal26.Cpu._808x::FlatMap(Int32) : Void [static]	newobj	6
+iXtal26.Cpu._808x::GetState(iXtal26.Diag.HState&) : Void [static]	newarr	2
+iXtal26.Cpu._808x_noyau::poser_tables() : Void [static]	ldftn	222
+iXtal26.Cpu._808x_noyau::poser_tables() : Void [static]	newobj	222
+iXtal26.Cpu._808x::poser_8087_materiel(Int32) : Void [static]	ldftn	2
+iXtal26.Cpu._808x::poser_8087_materiel(Int32) : Void [static]	newobj	2
+iXtal26.Cpu.cpu_c::cpu_set() : Void [static]	call	5
+iXtal26.Cpu.cpu_state_t::.ctor() : Void	newarr	5
+iXtal26.Cpu.cpu_state_t::.ctor() : Void	newobj	6
+iXtal26.Cpu.cpu_tables::.cctor() : Void [static]	newarr	13
+iXtal26.Cpu.cpu_tables::.cctor() : Void [static]	newobj	67
+iXtal26.Cpu.x86::.cctor() : Void [static]	newarr	1
+iXtal26.Cpu.x86::.cctor() : Void [static]	newobj	4
+iXtal26.Cpu.x86seg_c::loadcscall(UInt16, UInt32) : Void [static]	call	16
+iXtal26.Cpu.x86seg_c::loadcscall(UInt16, UInt32) : Void [static]	newarr	2
+iXtal26.Cpu.x86seg_c::loadcsjmp(UInt16, UInt32) : Void [static]	newarr	1
+iXtal26.Cpu.x86seg_c::loadcs(UInt16) : Void [static]	call	6
+iXtal26.Cpu.x86seg_c::loadseg(UInt16, iXtal26.Cpu.x86seg) : Int32 [static]	newarr	1
+iXtal26.Cpu.x86seg_c::pmodeint(Int32, Int32) : Void [static]	newarr	3
+iXtal26.Cpu.x86seg_c::pmodeiret(Int32) : Void [static]	newarr	3
+iXtal26.Cpu.x86seg_c::pmoderetf(Int32, UInt16) : Void [static]	newarr	2
+iXtal26.Cpu.x86seg_c::taskswitch286(UInt16, UInt16[], Int32) : Void [static]	newarr	1
+iXtal26.Cpu.x86seg_c::x86abort(String) : Void [static]	call	1
+iXtal26.Cpu._x87_materiel+<>c::<poser>b__0_0(iXtal26.Cpu.OpFn) : iXtal26.Cpu.OpFn	callvirt	2
+iXtal26.Cpu._x87_materiel+<>c::.cctor() : Void [static]	newobj	1
+iXtal26.Cpu._x87_materiel+<>c__DisplayClass15_0::<attend>b__0(UInt32) : Int32	callvirt	1
+iXtal26.Cpu._x87_materiel+<>c__DisplayClass9_0::<efface_b>b__0(UInt32) : Int32	callvirt	1
+iXtal26.Cpu._x87_materiel::attend(iXtal26.Cpu.OpFn) : iXtal26.Cpu.OpFn [static]	ldftn	1
+iXtal26.Cpu._x87_materiel::attend(iXtal26.Cpu.OpFn) : iXtal26.Cpu.OpFn [static]	newobj	2
+iXtal26.Cpu._x87_materiel::copie(iXtal26.Cpu.OpFn[], iXtal26.Cpu.OpFn[]) : iXtal26.Cpu.OpFn[] [static]	callvirt	1
+iXtal26.Cpu._x87_materiel::efface_b(iXtal26.Cpu.OpFn) : iXtal26.Cpu.OpFn [static]	ldftn	1
+iXtal26.Cpu._x87_materiel::efface_b(iXtal26.Cpu.OpFn) : iXtal26.Cpu.OpFn [static]	newobj	2
+iXtal26.Cpu._x87_materiel::ports_at() : Void [static]	ldftn	1
+iXtal26.Cpu._x87_materiel::ports_at() : Void [static]	newobj	1
+iXtal26.Cpu._x87_materiel::poser(Int32) : Void [static]	ldftn	1
+iXtal26.Cpu._x87_materiel::poser(Int32) : Void [static]	newobj	1
+iXtal26.Cpu._x87_materiel::sur(iXtal26.Cpu.OpFn[], iXtal26.Cpu.OpFn[], [System.Runtime]System.Func`2<iXtal26.Cpu.OpFn, iXtal26.Cpu.OpFn>) : iXtal26.Cpu.OpFn[] [static]	callvirt	1
+iXtal26.Cpu._x87_noyau::arrondir_a(Boolean, [System.Runtime.Numerics]System.Numerics.BigInteger, [System.Runtime.Numerics]System.Numerics.BigInteger, Int32, Int32, Int32, Byte) : [System.Runtime]System.ValueTuple`3<UInt64, Int32, Boolean> [static]	newobj	1
+iXtal26.Cpu._x87_noyau::brut80([iXtal26.SoftFloat]iXtal26.SoftFloat.extFloat80_t&) : [System.Runtime]System.ValueTuple`3<Boolean, Int32, UInt64> [static]	newobj	1
+iXtal26.Cpu._x87_noyau::.cctor() : Void [static]	newarr	5
+iXtal26.Cpu._x87_noyau::.cctor() : Void [static]	newobj	7
+iXtal26.Cpu._x87_noyau::grand(UInt64) : [System.Runtime.Numerics]System.Numerics.BigInteger [static]	newobj	1
+iXtal26.Cpu._x87_noyau::non_normal_f32(UInt32) : [System.Runtime]System.Nullable`1<[iXtal26.SoftFloat]iXtal26.SoftFloat.extFloat80_t> [static]	newobj	1
+iXtal26.Cpu._x87_noyau::non_normal_f64(UInt64) : [System.Runtime]System.Nullable`1<[iXtal26.SoftFloat]iXtal26.SoftFloat.extFloat80_t> [static]	newobj	1
+iXtal26.Cpu._x87_noyau::normaliser([iXtal26.SoftFloat]iXtal26.SoftFloat.extFloat80_t&) : [System.Runtime]System.ValueTuple`3<Boolean, Int32, UInt64> [static]	newobj	2
+iXtal26.Cpu._x87_noyau::table(iXtal26.Cpu.OpFn[]) : iXtal26.Cpu.OpFn[] [static]	callvirt	1
+iXtal26.Cpu._x87_transcendantes::add(iXtal26.Cpu.Reel&, iXtal26.Cpu.Reel&) : iXtal26.Cpu.Reel [static]	newobj	4
+iXtal26.Cpu._x87_transcendantes::.cctor() : Void [static]	newarr	6
+iXtal26.Cpu._x87_transcendantes::.cctor() : Void [static]	newobj	239
+iXtal26.Cpu._x87_transcendantes::de([iXtal26.SoftFloat]iXtal26.SoftFloat.extFloat80_t&) : iXtal26.Cpu.Reel [static]	newobj	2
+iXtal26.Cpu._x87_transcendantes::echelle(iXtal26.Cpu.Reel&, Int32) : iXtal26.Cpu.Reel [static]	newobj	1
+iXtal26.Cpu._x87_transcendantes::entier(Int32) : iXtal26.Cpu.Reel [static]	newobj	2
+iXtal26.Cpu._x87_transcendantes::exp2m1([iXtal26.SoftFloat]iXtal26.SoftFloat.extFloat80_t&, Boolean&) : iXtal26.Cpu.Reel [static]	newobj	2
+iXtal26.Cpu._x87_transcendantes::mul(iXtal26.Cpu.Reel&, iXtal26.Cpu.Reel&) : iXtal26.Cpu.Reel [static]	newobj	2
+iXtal26.Cpu._x87_transcendantes::oppose(iXtal26.Cpu.Reel&) : iXtal26.Cpu.Reel [static]	newobj	1
+iXtal26.Cpu._x87_transcendantes::quotient(iXtal26.Cpu.Reel&, iXtal26.Cpu.Reel&) : iXtal26.Cpu.Reel [static]	newobj	1
+iXtal26.Cpu._x87_transcendantes::reduire(iXtal26.Cpu.Reel&, Int32&) : iXtal26.Cpu.Reel [static]	newobj	1
+iXtal26.Cpu._x87_transcendantes::trigo(Int32, [iXtal26.SoftFloat]iXtal26.SoftFloat.extFloat80_t&) : iXtal26.Cpu.Reel [static]	newobj	2
+iXtal26.Ics.Emu8000::.cctor() : Void [static]	newarr	13
+iXtal26.Ics.Emu8000::emu8k_init(iXtal26.Ics.emu8k_t, UInt16, Int32) : Void [static]	callvirt	2
+iXtal26.Ics.Emu8000::emu8k_init(iXtal26.Ics.emu8k_t, UInt16, Int32) : Void [static]	ldftn	12
+iXtal26.Ics.Emu8000::emu8k_init(iXtal26.Ics.emu8k_t, UInt16, Int32) : Void [static]	newarr	2
+iXtal26.Ics.Emu8000::emu8k_init(iXtal26.Ics.emu8k_t, UInt16, Int32) : Void [static]	newobj	13
+iXtal26.Ics.emu8k_chorus_eng_t::.ctor() : Void	newarr	1
+iXtal26.Ics.emu8k_reverb_combfilter_t::.ctor() : Void	newarr	1
+iXtal26.Ics.emu8k_reverb_eng_t::.ctor() : Void	newobj	3
+iXtal26.Ics.emu8k_reverb_eng_t::Nouveaux(Int32) : iXtal26.Ics.emu8k_reverb_combfilter_t[] [static]	newarr	1
+iXtal26.Ics.emu8k_reverb_eng_t::Nouveaux(Int32) : iXtal26.Ics.emu8k_reverb_combfilter_t[] [static]	newobj	1
+iXtal26.Ics.emu8k_t::.ctor() : Void	newarr	8
+iXtal26.Ics.emu8k_t::.ctor() : Void	newobj	2
+iXtal26.Ics.emu8k_t::NouvellesVoix() : iXtal26.Ics.emu8k_voice_t[] [static]	newarr	1
+iXtal26.Ics.emu8k_t::NouvellesVoix() : iXtal26.Ics.emu8k_voice_t[] [static]	newobj	1
+iXtal26.Ics.emu8k_voice_t::.ctor() : Void	newarr	1
+iXtal26.Ics.emu8k_voice_t::.ctor() : Void	newobj	3
+iXtal26.Ics.Intel8253::.cctor() : Void [static]	newobj	1
+iXtal26.Ics.Intel8253::pit_init() : Void [static]	ldftn	8
+iXtal26.Ics.Intel8253::pit_init() : Void [static]	newobj	8
+iXtal26.Ics.Intel8253::pit_reset(iXtal26.Ics.PIT) : Void [static]	newobj	2
+iXtal26.Ics.Intel8253::pit_set_out(iXtal26.Ics.PIT, Int32, Int32) : Void [static]	callvirt	1
+iXtal26.Ics.PIT::.ctor() : Void	newarr	24
+iXtal26.Ics.PIT::.ctor() : Void	newobj	6
+iXtal26.io::.cctor() : Void [static]	newobj	7
+iXtal26.io::inb_corps(UInt16) : Byte [static]	callvirt	2
+iXtal26.io::inl(UInt16) : UInt32 [static]	callvirt	2
+iXtal26.io::inw(UInt16) : UInt16 [static]	callvirt	2
+iXtal26.io::outb_corps(UInt16, Byte) : Void [static]	callvirt	2
+iXtal26.io::outl(UInt16, UInt32) : Void [static]	callvirt	2
+iXtal26.io::outw(UInt16, UInt16) : Void [static]	callvirt	2
+iXtal26.Lpt.dss_t::.ctor() : Void	newarr	2
+iXtal26.Lpt.dss_t::.ctor() : Void	newobj	1
+iXtal26.Lpt.lpt_dac::.cctor() : Void [static]	ldftn	10
+iXtal26.Lpt.lpt_dac::.cctor() : Void [static]	newarr	8
+iXtal26.Lpt.lpt_dac::.cctor() : Void [static]	newobj	12
+iXtal26.Lpt.lpt_dac::dac_init() : Object [static]	ldftn	1
+iXtal26.Lpt.lpt_dac::dac_init() : Object [static]	newobj	2
+iXtal26.Lpt.lpt_dac_t::.ctor() : Void	newarr	3
+iXtal26.Lpt.lpt_dss::.cctor() : Void [static]	ldftn	5
+iXtal26.Lpt.lpt_dss::.cctor() : Void [static]	newarr	4
+iXtal26.Lpt.lpt_dss::.cctor() : Void [static]	newobj	6
+iXtal26.Lpt.lpt_dss::dss_init() : Object [static]	ldftn	2
+iXtal26.Lpt.lpt_dss::dss_init() : Object [static]	newobj	3
+iXtal26.Memory.mem::.cctor() : Void [static]	newarr	14
+iXtal26.Memory.mem::.cctor() : Void [static]	newobj	4
+iXtal26.Memory.mem::CreateMappings(Int32) : iXtal26.Memory.mem_mapping_t[] [static]	newarr	1
+iXtal26.Memory.mem::CreateMappings(Int32) : iXtal26.Memory.mem_mapping_t[] [static]	newobj	1
+iXtal26.Memory.mem::fatal(String) : Void [static]	call	1
+iXtal26.Memory.mem::fatal(String) : Void [static]	callvirt	1
+iXtal26.Memory.mem::mem_add_bios() : Void [static]	ldftn	6
+iXtal26.Memory.mem::mem_add_bios() : Void [static]	newobj	6
+iXtal26.Memory.mem::mem_alloc() : Void [static]	ldftn	18
+iXtal26.Memory.mem::mem_alloc() : Void [static]	newarr	1
+iXtal26.Memory.mem::mem_alloc() : Void [static]	newobj	18
+iXtal26.Memory.mem::mem_init() : Void [static]	newarr	2
+iXtal26.Memory.mem::mem_mapping_read_allowed(UInt32, Int32) : Boolean [static]	call	5
+iXtal26.Memory.mem::mem_mapping_write_allowed(UInt32, Int32) : Boolean [static]	call	5
+iXtal26.Memory.mem::mem_readb_phys(UInt32) : Byte [static]	callvirt	1
+iXtal26.Memory.mem::mem_readl_phys(UInt32) : UInt32 [static]	callvirt	1
+iXtal26.Memory.mem::mem_readw_phys(UInt32) : UInt16 [static]	callvirt	1
+iXtal26.Memory.mem::mem_writeb_phys(UInt32, Byte) : Void [static]	callvirt	1
+iXtal26.Memory.mem::readmemll(UInt32) : UInt32 [static]	callvirt	7
+iXtal26.Memory.mem::readmemql(UInt32) : UInt64 [static]	callvirt	2
+iXtal26.Memory.mem::__real_readmembl(UInt32) : Byte [static]	callvirt	1
+iXtal26.Memory.mem::__real_readmemwl(UInt32) : UInt16 [static]	callvirt	3
+iXtal26.Memory.mem::__real_writemembl(UInt32, Byte) : Void [static]	callvirt	1
+iXtal26.Memory.mem::__real_writememll(UInt32, UInt32) : Void [static]	callvirt	7
+iXtal26.Memory.mem::__real_writememwl(UInt32, UInt16) : Void [static]	callvirt	3
+iXtal26.Memory.mem::writememql(UInt32, UInt64) : Void [static]	callvirt	7
+iXtal26.SoftFloat.softfloat::.cctor() : Void [static]	newarr	2
+iXtal26.Sound.adlib_t::.ctor() : Void	newarr	1
+iXtal26.Sound.adlib_t::.ctor() : Void	newobj	1
+iXtal26.Sound.DBOPL+Channel::BlockTemplate(iXtal26.Sound.DBOPL+SynthMode, iXtal26.Sound.DBOPL+Chip, UInt32, Int32[], Int32) : Int32	callvirt	32
+iXtal26.Sound.DBOPL+Channel::.ctor(iXtal26.Sound.DBOPL+Chip, Int32) : Void	newarr	2
+iXtal26.Sound.DBOPL+Channel::.ctor(iXtal26.Sound.DBOPL+Chip, Int32) : Void	newobj	2
+iXtal26.Sound.DBOPL+Channel::GeneratePercussion(Boolean, iXtal26.Sound.DBOPL+Chip, Int32[], Int32) : Void	callvirt	12
+iXtal26.Sound.DBOPL+Channel::SetChanData(iXtal26.Sound.DBOPL+Chip, UInt32) : Void	callvirt	6
+iXtal26.Sound.DBOPL+Channel::UpdateFrequency(iXtal26.Sound.DBOPL+Chip, Byte) : Void	callvirt	2
+iXtal26.Sound.DBOPL+Channel::WriteB0(iXtal26.Sound.DBOPL+Chip, Byte) : Void	callvirt	12
+iXtal26.Sound.DBOPL+Chip::.ctor() : Void	newarr	4
+iXtal26.Sound.DBOPL+Chip::.ctor() : Void	newobj	1
+iXtal26.Sound.DBOPL+Chip::GenerateBlock2(UInt32, Int32[], Int32) : Void	callvirt	1
+iXtal26.Sound.DBOPL+Chip::GenerateBlock3(UInt32, Int32[], Int32) : Void	callvirt	1
+iXtal26.Sound.DBOPL+Chip::WriteBD(Byte) : Void	callvirt	19
+iXtal26.Sound.DBOPL+Chip::WriteReg(UInt32, Byte) : Void	callvirt	1
+iXtal26.Sound.DBOPL::.cctor() : Void [static]	newarr	15
+iXtal26.Sound.opl_t::.ctor() : Void	newarr	6
+iXtal26.Sound.opl_t::.ctor() : Void	newobj	4
+iXtal26.Sound.sb_ct1335_mixer_t::.ctor() : Void	newarr	1
+iXtal26.Sound.sb_ct1345_mixer_t::.ctor() : Void	newarr	1
+iXtal26.Sound.sb_ct1745_mixer_t::.ctor() : Void	newarr	1
+iXtal26.Sound.sb_dsp_t::.ctor() : Void	newarr	5
+iXtal26.Sound.sb_dsp_t::.ctor() : Void	newobj	3
+iXtal26.Sound.sb_t::.ctor() : Void	newarr	1
+iXtal26.Sound.sb_t::.ctor() : Void	newobj	6
+iXtal26.Sound.sound+PontCd::.cctor() : Void [static]	newarr	2
+iXtal26.Sound.sound_adlib::adlib_init() : Object [static]	ldftn	3
+iXtal26.Sound.sound_adlib::adlib_init() : Object [static]	newobj	4
+iXtal26.Sound.sound_adlib::.cctor() : Void [static]	ldftn	2
+iXtal26.Sound.sound_adlib::.cctor() : Void [static]	newobj	3
+iXtal26.Sound.sound::.cctor() : Void [static]	newarr	4
+iXtal26.Sound.sound::.cctor() : Void [static]	newobj	10
+iXtal26.Sound.sound::cd_tick_materiel() : Boolean [static]	newobj	1
+iXtal26.Sound.sound_dbopl+opl_state_t::.ctor() : Void	newarr	1
+iXtal26.Sound.sound_dbopl+opl_state_t::.ctor() : Void	newobj	1
+iXtal26.Sound.sound_dbopl::.cctor() : Void [static]	newarr	3
+iXtal26.Sound.sound_dbopl::.cctor() : Void [static]	newobj	2
+iXtal26.Sound.sound_dbopl::opl2_update_impl(Int32, Int16[], Int32, Int32[], Int32) : Void [static]	callvirt	1
+iXtal26.Sound.sound_dbopl::opl3_update_impl(Int32, Int16[], Int32, Int32[], Int32) : Void [static]	callvirt	1
+iXtal26.Sound.sound_dbopl::opl_clear_state_for_oracle_parity(Int32) : Void [static]	newobj	1
+iXtal26.Sound.sound_dbopl::opl_init(iXtal26.Sound.opl_timer_callback_t, Object, Int32, Int32, Int32) : Void [static]	callvirt	1
+iXtal26.Sound.sound_dbopl::opl_timer_over(Int32, Int32) : Void [static]	callvirt	2
+iXtal26.Sound.sound_dbopl::opl_write(Int32, UInt16, Byte) : Void [static]	callvirt	6
+iXtal26.Sound.sound::givealbuffer_cd(Int16[]) : Void [static]	callvirt	1
+iXtal26.Sound.sound_mpu401_uart::mpu401_uart_init(iXtal26.Sound.mpu401_uart_t, UInt16, Int32, Int32) : Void [static]	ldftn	2
+iXtal26.Sound.sound_mpu401_uart::mpu401_uart_init(iXtal26.Sound.mpu401_uart_t, UInt16, Int32, Int32) : Void [static]	newobj	2
+iXtal26.Sound.sound_opl::opl2_init(iXtal26.Sound.opl_t) : Void [static]	ldftn	6
+iXtal26.Sound.sound_opl::opl2_init(iXtal26.Sound.opl_t) : Void [static]	newobj	6
+iXtal26.Sound.sound_opl::opl3_init(iXtal26.Sound.opl_t, Int32) : Void [static]	ldftn	3
+iXtal26.Sound.sound_opl::opl3_init(iXtal26.Sound.opl_t, Int32) : Void [static]	newobj	3
+iXtal26.Sound.sound_sb+Selection::Equals(iXtal26.Sound.sound_sb+Selection) : Boolean	callvirt	8
+iXtal26.Sound.sound_sb+Selection::GetHashCode() : Int32	callvirt	8
+iXtal26.Sound.sound_sb+Selection::PrintMembers([System.Runtime]System.Text.StringBuilder) : Boolean	callvirt	24
+iXtal26.Sound.sound_sb+Selection::ToString() : String	callvirt	5
+iXtal26.Sound.sound_sb+Selection::ToString() : String	newobj	1
+iXtal26.Sound.sound_sb::.cctor() : Void [static]	ldftn	22
+iXtal26.Sound.sound_sb::.cctor() : Void [static]	newarr	81
+iXtal26.Sound.sound_sb::.cctor() : Void [static]	newobj	155
+iXtal26.Sound.sound_sb::dma_pro_materiel() : Int32[] [static]	newarr	1
+iXtal26.Sound.sound_sb::dma_un_materiel() : Int32[] [static]	newarr	1
+iXtal26.Sound.sound_sb_dsp+AnneauEntree::.ctor() : Void	newarr	1
+iXtal26.Sound.sound_sb_dsp+EtatDsp+Etat::.ctor() : Void	newobj	1
+iXtal26.Sound.sound_sb_dsp+EtatDsp::.cctor() : Void [static]	newobj	1
+iXtal26.Sound.sound_sb_dsp+TablesAdpcm::.cctor() : Void [static]	newarr	2
+iXtal26.Sound.sound_sb_dsp+TablesFrequence::.cctor() : Void [static]	newarr	2
+iXtal26.Sound.sound_sb_dsp::.cctor() : Void [static]	newarr	14
+iXtal26.Sound.sound_sb_dsp::etat_materiel(iXtal26.Sound.sb_dsp_t) : iXtal26.Sound.sound_sb_dsp+EtatDsp+Etat [static]	callvirt	1
+iXtal26.Sound.sound_sb_dsp::pollsb(Object) : Void [static]	newobj	2
+iXtal26.Sound.sound_sb_dsp::sb_dsp_init(iXtal26.Sound.sb_dsp_t, Int32, Int32, Object) : Void [static]	ldftn	3
+iXtal26.Sound.sound_sb_dsp::sb_dsp_init(iXtal26.Sound.sb_dsp_t, Int32, Int32, Object) : Void [static]	newobj	3
+iXtal26.Sound.sound_sb_dsp::sb_dsp_setaddr(iXtal26.Sound.sb_dsp_t, UInt16) : Void [static]	ldftn	8
+iXtal26.Sound.sound_sb_dsp::sb_dsp_setaddr(iXtal26.Sound.sb_dsp_t, UInt16) : Void [static]	newobj	8
+iXtal26.Sound.sound_sb::emu_base_materiel(UInt16, UInt16) : UInt16 [static]	call	12
+iXtal26.Sound.sound_sb::emu_base_materiel(UInt16, UInt16) : UInt16 [static]	callvirt	2
+iXtal26.Sound.sound_sb::ProbeSb(UInt64[], Int32) : Void [static]	newobj	4
+iXtal26.Sound.sound_sb::sb_15_init() : Object [static]	ldftn	5
+iXtal26.Sound.sound_sb::sb_15_init() : Object [static]	newobj	6
+iXtal26.Sound.sound_sb::sb_16_init() : Object [static]	call	5
+iXtal26.Sound.sound_sb::sb_16_init() : Object [static]	callvirt	1
+iXtal26.Sound.sound_sb::sb_16_init() : Object [static]	ldftn	9
+iXtal26.Sound.sound_sb::sb_16_init() : Object [static]	newobj	10
+iXtal26.Sound.sound_sb::sb_1_init() : Object [static]	ldftn	5
+iXtal26.Sound.sound_sb::sb_1_init() : Object [static]	newobj	6
+iXtal26.Sound.sound_sb::sb_2_init() : Object [static]	ldftn	10
+iXtal26.Sound.sound_sb::sb_2_init() : Object [static]	newobj	11
+iXtal26.Sound.sound_sb::sb_awe32_init() : Object [static]	call	5
+iXtal26.Sound.sound_sb::sb_awe32_init() : Object [static]	callvirt	1
+iXtal26.Sound.sound_sb::sb_awe32_init() : Object [static]	ldftn	9
+iXtal26.Sound.sound_sb::sb_awe32_init() : Object [static]	newobj	11
+iXtal26.Sound.sound_sb::sb_pro_v1_init() : Object [static]	ldftn	11
+iXtal26.Sound.sound_sb::sb_pro_v1_init() : Object [static]	newobj	12
+iXtal26.Sound.sound_sb::sb_pro_v2_init() : Object [static]	call	5
+iXtal26.Sound.sound_sb::sb_pro_v2_init() : Object [static]	callvirt	1
+iXtal26.Sound.sound_sb::sb_pro_v2_init() : Object [static]	ldftn	9
+iXtal26.Sound.sound_sb::sb_pro_v2_init() : Object [static]	newobj	10
+iXtal26.Sound.sound_sb::selection_materiel(iXtal26.Sound.sb_ct1745_mixer_t) : iXtal26.Sound.sound_sb+Selection [static]	newobj	2
+iXtal26.Sound.sound::sound_cd_tick() : Void [static]	newobj	1
+iXtal26.Sound.sound::sound_poll(Object) : Void [static]	callvirt	2
+iXtal26.Sound.sound::sound_reset() : Void [static]	ldftn	1
+iXtal26.Sound.sound::sound_reset() : Void [static]	newobj	1
+iXtal26.Sound.sound_speaker::.cctor() : Void [static]	newarr	1
+iXtal26.Sound.sound_speaker::speaker_init() : Void [static]	ldftn	1
+iXtal26.Sound.sound_speaker::speaker_init() : Void [static]	newobj	1
+iXtal26.timer::.cctor() : Void [static]	newarr	1
+iXtal26.timer::fatal(String) : Void [static]	call	1
+iXtal26.timer::fatal(String) : Void [static]	callvirt	1
+iXtal26.timer::timer_process() : Void [static]	callvirt	1
+iXtal26.Video.cga_t::.ctor() : Void	newarr	2
+iXtal26.Video.cga_t::.ctor() : Void	newobj	2
+iXtal26.Video.ega_t::.ctor() : Void	newarr	5
+iXtal26.Video.ega_t::.ctor() : Void	newobj	3
+iXtal26.Video.et4000_t::.ctor() : Void	newobj	3
+iXtal26.Video.gd5429_t::.ctor() : Void	newarr	4
+iXtal26.Video.gd5429_t::.ctor() : Void	newobj	5
+iXtal26.Video.hercules_t::.ctor() : Void	newarr	1
+iXtal26.Video.hercules_t::.ctor() : Void	newobj	2
+iXtal26.Video.m24_t::.ctor() : Void	newarr	2
+iXtal26.Video.m24_t::.ctor() : Void	newobj	2
+iXtal26.Video.mda_t::.ctor() : Void	newarr	1
+iXtal26.Video.mda_t::.ctor() : Void	newobj	2
+iXtal26.Video.pc1512_t::.ctor() : Void	newarr	1
+iXtal26.Video.pc1512_t::.ctor() : Void	newobj	2
+iXtal26.Video.s3_accel_t::.ctor() : Void	newarr	2
+iXtal26.Video.s3_t::.ctor() : Void	newarr	2
+iXtal26.Video.s3_t::.ctor() : Void	newobj	5
+iXtal26.Video.svga_t::.ctor() : Void	newarr	8
+iXtal26.Video.svga_t::.ctor() : Void	newobj	2
+iXtal26.Video.tvga_t::.ctor() : Void	newobj	3
+iXtal26.Video.vga_t::.ctor() : Void	newobj	2
+iXtal26.Video.vid_cga::.cctor() : Void [static]	ldftn	3
+iXtal26.Video.vid_cga::.cctor() : Void [static]	newarr	6
+iXtal26.Video.vid_cga::.cctor() : Void [static]	newobj	20
+iXtal26.Video.vid_cga::cga_init(iXtal26.Video.cga_t) : Void [static]	ldftn	1
+iXtal26.Video.vid_cga::cga_init(iXtal26.Video.cga_t) : Void [static]	newobj	1
+iXtal26.Video.vid_cga::cga_standalone_init() : Object [static]	ldftn	5
+iXtal26.Video.vid_cga::cga_standalone_init() : Object [static]	newarr	1
+iXtal26.Video.vid_cga::cga_standalone_init() : Object [static]	newobj	6
+iXtal26.Video.vid_cga::ligne_init_materiel(iXtal26.Video.cga_t) : Void [static]	ldftn	1
+iXtal26.Video.vid_cga::ligne_init_materiel(iXtal26.Video.cga_t) : Void [static]	newobj	1
+iXtal26.Video.vid_cga::poll_materiel(Object) : Void [static]	ldftn	1
+iXtal26.Video.vid_cga::poll_materiel(Object) : Void [static]	newobj	1
+iXtal26.Video.vid_cl5429::.cctor() : Void [static]	ldftn	6
+iXtal26.Video.vid_cl5429::.cctor() : Void [static]	newarr	2
+iXtal26.Video.vid_cl5429::.cctor() : Void [static]	newobj	11
+iXtal26.Video.vid_cl5429::cl_init(Int32, String, Int32, UInt32) : Object [static]	ldftn	28
+iXtal26.Video.vid_cl5429::cl_init(Int32, String, Int32, UInt32) : Object [static]	newobj	29
+iXtal26.Video.vid_cl5429::gd5429_hwcursor_draw(iXtal26.Video.svga_t, Int32) : Void [static]	newobj	1
+iXtal26.Video.vid_cl5429::gd5429_recalctimings(iXtal26.Video.svga_t) : Void [static]	ldftn	6
+iXtal26.Video.vid_cl5429::gd5429_recalctimings(iXtal26.Video.svga_t) : Void [static]	newobj	6
+iXtal26.Video.vid_cl5429::gd5429_start_blit(UInt32, Int32, Object) : Void [static]	ldftn	28
+iXtal26.Video.vid_cl5429::gd5429_start_blit(UInt32, Int32, Object) : Void [static]	newobj	28
+iXtal26.Video.vid_ega+<>c::.cctor() : Void [static]	newobj	1
+iXtal26.Video.vid_ega::cavalier_p3(iXtal26.Video.ega_t) : Void [static]	callvirt	1
+iXtal26.Video.vid_ega::cavalier_p3(iXtal26.Video.ega_t) : Void [static]	ldftn	2
+iXtal26.Video.vid_ega::cavalier_p3(iXtal26.Video.ega_t) : Void [static]	newobj	2
+iXtal26.Video.vid_ega::.cctor() : Void [static]	ldftn	5
+iXtal26.Video.vid_ega::.cctor() : Void [static]	newarr	7
+iXtal26.Video.vid_ega::.cctor() : Void [static]	newobj	21
+iXtal26.Video.vid_ega::ega_add_status_info([System.Runtime]System.Text.StringBuilder, Int32, Object) : Void [static]	callvirt	4
+iXtal26.Video.vid_ega::ega_init(iXtal26.Video.ega_t, Int32, Int32) : Void [static]	ldftn	1
+iXtal26.Video.vid_ega::ega_init(iXtal26.Video.ega_t, Int32, Int32) : Void [static]	newarr	1
+iXtal26.Video.vid_ega::ega_init(iXtal26.Video.ega_t, Int32, Int32) : Void [static]	newobj	1
+iXtal26.Video.vid_ega::ega_standalone_init() : Object [static]	ldftn	4
+iXtal26.Video.vid_ega::ega_standalone_init() : Object [static]	newobj	5
+iXtal26.Video.vid_ega::ligne_add_materiel(iXtal26.Video.ega_t) : Void [static]	ldftn	1
+iXtal26.Video.vid_ega::ligne_add_materiel(iXtal26.Video.ega_t) : Void [static]	newobj	1
+iXtal26.Video.vid_ega::moniteurs_materiel() : Int32[] [static]	call	6
+iXtal26.Video.vid_ega::moniteurs_materiel() : Int32[] [static]	callvirt	1
+iXtal26.Video.vid_ega::moniteurs_materiel() : Int32[] [static]	newarr	1
+iXtal26.Video.vid_ega::point_materiel(iXtal26.Video.ega_t) : UInt32 [static]	ldftn	1
+iXtal26.Video.vid_ega::point_materiel(iXtal26.Video.ega_t) : UInt32 [static]	newobj	1
+iXtal26.Video.vid_ega::poll_materiel(Object) : Void [static]	ldftn	1
+iXtal26.Video.vid_ega::poll_materiel(Object) : Void [static]	newobj	1
+iXtal26.Video.video+Faisceau+<>c::.cctor() : Void [static]	newobj	1
+iXtal26.Video.video+Faisceau::.cctor() : Void [static]	call	3
+iXtal26.Video.video+Faisceau::.cctor() : Void [static]	ldftn	1
+iXtal26.Video.video+Faisceau::.cctor() : Void [static]	newarr	2
+iXtal26.Video.video+Faisceau::.cctor() : Void [static]	newobj	1
+iXtal26.Video.video+Faisceau::ligne(Object, iXtal26.pc_timer_t, Int32, Int32, [System.Runtime]System.Action`1<Object>) : UInt32[] [static]	callvirt	1
+iXtal26.Video.video+LigneBornee::bornee(iXtal26.timer_callback_t, Object, Int32) : Void [static]	callvirt	1
+iXtal26.Video.video+LigneBornee::.cctor() : Void [static]	newarr	1
+iXtal26.Video.video::.cctor() : Void [static]	newarr	4
+iXtal26.Video.video::.cctor() : Void [static]	newobj	13
+iXtal26.Video.video::initvideo() : Void [static]	newarr	2
+iXtal26.Video.video::loadfont(String, iXtal26.Video.fontformat_t) : Void [static]	call	1
+iXtal26.Video.video::loadfont(String, iXtal26.Video.fontformat_t) : Void [static]	callvirt	6
+iXtal26.Video.video::pclog(String) : Void [static]	callvirt	1
+iXtal26.Video.video::video_blit_memtoscreen(Int32, Int32, Int32, Int32, Int32, Int32) : Void [static]	callvirt	1
+iXtal26.Video.vid_et4000+EtatEt4::.cctor() : Void [static]	newobj	1
+iXtal26.Video.vid_et4000::.cctor() : Void [static]	ldftn	6
+iXtal26.Video.vid_et4000::.cctor() : Void [static]	newarr	1
+iXtal26.Video.vid_et4000::.cctor() : Void [static]	newobj	7
+iXtal26.Video.vid_et4000::cle_init_materiel(iXtal26.Video.et4000_t) : Void [static]	ldftn	1
+iXtal26.Video.vid_et4000::cle_init_materiel(iXtal26.Video.et4000_t) : Void [static]	newobj	1
+iXtal26.Video.vid_et4000::Cle(iXtal26.Video.et4000_t) : iXtal26.Video.vid_et4000+EtatEt4+Etat [static]	callvirt	1
+iXtal26.Video.vid_et4000::et4000_init() : Object [static]	ldftn	5
+iXtal26.Video.vid_et4000::et4000_init() : Object [static]	newobj	6
+iXtal26.Video.vid_et4000::point_materiel(iXtal26.Video.svga_t) : UInt32 [static]	ldftn	1
+iXtal26.Video.vid_et4000::point_materiel(iXtal26.Video.svga_t) : UInt32 [static]	newobj	1
+iXtal26.Video.vid_et4000::rendu_faisceau(Object) : Void [static]	callvirt	1
+iXtal26.Video.vid_hercules+EtatHerc+Etat::.ctor() : Void	newarr	1
+iXtal26.Video.vid_hercules+EtatHerc::.cctor() : Void [static]	newobj	1
+iXtal26.Video.vid_hercules::.cctor() : Void [static]	ldftn	3
+iXtal26.Video.vid_hercules::.cctor() : Void [static]	newarr	3
+iXtal26.Video.vid_hercules::.cctor() : Void [static]	newobj	9
+iXtal26.Video.vid_hercules::crtc_ecrit_materiel(iXtal26.Video.hercules_t, Byte) : Void [static]	callvirt	1
+iXtal26.Video.vid_hercules::crtc_relu_materiel(iXtal26.Video.hercules_t) : Byte [static]	callvirt	1
+iXtal26.Video.vid_hercules::hercules_init() : Object [static]	ldftn	5
+iXtal26.Video.vid_hercules::hercules_init() : Object [static]	newarr	1
+iXtal26.Video.vid_hercules::hercules_init() : Object [static]	newobj	6
+iXtal26.Video.vid_hercules::ligne_init_materiel(iXtal26.Video.hercules_t) : Void [static]	ldftn	1
+iXtal26.Video.vid_hercules::ligne_init_materiel(iXtal26.Video.hercules_t) : Void [static]	newobj	1
+iXtal26.Video.vid_hercules::point_materiel(iXtal26.Video.hercules_t) : Boolean [static]	ldftn	1
+iXtal26.Video.vid_hercules::point_materiel(iXtal26.Video.hercules_t) : Boolean [static]	newobj	1
+iXtal26.Video.vid_hercules::poll_materiel(Object) : Void [static]	ldftn	1
+iXtal26.Video.vid_hercules::poll_materiel(Object) : Void [static]	newobj	1
+iXtal26.Video.vid_mda+EtatMda+Etat::.ctor() : Void	newarr	1
+iXtal26.Video.vid_mda+EtatMda::.cctor() : Void [static]	newobj	1
+iXtal26.Video.vid_mda+Masque6845::.cctor() : Void [static]	newarr	1
+iXtal26.Video.vid_mda::.cctor() : Void [static]	ldftn	3
+iXtal26.Video.vid_mda::.cctor() : Void [static]	newarr	3
+iXtal26.Video.vid_mda::.cctor() : Void [static]	newobj	9
+iXtal26.Video.vid_mda::crtc_ecrit_materiel(iXtal26.Video.mda_t, Byte) : Void [static]	callvirt	1
+iXtal26.Video.vid_mda::crtc_relu_materiel(iXtal26.Video.mda_t) : Byte [static]	callvirt	1
+iXtal26.Video.vid_mda::ligne_add_materiel(iXtal26.Video.mda_t) : Void [static]	ldftn	1
+iXtal26.Video.vid_mda::ligne_add_materiel(iXtal26.Video.mda_t) : Void [static]	newobj	1
+iXtal26.Video.vid_mda::mda_init(iXtal26.Video.mda_t) : Void [static]	ldftn	1
+iXtal26.Video.vid_mda::mda_init(iXtal26.Video.mda_t) : Void [static]	newobj	1
+iXtal26.Video.vid_mda::mda_standalone_init() : Object [static]	ldftn	4
+iXtal26.Video.vid_mda::mda_standalone_init() : Object [static]	newarr	1
+iXtal26.Video.vid_mda::mda_standalone_init() : Object [static]	newobj	5
+iXtal26.Video.vid_mda::point_materiel(iXtal26.Video.mda_t) : Boolean [static]	ldftn	1
+iXtal26.Video.vid_mda::point_materiel(iXtal26.Video.mda_t) : Boolean [static]	newobj	1
+iXtal26.Video.vid_mda::poll_materiel(Object) : Void [static]	ldftn	1
+iXtal26.Video.vid_mda::poll_materiel(Object) : Void [static]	newobj	1
+iXtal26.Video.vid_olivetti_m24::.cctor() : Void [static]	ldftn	3
+iXtal26.Video.vid_olivetti_m24::.cctor() : Void [static]	newarr	1
+iXtal26.Video.vid_olivetti_m24::.cctor() : Void [static]	newobj	4
+iXtal26.Video.vid_olivetti_m24::ligne_init_materiel(iXtal26.Video.m24_t) : Void [static]	ldftn	1
+iXtal26.Video.vid_olivetti_m24::ligne_init_materiel(iXtal26.Video.m24_t) : Void [static]	newobj	1
+iXtal26.Video.vid_olivetti_m24::m24_init() : Object [static]	ldftn	5
+iXtal26.Video.vid_olivetti_m24::m24_init() : Object [static]	newarr	1
+iXtal26.Video.vid_olivetti_m24::m24_init() : Object [static]	newobj	6
+iXtal26.Video.vid_olivetti_m24::m24_poll(Object) : Void [static]	newobj	1
+iXtal26.Video.vid_olivetti_m24::poll_materiel(Object) : Void [static]	ldftn	1
+iXtal26.Video.vid_olivetti_m24::poll_materiel(Object) : Void [static]	newobj	1
+iXtal26.Video.vid_pc1512::.cctor() : Void [static]	ldftn	3
+iXtal26.Video.vid_pc1512::.cctor() : Void [static]	newarr	4
+iXtal26.Video.vid_pc1512::.cctor() : Void [static]	newobj	12
+iXtal26.Video.vid_pc1512::ligne_init_materiel(iXtal26.Video.pc1512_t) : Void [static]	ldftn	1
+iXtal26.Video.vid_pc1512::ligne_init_materiel(iXtal26.Video.pc1512_t) : Void [static]	newobj	1
+iXtal26.Video.vid_pc1512::pc1512_init() : Object [static]	ldftn	5
+iXtal26.Video.vid_pc1512::pc1512_init() : Object [static]	newarr	1
+iXtal26.Video.vid_pc1512::pc1512_init() : Object [static]	newobj	6
+iXtal26.Video.vid_pc1512::pc1512_poll(Object) : Void [static]	newobj	1
+iXtal26.Video.vid_pc1512::poll_materiel(Object) : Void [static]	ldftn	1
+iXtal26.Video.vid_pc1512::poll_materiel(Object) : Void [static]	newobj	1
+iXtal26.Video.vid_s3::.cctor() : Void [static]	ldftn	6
+iXtal26.Video.vid_s3::.cctor() : Void [static]	newarr	3
+iXtal26.Video.vid_s3::.cctor() : Void [static]	newobj	12
+iXtal26.Video.vid_s3::s3_hwcursor_draw(iXtal26.Video.svga_t, Int32) : Void [static]	newobj	1
+iXtal26.Video.vid_s3::s3_init(String, Int32) : Object [static]	ldftn	17
+iXtal26.Video.vid_s3::s3_init(String, Int32) : Object [static]	newobj	18
+iXtal26.Video.vid_s3::s3_in(UInt16, Object) : Byte [static]	newobj	1
+iXtal26.Video.vid_s3::s3_io_remove(iXtal26.Video.s3_t) : Void [static]	ldftn	44
+iXtal26.Video.vid_s3::s3_io_remove(iXtal26.Video.s3_t) : Void [static]	newobj	44
+iXtal26.Video.vid_s3::s3_io_set(iXtal26.Video.s3_t) : Void [static]	ldftn	56
+iXtal26.Video.vid_s3::s3_io_set(iXtal26.Video.s3_t) : Void [static]	newobj	56
+iXtal26.Video.vid_s3::s3_phoenix_trio64_init() : Object [static]	ldftn	1
+iXtal26.Video.vid_s3::s3_phoenix_trio64_init() : Object [static]	newobj	1
+iXtal26.Video.vid_s3::s3_recalctimings(iXtal26.Video.svga_t) : Void [static]	callvirt	1
+iXtal26.Video.vid_s3::s3_recalctimings(iXtal26.Video.svga_t) : Void [static]	ldftn	5
+iXtal26.Video.vid_s3::s3_recalctimings(iXtal26.Video.svga_t) : Void [static]	newobj	5
+iXtal26.Video.vid_svga::.cctor() : Void [static]	newobj	1
+iXtal26.Video.vid_svga::pclog(String) : Void [static]	callvirt	1
+iXtal26.Video.vid_svga::Probe(UInt64[]) : Void [static]	newarr	1
+iXtal26.Video.vid_svga_render::.cctor() : Void [static]	ldftn	16
+iXtal26.Video.vid_svga_render::.cctor() : Void [static]	newarr	1
+iXtal26.Video.vid_svga_render::.cctor() : Void [static]	newobj	16
+iXtal26.Video.vid_svga_render::rendu_24bpp_lowres_materiel(iXtal26.Video.svga_t) : Void [static]	callvirt	4
+iXtal26.Video.vid_svga_render::svga_render_15bpp_highres(iXtal26.Video.svga_t) : Void [static]	callvirt	2
+iXtal26.Video.vid_svga_render::svga_render_15bpp_lowres(iXtal26.Video.svga_t) : Void [static]	callvirt	2
+iXtal26.Video.vid_svga_render::svga_render_16bpp_highres(iXtal26.Video.svga_t) : Void [static]	callvirt	2
+iXtal26.Video.vid_svga_render::svga_render_16bpp_lowres(iXtal26.Video.svga_t) : Void [static]	callvirt	2
+iXtal26.Video.vid_svga_render::svga_render_24bpp_highres(iXtal26.Video.svga_t) : Void [static]	callvirt	4
+iXtal26.Video.vid_svga_render::svga_render_24bpp_lowres(iXtal26.Video.svga_t) : Void [static]	callvirt	4
+iXtal26.Video.vid_svga_render::svga_render_2bpp_highres(iXtal26.Video.svga_t) : Void [static]	callvirt	2
+iXtal26.Video.vid_svga_render::svga_render_2bpp_lowres(iXtal26.Video.svga_t) : Void [static]	callvirt	2
+iXtal26.Video.vid_svga_render::svga_render_32bpp_highres(iXtal26.Video.svga_t) : Void [static]	callvirt	2
+iXtal26.Video.vid_svga_render::svga_render_32bpp_lowres(iXtal26.Video.svga_t) : Void [static]	callvirt	2
+iXtal26.Video.vid_svga_render::svga_render_4bpp_highres(iXtal26.Video.svga_t) : Void [static]	callvirt	2
+iXtal26.Video.vid_svga_render::svga_render_4bpp_lowres(iXtal26.Video.svga_t) : Void [static]	callvirt	2
+iXtal26.Video.vid_svga_render::svga_render_8bpp_highres(iXtal26.Video.svga_t) : Void [static]	callvirt	2
+iXtal26.Video.vid_svga_render::svga_render_8bpp_lowres(iXtal26.Video.svga_t) : Void [static]	callvirt	2
+iXtal26.Video.vid_svga_render::svga_render_text_40(iXtal26.Video.svga_t) : Void [static]	callvirt	1
+iXtal26.Video.vid_svga_render::svga_render_text_80(iXtal26.Video.svga_t) : Void [static]	callvirt	1
+iXtal26.Video.vid_svga::strncat([System.Runtime]System.Text.StringBuilder, String, Int32) : Void [static]	callvirt	3
+iXtal26.Video.vid_svga::svga_add_status_info([System.Runtime]System.Text.StringBuilder, Int32, Object) : Void [static]	call	17
+iXtal26.Video.vid_svga::svga_init(iXtal26.Video.svga_t, Object, Int32, iXtal26.Video.svga_render_fn, iXtal26.inb_fn, iXtal26.outb_fn, iXtal26.Video.svga_draw_fn, iXtal26.Video.svga_draw_fn) : Int32 [static]	ldftn	7
+iXtal26.Video.vid_svga::svga_init(iXtal26.Video.svga_t, Object, Int32, iXtal26.Video.svga_render_fn, iXtal26.inb_fn, iXtal26.outb_fn, iXtal26.Video.svga_draw_fn, iXtal26.Video.svga_draw_fn) : Int32 [static]	newarr	2
+iXtal26.Video.vid_svga::svga_init(iXtal26.Video.svga_t, Object, Int32, iXtal26.Video.svga_render_fn, iXtal26.inb_fn, iXtal26.outb_fn, iXtal26.Video.svga_draw_fn, iXtal26.Video.svga_draw_fn) : Int32 [static]	newobj	7
+iXtal26.Video.vid_svga::svga_poll(Object) : Void [static]	callvirt	6
+iXtal26.Video.vid_svga::svga_poll(Object) : Void [static]	ldftn	5
+iXtal26.Video.vid_svga::svga_poll(Object) : Void [static]	newobj	5
+iXtal26.Video.vid_svga::svga_recalctimings(iXtal26.Video.svga_t) : Void [static]	callvirt	1
+iXtal26.Video.vid_svga::svga_recalctimings(iXtal26.Video.svga_t) : Void [static]	ldftn	17
+iXtal26.Video.vid_svga::svga_recalctimings(iXtal26.Video.svga_t) : Void [static]	newobj	17
+iXtal26.Video.vid_tvga::.cctor() : Void [static]	ldftn	12
+iXtal26.Video.vid_tvga::.cctor() : Void [static]	newarr	3
+iXtal26.Video.vid_tvga::.cctor() : Void [static]	newobj	19
+iXtal26.Video.vid_tvga::tvga_common_init(String, UInt32, Int32) : Object [static]	ldftn	5
+iXtal26.Video.vid_tvga::tvga_common_init(String, UInt32, Int32) : Object [static]	newobj	6
+iXtal26.Video.vid_tvga::tvga_recalctimings(iXtal26.Video.svga_t) : Void [static]	ldftn	4
+iXtal26.Video.vid_tvga::tvga_recalctimings(iXtal26.Video.svga_t) : Void [static]	newobj	4
+iXtal26.Video.vid_vga::.cctor() : Void [static]	ldftn	6
+iXtal26.Video.vid_vga::.cctor() : Void [static]	newobj	7
+iXtal26.Video.vid_vga::vga_disable(Object) : Void [static]	ldftn	2
+iXtal26.Video.vid_vga::vga_disable(Object) : Void [static]	newobj	2
+iXtal26.Video.vid_vga::vga_enable(Object) : Void [static]	ldftn	4
+iXtal26.Video.vid_vga::vga_enable(Object) : Void [static]	newobj	4
+iXtal26.Video.vid_vga::vga_init() : Object [static]	ldftn	4
+iXtal26.Video.vid_vga::vga_init() : Object [static]	newobj	5

@@ -19730,3 +19730,285 @@ pour entrée ; le harnais aussi, et sa `.so` est la même à l'octet.
 - **la branche `g14-4-avant-cl`** et les worktrees de G14 sous `/var/tmp/ixtal-g14/` (`aa1`, `c0c`, `cmp-R`, `g141`
   à `g145`, `noop`, `ref-R`, `rep`, `rp2-g143`, `rp2-g144`, `ser-R`, `wt`), laissés en place ; `ref-R`, `cmp-R` et
   `ser-R` ne bougent pas jusqu'à la fin de G15 (§ G14.0d).
+
+## G15.0a — Ce que coûtent les constructions interdites
+
+Le 4 novembre 2026 (PLAN-G15.md § G15.0a ; feu vert : « ok pour tes propositions, feu vert pour G15.0a », qui tranche
+aussi Q40 à Q50 par leurs propositions). `PLAN.md:580-584` : « en ouverture de G15, un banc BenchmarkDotNet versionné
+(`tools/perfbanc/`) mesure chaque construction interdite contre sa forme retenue, sur un vrai chemin d'iXtal […]. Les
+chiffres sont consignés dans VERIFICATION.md ». Le banc, la frontière des chemins chauds (décision n° 7) et la base des
+constructions interdites à R, contre laquelle chaque étape suivante se comparera. iXtal26 n'est pas touché.
+
+### Ce qui est livré
+
+- `tools/perfbanc/InterditsBanc.cs`, `InterditsCpu.cs`, `InterditsSvga.cs` : neuf classes `Interdit1Instance` à
+  `Interdit9Params`, hors des 65 cas de la référence (`compare-ref.sh` ne les nomme pas ; son commentaire de `:76` les
+  range avec GardeBanc et Is486Banc). Les colonnes, l'équivalence et le mode sont dans l'en-tête d'`InterditsBanc.cs` :
+  - **Reel**, le vrai code, appelé comme le produit l'appelle ;
+  - **Retenue** et **AA**, un seul texte, la copie du vrai ligne pour ligne dans la forme retenue, en méthode générique
+    instanciée sur deux structures vides (`CopieA`, `CopieB`) : deux corps compilés, deux adresses ;
+  - **Interdite**, la même copie, la construction interdite seule changée.
+
+  Au cas 3, trois colonnes interdites (Delegue, la forme du vrai ; Interface ; Virtuel) ; au cas 1, deux (Interdite,
+  l'appel gardé comme dans le produit ; InterditeInlinee, laissée au JIT) ; au cas 8, deux (Champ, la garde par un
+  champ ; Interdite, aucune garde).
+- `tools/perfbanc/interdits.sh` (le lancement, puis le code machine) et `interdits.py` (le verdict) : leurs en-têtes
+  disent la commande et la règle.
+- `tools/interdits/chauds.txt` (la frontière, 156 fichiers), `releve.py` (le relevé, texte et IL, sans paquet),
+  `base-R.texte.tsv` et `base-R.il.tsv` (la base).
+
+### Les cas
+
+Chacun : le vrai chemin, la machine, et l'équivalence vérifiée avant la mesure.
+1. `readmemb` (`Cpu/386_common.cs:163-169`), par un gestionnaire non inliné ; l'ami486 monté ; 4 096 lectures par
+   colonne, la somme `3F18F300` dans les cinq, 0 par le chemin lent.
+2. `speaker_get_buffer` (`Sound/sound_speaker.cs:62-75`), par son délégué ; l'ibmxt monté ; 2 400 tics, deux appels,
+   le tampon `992281E42A9992D4` dans les quatre.
+3. ADD, OR et SUB AL,CL d'`OP_ARITH` (`Cpu/386_ops_arith.cs:96-133`), par `ops_286[]` ; l'ami286 ; les 65 536 couples
+   (AL, CL) des trois instructions, `952CFDA64AC5FB25` dans les six.
+4. JE court (`Cpu/386_ops_jump.cs:83-100`), par `ops_286[0x74]` ; l'ami286 ; pris et non pris, 256 déplacements, 16 et
+   32 bits, `222DA5E8C40EAF25` dans les quatre.
+5. `svga_recalctimings` (`Video/vid_svga.cs:550-728`) ; l'ami486 et sa GD5429 en 640 × 480 × 8 ; 256 appels, le rendu
+   `svga_render_8bpp_highres` et la géométrie entière.
+6. `loadseg` en mode protégé (`Cpu/x86seg.cs:68-268`), MOV ES, 0Bh ; l'ami386, une GDT posée à la main ; 1 024
+   chargements, ES (base 20000h, limite, accès F3h), l'octet d'accès en table, `cpu_cur_status`.
+7. `outb` (`io.cs:187-202`) vers `dma_page_write` (80h-87h) ; l'ibmxt monté ; 4 096 écritures, les pages
+   `52D6A06F91960B3D`, 4 096 écritures comptées.
+8. `svga_write` (`Video/vid_svga.cs:1089-1353`), la fenêtre A0000h ; l'ami486, sa GD5429 en 8 bpp ; 1 024 écritures, la
+   mémoire vidéo, les pages changées, les cycles.
+9. `PREFETCH_RUN` et `prefetch_run` (`Cpu/386.cs:245-319`) ; l'ami286 (`cpu_prefetch_cycles` = 2) ; 4 096 appels,
+   `prefetch_bytes` 16, `prefetch_prefixes` 0.
+
+Tous en mode « aucun », posé avant le gel et vérifié après : aucun des neuf chemins n'y porte de garde du mode
+matériel active (PB-220 dans `svga_recalctimings`, pliée à faux). Le cas 8 ne trouve pas de « vrai chemin gardé par un
+champ » : `svga_output` est une constante (`vid_svga.c:13`, `Video/vid_svga.cs:223`), et aucun chemin chaud n'a
+d'interpolation gardée par un champ (R1-interdits.md § 1.5) ; la retenue y est donc la garde pliée du vrai, et la garde
+par un champ (Champ), la forme que la décision retient quand la garde n'est pas une constante, une colonne mesurée.
+Le cas 6 compte le mode protégé posé à la main : PE dans MSW, une GDT de trois entrées en 1000h, le descripteur 8 de
+DPL 3 (CS reste celui du mode réel, CPL 3).
+
+### Le lancement
+
+`tools/perfbanc/interdits.sh --passages 2 /var/tmp/ixtal-g15/g15-0a/banc`, dans le worktree `/var/tmp/ixtal-g15/g150a`
+(`bca2759` et les fichiers de l'étape), le 04/11 de 22 h 59 à 23 h 15, puis le code machine de 23 h 16 à 23 h 18
+(`--code-seul`, la garde de l'exception resserrée entre les deux : sa première forme prenait le mot « Exception » d'un
+listing pour une panne). Comme `compare-ref.sh` : `setarch $(uname -m) -R taskset -c 4,6,8,10`, `--launchCount 3`,
+`--warmupCount 3`, `--iterationCount 8`, les invocations fixées par cas, choisies sur un passage d'étalonnage pour une
+itération d'environ 100 ms de la retenue ; la machine au calme avant chaque lancement (la sonde de `compare_ref.py`).
+Un lancement de BenchmarkDotNet par cas ; les cas dans l'ordre au premier passage, à rebours au second : 6 moyennes de
+lancement par colonne, chacune la moyenne des mesures « Result » de BenchmarkDotNet, ses valeurs aberrantes retirées
+(6 à 8 gardées sur 8 itérations). .NET 10.0.14, BenchmarkDotNet 0.15.8, `DOTNET_TieredCompilation=0`.
+
+Le code machine : un lancement `--job dry` de la colonne Retenue par cas (sa préparation appelle et compile toutes
+les colonnes), sous `DOTNET_JitDisasm`. Les variables passent par `--envVars`, et deux constats l'ont imposé : le
+processus du banc n'hérite pas de l'environnement du lanceur (sous `DOTNET_JitDisasm` posé par le shell, aucun
+listing) ; et `--envVars` remplace les variables du job de `Program.cs`, d'où `DOTNET_TieredCompilation:0` redit (sans
+lui, des listings « Tier0 » et « Tier1-OSR »). Une classe se nomme par un motif qui couvre son espace de noms
+(`*Interdit7:*`). Les journaux : `/var/tmp/ixtal-g15/g15-0a/banc/` (`passage1/`, `passage2/`, `jit/`, `rapport.txt`,
+`rapport.tsv`), doublés dans `/var/tmp/ixtal-g13/g15-0a/`.
+
+### Le verdict (décision n° 6)
+
+L'unité est la moyenne de lancement ; l'écart d'une colonne à la retenue, l'estimateur de Hodges-Lehmann sur les 36
+paires, avec l'étendue des différences. Le seuil est le plus grand de l'écart de l'A/A et de la résolution de § G14.0b
+(+5,01 %, la plus grossière qu'elle a mesurée sur un cœur) ; « ça coûte » quand l'écart le dépasse et que chaque
+lancement de la colonne interdite est plus lent que chaque lancement de la retenue (une condition de plus que la
+décision n° 6, plus stricte).
+
+**Le placement du vrai.** À l'étalonnage, trois cas sortaient « sans valeur » : la colonne Reel s'écartait de sa copie
+au-delà du seuil (cas 1, +12,46 % ; cas 3, +8,29 % contre Delegue ; cas 8, −26,79 %). Le code machine l'explique : le
+vrai et sa copie y sont égaux ligne pour ligne (les listings en mode diffable), au cas 1 (`readmemb`, 30 lignes) et au
+cas 8 (`svga_write`, 1 216 lignes), à un décalage de champ de la fermeture près au cas 3 (`[rbx+0x28]` contre
+`[rbx+0x18]` : le vrai capture cinq champs, la copie trois) ; seul diffère l'assemblage, donc l'adresse. L'A/A, deux
+copies du même assemblage, ne voit pas ce placement-là. Il varie aussi d'une construction à l'autre : au cas 8, la
+copie est passée de 6,13 ns à l'étalonnage à 5,14 ns à la mesure, le vrai restant à 4,46-4,48 ns. Le verdict compare
+donc le code machine du vrai et de sa copie (`interdits.py`, PAIRES ; seules leurs deux méthodes, pas les boucles qui
+les appellent) : quand il est égal, l'écart du vrai est du placement, et le seuil s'élargit à lui, pour toutes les
+colonnes du cas. Il l'est dans six cas sur neuf (1, 3, 4, 5, 8, 9), et l'élargissement ne joue qu'aux cas 1, 3 et 8 ;
+aux trois autres, l'écart du vrai tient dans le seuil, et la différence se lit : au cas 2, la copie omet
+`speaker_pos = 0` (un champ privé, resté nul, vérifié à chaque appel de la préparation : 47 lignes contre 44) ; au cas
+6, la branche du mode réel de la copie passe par le vrai `loadseg` (319 lignes contre 285 ; `do_seg_load`, égal) ; au
+cas 7, `outb` et sa copie ne diffèrent que par la cible de leur saut final (`outb_corps` et sa copie, égaux).
+
+| Cas | La forme interdite | Écart à la retenue [étendue] | Octets par opération | Seuil | Verdict |
+|---|---|---|---|---|---|
+| 1 | l'instance, l'appel gardé | +0,00 % [−0,23 ; +0,36] | 0 | +12,45 % | pas de coût mesurable |
+| 1 | l'instance, inlinée par le JIT | −20,70 % [−22,67 ; −19,78] | 0 | | plus rapide (l'inlining) |
+| 2 | `Enumerable.Range`, `Select`, `ToArray` | +239,92 % [+236,49 ; +243,62] | 19 408 | +5,01 % | ça coûte |
+| 3 | des délégués capturés (la forme du vrai) | +9,67 % [+9,32 ; +9,88] | 0 | +9,07 % | ça coûte, de peu |
+| 3 | une interface, à un site polymorphe | +21,96 % [+21,68 ; +22,23] | 0 | | ça coûte |
+| 3 | `abstract` et `override` | +3,72 % [+3,48 ; +3,84] | 0 | | pas de coût mesurable |
+| 4 | une fermeture (la forme du vrai) | +17,27 % [+16,81 ; +17,75] | 0 | +5,57 % | ça coûte |
+| 5 | une lambda qui capture, créée à chaque appel | +127,22 % [+121,99 ; +128,70] | 192 | +5,01 % | ça coûte |
+| 6 | `new uint16_t[4]` (la forme du vrai) | +24,95 % [+23,81 ; +25,91] | 32 | +5,01 % | ça coûte |
+| 7 | `priv` mis en boîte | +50,80 % [+49,52 ; +51,54] | 24 | +5,01 % | ça coûte |
+| 8 | la garde par un champ (Champ) | +14,75 % [+13,25 ; +16,73] | 0 | +13,47 % | ça coûte, de peu |
+| 8 | l'interpolation sans garde | +2 759,82 % [+2 734,49 ; +2 788,87] | 151 | | ça coûte |
+| 9 | `params int[]` | +102,41 % [+101,07 ; +106,08] | 56 | +5,01 % | ça coûte |
+
+Les temps par opération de la retenue : 1,52 ns (cas 1), 1 833 ns (2, un tampon de 2 400 tics), 7,26 (3), 5,39 (4),
+17,9 (5), 11,9 (6), 4,33 (7), 5,14 (8), 3,38 (9). Au cas 3, le vrai est à +19,61 % de la retenue, placement compris.
+Les A/A : de −3,16 % (cas 6) à +5,57 % (cas 4) ; les écarts du vrai à sa copie : de −13,47 % (cas 8) à +12,45 % (cas
+1) quand leur code est égal, de −1,40 % à +0,31 % sinon.
+
+**Ce que le code machine dit** (`jit/<cas>.log`, chaque méthode par ses appels d'aide et ses appels indirects) :
+- cas 1 : le JIT n'inline pas le `readmemb` statique (`LireReel` et la copie l'appellent,
+  `call [_386_common:readmemb]`), et il inline celui de l'instance (`LireInlinee`, un seul corps) : l'écart de
+  −20,7 % est celui de l'inlining. À structure égale (Interdite, l'appel gardé), l'accès par
+  `this.memoire.readlookup2` ne coûte rien de mesurable ;
+- cas 2 : `GetBufferLinq` appelle `Enumerable.Range`, `Select` et `ToArray` et alloue deux objets
+  (`CORINFO_HELP_NEWSFAST`, la fermeture et le délégué) ; la boucle `for` n'appelle rien ;
+- cas 3 : la retenue n'a aucun appel indirect (l'opération liée : des appels directs, `call [x86_flags:setadd8]`) ;
+  chacune des trois autres formes a quatre sites d'appel indirect : le vrai et Delegue par l'`Invoke` des deux
+  délégués (`call [rax+0x18]`, `[rcx+0x18]`), Interface par cellule d'aiguillage (`call [r11]`), Virtuel par la table
+  des méthodes (`call [rax+0x20]`, `[rax+0x28]`, `[rcx+0x20]`) ;
+- cas 4 : le vrai et Interdite appellent la condition capturée (`call [rax+0x18]`) ; la méthode nommée appelle
+  `ZF_SET` directement, sans délégué ;
+- cas 5 : `RenduCapture:Poser` alloue deux objets par affectation (la classe de fermeture et le délégué) ; la retenue
+  ne fait que lire le délégué mis en cache (les 17 `NEWSFAST` de `svga_recalctimings` et de ses copies sont ceux du
+  cache, derrière un test, R1-interdits.md § 1.5) ;
+- cas 6 : `loadseg` et `LoadsegTas` appellent `CORINFO_HELP_NEWARR_1_VC` ; `LoadsegPile`, aucun (le `stackalloc` dans le
+  cadre) ;
+- cas 7 : `OutbCorpsBoite` appelle deux fois `CORINFO_HELP_NEWSFAST`, la boîte (une par gestionnaire possible) ;
+- cas 8 : la garde par un champ n'ôte que l'exécution de l'interpolation, pas sa présence : le prologue de
+  `Write[JournalChamp]` réserve 88 octets et les met à zéro (les locales de `DefaultInterpolatedStringHandler`), sauve
+  un registre de plus, et le corps fait 6 135 octets contre 4 611 ; la garde pliée efface tout ;
+- cas 9 : `BoucleParams` appelle `CORINFO_HELP_NEWARR_1_VC` à chaque appel ; la retenue passe ses huit `int` par six
+  registres et deux mots de la pile (`[rsp]`, `[rsp+8]`).
+
+Deux extraits, tels que les listings les donnent. Le cas 8, le prologue de `Write[JournalChamp]` :
+
+```
+       sub      rsp, 88
+       lea      rbp, [rsp+0x80]
+       xor      eax, eax
+       mov      qword ptr [rbp-0x78], rax
+       vxorps   xmm8, xmm8, xmm8
+       vmovdqu  ymmword ptr [rbp-0x70], ymm8
+       vmovdqu  ymmword ptr [rbp-0x50], ymm8
+       mov      qword ptr [rbp-0x30], rax
+```
+
+Le cas 3, la seule ligne où le vrai (`_386+<>c__DisplayClass70_0:<OP_ARITH>b__0`) et Delegue diffèrent, le champ
+`gettempc` de leur fermeture : `cmp byte ptr [rbx+0x28], 0` contre `cmp byte ptr [rbx+0x18], 0`.
+
+Ces chiffres éclairent la règle de `PLAN.md` sans la défaire (décision n° 6) : les deux cas « pas de coût mesurable »
+(l'instance à structure égale, `override` à 3,7 %) restent interdits. Et ils chiffrent ce que le code fait déjà
+(Q48 : admis en base, rien n'y change en G15) : les fermetures d'`OP_ARITH` (+9,67 % sur l'instruction contre l'appel
+lié, à peine au-dessus du seuil élargi de +9,07 %), celles du Jcc (+17,3 %), le `new uint16_t[4]` de `loadseg` (+25 %,
+32 octets).
+
+### Les contrôles négatifs
+
+Chacun dans le worktree, la copie modifiée puis restaurée, un lancement `--job dry` (une itération) ; les journaux dans
+`/var/tmp/ixtal-g15/g15-0a/negatifs/` :
+- une copie falsifiée, un drapeau faux dans la copie Interface du cas 3 (`AluAddI.Drapeaux` par `setsub8`) : la
+  préparation, qui compare les colonnes une à une au vrai, refuse le cas à celle-ci, « la colonne Interface diverge du
+  vrai code », attendu `952CFDA64AC5FB25`, obtenu `DD75895FE744BB25` (`n1-drapeau-faux.log`) ;
+- la retenue du cas 6 qui alloue (`new uint16_t[4]` au lieu du `stackalloc`) : 32 octets dans les colonnes Retenue et
+  AA (`n2-retenue-alloue.log`) ;
+- le cas 2, dans la mesure même : la colonne interdite alloue 19 408 octets par opération, la retenue 0.
+
+Un défaut de la procédure, trouvé et repris : la restauration des sources gardait leur date d'origine, et la
+construction suivante a gardé la DLL du second contrôle ; la première comparaison de l'IL du banc a été faite sur elle
+(gardée, renommée `il/*dll-du-negatif-2*`). Elle est refaite sur la bonne DLL ci-dessous, les fichiers touchés. La
+mesure n'en dépend pas : elle précède les contrôles, et BenchmarkDotNet reconstruit le banc depuis ses sources à chaque
+lancement.
+
+### Les portes
+
+- **iXtal26 n'est pas touché** : `git diff bca2759 -- iXtal26 iXtal26.SoftFloat` vide (entre `34814ec` et `bca2759`,
+  sous `iXtal26/`, seuls des documents de `iXtal26/Docs/` ont changé : aucun fichier compilé). L'IL d'iXtal26 contre
+  celui de R par la table de G14 (`il/iXtal26-contre-R.log`) : 5 738 entrées, 0 changée, 0 disparue, 0 apparue ;
+  SoftFloat, 90, 0.
+- **Le banc de la référence ne change pas** (`il/banc-contre-g145.log`, `il/banc-attributs.log`), contre la DLL du
+  banc de G14.5 : 297 entrées, 0 disparue, 268 apparues, toutes dans des types neufs, 35 changées, toutes par le seul
+  blob de `BenchmarkAttribute` (son `[CallerFilePath]`, le chemin de l'arbre, `g145` contre `g150a` ; égalisé, plus rien
+  ne change, le numéro de ligne compris) : le précédent de § G14.2.
+- **Les sources mesurées et celles du commit** : les empreintes des sources mesurées, relevées avant la mesure
+  (`sources-mesure.sha256`), ne sont plus celles du commit, qui les a retouchées ensuite :
+  - des commentaires : les renvois de lignes recalés (`sound_speaker.cs:62-75`, `386_ops_jump.cs:83-100`,
+    `io.cs:187-202`, `386_ops_arith.cs:96-133`, `x86seg.cs:2735-2772`), le texte de `InterditsCpu.cs:599-600`, et ceux
+    des cas 3 et 4 que la contre-lecture a précisés ;
+  - l'équivalence des cas 5 et 8 étendue (`interlace`, `ca_adj` ; `fullchange`, les verrous), rejouée verte
+    (`equivalence-5-8.log`) ;
+  - `interdits.sh` : la garde de l'exception, `--code-seul`, la sonde d'après le lancement (aucun processus lourd
+    n'y paraît dans les 18 sondes de la mesure) ; `dll.sha256` n'est plus réécrit sous `--code-seul` (celui de la
+    sortie, réécrit par le rejeu, date de 23 h 16).
+
+  Les sources de la mesure reconstituées (leurs empreintes égales) et celles du commit, construites chacune, les
+  fichiers touchés (`il/sources/`) : 565 entrées, 15 changées, aucune dans ce qui est mesuré. Deux sont les
+  préparations (`Interdit5::Etat`, `Interdit8::Preparer`) ; treize sont des méthodes [Benchmark], par le seul numéro de
+  ligne de leur `BenchmarkAttribute` (`[CallerLineNumber]`, décalé par les commentaires ajoutés).
+- La construction sans avertissement (le banc a `TreatWarningsAsErrors`) : `construction-finale.log`, 0 avertissement,
+  0 erreur. Aucune ligne neuve au-delà de 120 caractères,
+  hors des enregistrements des deux tsv de la base.
+- Ni série ni passe de la référence : ni l'émulateur ni la série ne changent (décision n° 5, Q50).
+
+### La frontière et la base des constructions interdites à R
+
+`tools/interdits/chauds.txt`, la décision n° 7 écrite : `Cpu/` sans les `*.State.cs`, `iXtal26.SoftFloat/`,
+`Memory/mem.cs`, `io.cs`, `timer.cs`, `Intel8253`, `Emu8000`, les deux RAMDAC, `Video/`, `Sound/`, `lpt_dac` et
+`lpt_dss` : 156 fichiers, le compte de R1. `ppi.cs` et `rtc.cs`, classés à l'écriture, restent dehors : le premier ne
+porte que l'état de la PPI et son initialisation, le second l'horloge que `nvr_onesec` avance une fois par seconde.
+
+`releve.py` relève, sur ces fichiers :
+- **le texte**, les commentaires ôtés, une ligne par occurrence de treize motifs (LINQ, lambda, `fetchdat =>`,
+  `delegate`, `Func`/`Action`, `new`, `new uint16_t[4]`, `stackalloc`, `interface`/`virtual`/`abstract`/`override`,
+  `params`, chaîne, `(object)`, classe d'instance) ;
+- **l'IL** (le vidage de `tools/ildump`), au grain du type : `newobj`, `newarr`, `box`, `callvirt`, `ldftn`,
+  `ldvirtftn`, les appels à `System.Linq`, à `String.Concat`, `Format`, `Join` et à `DefaultInterpolatedStringHandler`.
+
+Joué sur R (`ref-R`, `f15e11f`) sous la table de G14 (chemins et noms traduits) et sur HEAD (`bca2759`), les deux
+relevés sont égaux (`/var/tmp/ixtal-g15/g15-0a/base/`) :
+- la liste, 156 fichiers ;
+- le texte, 1 114 lignes, au numéro de ligne près (les blocs `// noms:` de G14 les décalent) ;
+- l'IL, à l'octet : 15 281 instructions relevées dans iXtal26 et 2 dans SoftFloat, 754 et 1 comptes par méthode.
+
+L'outil, rejoué sur R, rend la même base à l'octet. La base écrite dans le dépôt est celle de HEAD, aux noms et aux
+lignes de `bca2759` : `base-R.texte.tsv` (le détail) et `base-R.il.tsv` (les comptes par méthode et par instruction,
+755 lignes ; le détail, 1,9 Mo, se régénère de R, qui ne bouge pas jusqu'à la fin de G15). Trois défauts de l'outil
+sont repris avant d'écrire la base : la traduction des noms courts de la table prenait `pit.`, le paramètre de
+`Ics/Intel8253.cs`, pour le conteneur (elle s'abstient désormais dans un fichier qui déclare le nom en paramètre ou en
+locale) ; le motif `poly` prenait le champ `@override` de la SVGA (sept lignes, écartées) ; le motif `lambda` prenait
+les 22 lignes qui continuent un membre à corps d'expression (commençant par `=>`, écartées ; six bras d'expression
+`switch` y restent, dits dans l'outil).
+
+Ce qu'elle nomme un à un (Q48) :
+- les 43 fermetures des fabriques d'opcodes (`fetchdat =>`), dans onze fichiers de `Cpu/` : `386_ops_arith.cs:103`,
+  `:136`, `:176`, `:197`, `:219`, `:233`, `:887`, `:920`, `:953`, `:986`, `:1007`, `:1028`, `:1049` ;
+  `386_ops_stack.cs:52`, `:61`, `:296`, `:311`, `:531`, `:539`, `:582`, `:591` ; `386_ops_jump.cs:83`, `:114`, `:133`,
+  `:159`, `:168`, `:195` ; `386_ops_inc_dec.cs:45`, `:55`, `:125`, `:134` ; `386_ops_rep.cs:81`, `:112`, `:144` ;
+  `386_ops_prefix.cs:90`, `:244` ; `386_ops_xchg.cs:93`, `:126` ; `x87.Materiel.cs:146`, `:218` ; `386_ops_bit.cs:22` ;
+  `386_ops_mov_seg.cs:219` ; `386_ops_shift.cs:595` ;
+- les 8 lignes à `Func<…>` de `Cpu/` (`386_ops_bit.cs:22`, `:77`, `386_ops_shift.cs:595`, `:610`,
+  `386_ops_stack.cs:296`, `:582`, `x87.Materiel.cs:58`, `:78`) et l'`Action<object>` de `video.Materiel.cs:96` ;
+- les 13 `new uint16_t[4]` de `x86seg.cs` (`:80`, `:378-379`, `:790-791`, `:1086-1088`, `:1498-1500`, `:1904`, `:2371`),
+  et le quatorzième, celui de `porte_tache_materiel` (`386.Materiel.cs:546`, une porte de tâche) ;
+- le seul appel LINQ des fichiers chauds, à l'initialisation (`video.Materiel.cs:59`) ;
+- aucun `box` dans l'IL des types chauds, aucune interface, aucun `virtual`, aucun `params`.
+
+### Ce que ce vert ne dit pas
+
+- Une copie mesure une forme sur un chemin, pas le produit qui l'adopterait : le cas 1 montre que l'inlining décidé par
+  le JIT pèse plus que la forme (−20,7 %), et le placement entre deux assemblages, à code machine égal, de 12 à 27 %
+  à l'échelle de la nanoseconde, variable d'une construction à l'autre (cas 8 : −26,8 % à l'étalonnage, −13,5 % à la
+  mesure).
+- Le seuil élargi au placement du vrai est une règle de ce banc, dite dans `interdits.py` ; il vaut pour toutes les
+  colonnes du cas, alors que le placement mesuré est celui du vrai, et il ne compare que les deux méthodes de chaque
+  paire. Les deux verdicts « ça coûte, de peu » (cas 3 Delegue, +9,67 % contre +9,07 % ; cas 8 Champ, +14,75 % contre
+  +13,47 %) en dépendent. La comparaison des listings masque tout décalage `[reg±0xNN]`, et son compte de lignes qui
+  diffèrent est positionnel.
+- L'équivalence ne parcourt que les chemins que la préparation exécute : la forme mémoire d'`OP_ARITH` (cas 3), les
+  branches SS, LDT et du sélecteur nul de `loadseg` (cas 6) et 15 des 17 `T.Poser` (cas 5) n'y passent pas ; leur
+  copie est vérifiée par la relecture du texte (la contre-lecture l'a refaite).
+- La base est au grain du type pour l'IL : `_386` et `_808x` y sont en entier, leurs `*.State.cs` compris.
+
+### Hors de la portée
+
+- Le `readmemb` statique n'est pas inliné, ni dans le banc ni dans le produit (les listings de R,
+  `ref-R-captures-10.0.14/jit/`, gardent de 7 à 22 sites d'appel à `_386_common:readmemb` dans chacun des 20 scénarios
+  de l'AT, du 386 et du 486 ; les 10 du 8088 ont le leur), alors que sa copie d'instance l'est : un levier de
+  performance (−20,7 % sur ce chemin), qui n'est pas une convention.
+- La garde par un champ d'une interpolation coûte par sa présence (le prologue) : une interpolation de mise au point
+  dans un chemin chaud gagnerait à vivre hors de la méthode.
