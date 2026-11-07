@@ -4,10 +4,18 @@
 // ORACLE: (aucun) — outillage de la preuve des noms (G14.0c, PLAN-G14.md § G14.0c, décision n° 8 ; R2-noms.md § 1.7,
 // R2-contre.md § 1.9).
 //
-// LE RENOMMAGE SÉMANTIQUE des types de la table des noms, par le compilateur lui-même (Roslyn du SDK). Il est lancé
-// par renommer.sh, qui lui passe les entrées de compilation des projets (le JSON de `dotnet msbuild -getItem`) :
+// LE RENOMMAGE SÉMANTIQUE des types de la table des noms, par le compilateur lui-même (Roslyn du SDK) ; depuis
+// G15.0b4, des membres, des types imbriqués, des paramètres et des littéraux de la liste close aussi
+// (RenommageMembres.cs en dit les règles), et chaque renommage passe la VÉRIFICATION DE LIAISON : chaque nom des trois
+// projets se lie après au même symbole qu'avant, ou rien n'est écrit. Il est lancé par renommer.sh, qui lui passe les
+// entrées de compilation des projets (le JSON de `dotnet msbuild -getItem`) :
 //
-//   renommage --noms TABLE [--jusqua ETAPE] --arbre ARBRE --journal FICHIER --deplacements FICHIER J1 [J2…]
+//   renommage --noms TABLE… [--jusqua ETAPE | --etape ETAPE] --arbre ARBRE --journal FICHIER --deplacements FICHIER
+//             J1 [J2…]
+//
+// --noms se répète (g14.txt, puis g15.txt). --jusqua ETAPE garde les étapes jusqu'à ETAPE (G14) ; --etape ETAPE, cette
+// seule étape. Une table qui nomme des membres doit ne garder qu'une étape qui ait des entrées (ses entrées nomment les
+// choses comme l'arbre les porte au début de l'étape) : --etape, ou --jusqua d'une table qui n'en a qu'une.
 //
 // J1 est le projet qui déclare les types (iXtal26), les suivants ceux qui le référencent (iXtal26.Diff,
 // iXtal26.PerfBanc) : leurs références à iXtal26 sont remplacées par la compilation de J1, pour que chaque nom se
@@ -90,32 +98,36 @@ internal static class Program
     private static int Lancer(string[] args)
     {
         if (args.Length > 0 && args[0] is "generer" or "verifier") return LancerMembres(args);
-        string? noms = null, jusqua = null, arbre = null, journal = null, deplacements = null;
+        string? jusqua = null, depuis = null, arbre = null, journal = null, deplacements = null;
+        var etapeSeule = false;
+        var noms = new List<string>();
         var jsons = new List<string>();
         for (var i = 0; i < args.Length; i++)
         {
             switch (args[i])
             {
-                case "--noms" when i + 1 < args.Length: noms = args[++i]; break;
+                case "--noms" when i + 1 < args.Length: noms.Add(args[++i]); break;
                 case "--jusqua" when i + 1 < args.Length: jusqua = args[++i]; break;
+                case "--etape" when i + 1 < args.Length: depuis = jusqua = args[++i]; etapeSeule = true; break;
+                case "--etape": throw new FormatException("--etape demande une étape");
                 case "--arbre" when i + 1 < args.Length: arbre = Path.GetFullPath(args[++i]); break;
                 case "--journal" when i + 1 < args.Length: journal = args[++i]; break;
                 case "--deplacements" when i + 1 < args.Length: deplacements = args[++i]; break;
                 default: jsons.Add(args[i]); break;
             }
         }
-        if (noms == null || arbre == null || journal == null || deplacements == null || jsons.Count == 0)
+        if (noms.Count == 0 || arbre == null || journal == null || deplacements == null || jsons.Count == 0)
         {
-            Console.Error.WriteLine("usage : renommage --noms TABLE [--jusqua ETAPE] --arbre ARBRE --journal F "
-                                    + "--deplacements F J1 [J2…]");
+            Console.Error.WriteLine("usage : renommage --noms TABLE… [--jusqua ETAPE | --etape ETAPE] --arbre ARBRE "
+                                    + "--journal F --deplacements F J1 [J2…]");
             return 2;
         }
-        var table = TableDesNoms.Lire(noms, jusqua);
-        // La grammaire de G15.0b nomme aussi des membres : ce mode ne renomme que des types et des fichiers, et refuse
-        // une table qui en a, plutôt que de les ignorer.
-        if (table.NommeDesMembres)
-            throw new Refus("la table nomme des types imbriqués, des membres, des paramètres ou des littéraux, que ce "
-                            + "mode ne renomme pas encore");
+        if (etapeSeule && jusqua != depuis)
+            throw new FormatException("--etape et --jusqua ne se combinent pas");
+        var table = TableDesNoms.Lire(noms, jusqua, depuis);
+        // Les membres (G15.0b4, RenommageMembres.cs) : une seule étape, ses entrées nommant les choses comme l'arbre.
+        if (table.NommeDesMembres && table.Entrees.Select(e => e.Etape).Distinct().Count() != 1)
+            throw new Refus("une table qui nomme des membres se renomme une étape à la fois (--etape ETAPE)");
         var projets = new List<Projet>();
         foreach (var j in jsons) projets.Add(Charger(j, projets));
         var avertissementsAvant = new Dictionary<string, int>(StringComparer.Ordinal);
@@ -129,6 +141,7 @@ internal static class Program
         }
         Console.WriteLine($"  {projets.Count} projets, {projets.Sum(p => p.Arbres.Count)} fichiers ; la compilation "
                           + "de départ est sans erreur");
+        var liaisons = RenommageMembres.Relever(projets);
 
         var premier = projets[0].Comp;
         var cibles = new Dictionary<string, Cible>(StringComparer.Ordinal);
@@ -280,7 +293,27 @@ internal static class Program
             }
         }
 
+        // Les membres, les types imbriqués, les paramètres et les littéraux de la liste close (RenommageMembres.cs).
+        var refusMembres = new List<string>();
+        if (table.NommeDesMembres)
+        {
+            var cm = RenommageMembres.Cibles(projets, table, refusMembres.Add);
+            crefs += RenommageMembres.Sites(projets, table, cm, (t, s, texte, quoi, cle) =>
+            {
+                if (!modifs.TryGetValue(t, out var l)) modifs[t] = l = [];
+                l.Add(new TextChange(s, texte));
+                var pos = t.GetLineSpan(s).StartLinePosition;
+                lignes.Add($"{Path.GetRelativePath(arbre, t.FilePath)}:{pos.Line + 1}:{pos.Character + 1}	{quoi}	"
+                           + $"{cle}	{t.GetText().ToString(s)}	{texte}");
+                comptes[$"{cle}	{quoi}"] = comptes.GetValueOrDefault($"{cle}	{quoi}") + 1;
+            }, refusMembres.Add);
+            Console.WriteLine($"  membres : {cm.Count} symboles de la table, {table.Litteraux.Count} littéraux");
+        }
+        if (refusMembres.Count > 0)
+            throw new Refus(string.Join("\n  ", refusMembres));
+
         // Les modifications, puis la recompilation en mémoire, avant d'écrire quoi que ce soit.
+        var parFichier = new Dictionary<string, List<TextChange>>(StringComparer.Ordinal);
         var textes = new Dictionary<SyntaxTree, SourceText>();
         var longues = 0;
         foreach (var p in projets)
@@ -323,6 +356,7 @@ internal static class Program
                     }
                 }
                 if (garde.Count == 0) continue;
+                parFichier[t.FilePath] = garde.OrderBy(x => x.Span.Start).ToList();
                 if (t.FilePath.Contains("/obj/", StringComparison.Ordinal)
                     || t.FilePath.Contains("/bin/", StringComparison.Ordinal))
                     throw new Refus($"{t.FilePath} : un fichier généré serait modifié");
@@ -369,6 +403,13 @@ internal static class Program
                 erreurs++;
                 Console.Error.WriteLine($"  avertissement neuf après renommage : {g.First()}");
             }
+        }
+        // La vérification de liaison : chaque nom se lie au même symbole qu'avant.
+        if (erreurs == 0)
+        {
+            var ecarts = RenommageMembres.Verifier(liaisons, parFichier, avant);
+            foreach (var e in ecarts.Take(20)) Console.Error.WriteLine($"  liaison changée : {e}");
+            erreurs += ecarts.Count;
         }
         File.WriteAllLines(journal, lignes.OrderBy(x => x, StringComparer.Ordinal));
         foreach (var (k, n) in comptes) Console.WriteLine($"  {n,5}  {k.Replace('\t', ' ')}");

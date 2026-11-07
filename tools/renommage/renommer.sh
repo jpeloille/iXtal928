@@ -2,8 +2,9 @@
 # SPDX-FileCopyrightText: 2026 Julien Peloille
 # SPDX-License-Identifier: GPL-2.0-only
 #
-# renommer.sh ARBRE TABLE [ETAPE] — le renommage sémantique des types de la table (G14.0c ; PLAN-G14.md, décision
-# n° 8 ; Q38, tranchée par Julien le 24/10 : « Le script »). Program.cs en dit les règles. Les étapes :
+# renommer.sh ARBRE TABLE[:TABLE…] [ETAPE | --etape ETAPE] — le renommage sémantique de la table (G14.0c ; PLAN-G14.md,
+# décision n° 8 ; Q38, tranchée par Julien le 24/10 : « Le script » ; les membres et la vérification de liaison depuis
+# G15.0b4). Program.cs et RenommageMembres.cs en disent les règles. Les étapes :
 #   1. la construction de tools/renommage (Release), sans paquet : les seules sources de restauration sont le
 #      répertoire du projet et /usr/lib/dotnet/library-packs (local, du SDK), et obj/project.assets.json ne doit
 #      lister aucune bibliothèque ;
@@ -26,9 +27,24 @@ ICI="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MODE=renommer
 case "${1:-}" in generer|verifier) MODE=$1; shift ;; esac
 if [ "$MODE" = renommer ]; then
-  [ $# -ge 2 ] || { echo "usage : renommer.sh ARBRE TABLE [ETAPE] | renommer.sh generer|verifier ARBRE OPTIONS…" >&2
-                    exit 2; }
-  A="$(cd -P "$1" && pwd)"; T="$(realpath "$2")"; E="${3:-}"
+  [ $# -ge 2 ] || { echo "usage : renommer.sh ARBRE TABLE[:TABLE…] [ETAPE | --etape ETAPE] | renommer.sh" \
+                         "generer|verifier ARBRE OPTIONS…" >&2; exit 2; }
+  A="$(cd -P "$1" && pwd)"; E="${3:-}"
+  # Plusieurs tables, séparées par « : », se lisent à la suite (G15.0b : g14.txt:g15.txt) ; --etape ETAPE ne garde
+  # que cette étape (une table de membres se renomme une étape à la fois), ETAPE seul les étapes jusqu'à elle (G14).
+  NOMS=(); IFS=: read -r -a TS <<< "$2"
+  for t in "${TS[@]}"; do
+    [ -f "$t" ] || { echo "renommer.sh : la table « $t » n'existe pas (TABLE:TABLE…, sans « : » dans un chemin)" >&2
+                     exit 2; }
+    NOMS+=(--noms "$(realpath "$t")")
+  done
+  ET=(); [ -n "$E" ] && ET=(--jusqua "$E")
+  if [ "$E" = --etape ]; then
+    [ $# -eq 4 ] || { echo "usage : renommer.sh ARBRE TABLE[:TABLE…] --etape ETAPE" >&2; exit 2; }
+    ET=(--etape "$4")
+  elif [ $# -gt 3 ]; then
+    echo "usage : renommer.sh ARBRE TABLE[:TABLE…] [ETAPE | --etape ETAPE]" >&2; exit 2
+  fi
 else
   [ $# -ge 2 ] || { echo "usage : renommer.sh $MODE ARBRE OPTIONS…" >&2; exit 2; }
   A="$(cd -P "$1" && pwd)"; shift; OPTIONS=("$@")
@@ -70,8 +86,7 @@ if [ "$MODE" != renommer ]; then
   exit $rc
 fi
 JOURNAL=${JOURNAL:-$(dirname "$A")/renommage-$(basename "$A").tsv}
-ET=(); [ -n "$E" ] && ET=(--jusqua "$E")
-dotnet "$ICI/bin/Release/net10.0/iXtal26.Renommage.dll" --noms "$T" "${ET[@]}" --arbre "$A" --journal "$JOURNAL" \
+dotnet "$ICI/bin/Release/net10.0/iXtal26.Renommage.dll" "${NOMS[@]}" "${ET[@]}" --arbre "$A" --journal "$JOURNAL" \
   --deplacements "$W/deplacements.tsv" "${J[@]}"
 while IFS=$'\t' read -r ancien nouveau; do
   mkdir -p "$A/$(dirname "$nouveau")"

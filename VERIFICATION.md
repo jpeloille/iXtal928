@@ -20711,3 +20711,116 @@ une règle plus grossière qui ramenait aussi les sigles de deux lettres à une 
   cas dans ces captures.
 - Un accesseur `get_X` dont X est un champ renommé suit le champ, à tort, si la méthode elle-même garde son nom : la
   capture ne dit pas si X est une propriété (`ildump` le sait, et le refuse).
+
+### G15.0b4 — `tools/renommage`, les membres et la vérification de liaison
+
+**Ce qui est livré.**
+- `tools/renommage/RenommageMembres.cs` : le renommage des membres, par les symboles que Roslyn lie, pour une étape
+  de la table (la syntaxe étendue que le plan proposait à côté de l'API `Renamer`). Il touche :
+  - la déclaration de chaque membre de la table (toutes les surcharges d'une méthode, les deux parties d'une méthode
+    partielle), de chaque type imbriqué et de ses constructeurs, de chaque paramètre ;
+  - chaque nom que le modèle sémantique lie à l'un d'eux, dans les trois projets, les arguments nommés compris, et
+    le `nameof` d'une méthode surchargée (un groupe de méthodes), si toutes ses surcharges prennent le même nom ;
+  - chaque chaîne de la liste close écrite telle quelle (sans échappement, `@`, interpolation, chaîne brute ni
+    `u8`).
+
+  Il ne touche ni un commentaire (les `cref` sont comptés et dits), ni une autre chaîne, ni le code d'un `#if`
+  inactif.
+  - Les cibles sont clées par l'identifiant de documentation du symbole, celle d'un paramètre par celui de sa méthode
+    normalisée. Un membre d'iXtal26 vu depuis Diff, par la référence de compilation, est un autre objet symbole : un
+    premier essai, par l'identité des symboles, laissait le nom de Diff à l'ancien (CS0117 ; non journalisé, le
+    journal ayant été réécrit par le rejeu).
+- **La vérification de liaison**, pour tout renommage, types de G14 compris :
+  - avant, chaque nom des trois projets est relevé avec le symbole auquel il se lie, 240 132 noms. Un symbole des
+    sources l'est par l'emplacement de sa déclaration, un espace de noms par son nom, un symbole de métadonnées par
+    son identifiant de documentation (les paramètres d'une surcharge compris) ;
+  - après, dans la compilation neuve, chaque nom, à sa position reportée à travers les modifications, doit se lier au
+    même symbole. Un écart, et rien n'est écrit ;
+  - un nom au début d'une modification plus longue que lui (un nom qualifié que le mode de G14 remplace d'un bloc)
+    est compté à part, non vérifié par position ; un nom d'un fichier absent de la compilation neuve aussi.
+- `tools/renommage/Program.cs` : `--noms` répété, `--etape ETAPE` (une table de membres doit ne garder qu'une étape
+  qui ait des entrées) ; `--etape` sans valeur, ou avec `--jusqua`, refusé. Le refus provisoire de 0b1 est levé.
+  `renommer.sh ARBRE TABLE[:TABLE…] --etape ETAPE` refuse une table absente et des arguments de trop (rc 2).
+- **Les générateurs de `Cpu/`**, que le plan rangeait ici, passent en 0b5 (PLAN-G15 § G15.0b). Ils transcrivent le C
+  de PCem par des transformations de texte, et leur sortie porte les noms de PCem. Les rendre sensibles à la table
+  demande une traduction des identifiants du C# qu'ils écrivent, hors commentaires et chaînes. C'est un autre outil
+  que celui-ci, et le même chantier que leur porte « régénéré = commité », déjà en 0b5. Aucun essai de 0b4 ne l'a
+  imposé : c'est un choix de découpage.
+
+**Les essais** (`b4-preuve.log`, `outils/b4-preuve.sh`, chaque contrôle avec son journal dans `b4/`) :
+- **Le renommage outillé** d'un worktree jetable de HEAD (`b4-essai`), cinq entrées (`b4/essai.txt`) :
+  - les noms : `picintc`, `pic_intpending`, le paramètre `num` de `picint`, `PoserIncDecRegistres` (une méthode à
+    lambdas de classe de fermeture) et le littéral `"opFCLEX"` ;
+  - 39 sites dans 18 fichiers (`b4/essai.diff`, `b4/essai-journal.tsv`) ; la liaison : 240 132 noms, tous liés au
+    même symbole ;
+  - les trois DLL reconstruites, contre celles de l'arbre propre construit au même chemin juste avant : avec la table,
+    **0/0/0** pour iXtal26, Diff et le banc ; sans, 26/4/4 pour iXtal26 et 1 changée pour Diff (le banc ne nomme
+    aucun de ces membres) ;
+  - la référence se prend au même chemin : le banc de `g150b-ref` contre celui de l'essai avant, au même source,
+    diffère par 75 entrées, toutes des `BenchmarkAttribute` (`b4/banc-chemins.log`), qui portent le chemin de l'arbre
+    (`[CallerFilePath]`, le précédent de § G15.0a).
+- **La table appliquée deux fois** : refusée, « le membre `picintc` n'existe pas ».
+- **Les contrôles négatifs**, chacun sur un arbre propre, et l'arbre intact après le refus (0 ligne de
+  `git status`) :
+  - un champ renommé vers le nom de la locale qui le masque, `Intel8259A::keywaiting` → `c` : il compilerait (`c == 1
+    && c != 0`) et changerait de sens. **Refusé par la liaison**, aux deux sites, `Intel8259A.cs:212` et
+    `Intel8259A.Materiel.cs:149` ;
+  - un paramètre renommé vers le nom du champ qu'il masquerait, `picint(num)` → `AT` : **refusé par la liaison**,
+    `Intel8259A.cs:409` et `:411` ;
+  - un champ renommé vers le nom d'une locale d'une autre méthode de la même classe, d'un autre type, `pic2` →
+    `temp2` (la locale `uint8_t` de `picinterrupt`) : refusé par la compilation, 24 erreurs (l'outil en imprime les
+    20 premières), avant la liaison ;
+  - une table de membres sur deux étapes : refusée ;
+  - `--etape` sans valeur, une table absente dans `TABLE:TABLE` : rc 2, l'arbre intact.
+- **La non-régression du mode de G14** : l'outil rejoué sur R (`b4-r`, `f15e11f`) pour `g14.txt` jusqu'à G14.1 :
+  - 326 sites dans 59 fichiers, les `git mv` ; la liaison : 235 864 noms, 0 écart, 150 noms dans un nom qualifié
+    remplacé d'un bloc ;
+  - l'IL de la DLL reconstruite contre R par la table, 0/0/0 ; et **contre la DLL de G14.1, 0/0/0** : celle de
+    l'arbre `g141`, à `d561881` et propre, `4301ff2c…`, la DLL figée des séries de G14.1 (`S-g141`).
+
+  Avant cela, la vérification avait trouvé des écarts sur des espaces de noms : leur premier emplacement change avec
+  les fichiers, puis les noms au début d'un bloc remplacé. Ces essais intermédiaires ne sont pas journalisés (le
+  journal a été réécrit à chaque rejeu). Un espace de noms se compare désormais par son nom, et un nom au début d'un
+  bloc remplacé est compté à part.
+
+**Les portes.**
+- La DLL d'iXtal26 est identique au sha256, construite au même chemin, dans `g150b-ref` avancé au parent de l'étape
+  (`bebec6f`), avant puis après les fichiers de l'étape : `db12b2ca…` les deux fois. La porte ne pouvait guère
+  rougir : l'étape ne touche que `tools/`, hors du projet d'iXtal26.
+- `tools/renommage` se construit sans avertissement, sans paquet.
+- Aucune ligne neuve au-delà de 120 caractères.
+- Ni série ni banc (décision n° 5, Q50).
+
+**Contre-lecture**, en deux relectures, reprises :
+- **Le code** : aucune erreur certaine. Imprécisions reprises dans le code :
+  - un symbole de métadonnées identifié par son identifiant de documentation, et non par son seul nom, qui aurait
+    confondu deux surcharges ;
+  - la clé d'un paramètre par sa méthode normalisée ;
+  - le `nameof` d'une méthode surchargée, qui aurait été refusé à tort ;
+  - les fichiers absents comptés à part ;
+  - `--etape` sans valeur, ou avec `--jusqua`, refusé ;
+  - `renommer.sh` qui refuse une table absente et des arguments de trop.
+
+  Dit, non changé : ce que la liaison ne voit pas (ci-dessous) ; un renommage contenu dans un bloc remplacé du mode
+  de G14 écarté en silence (le code de G14, la compilation le rattrape) ; le mode de G14 paie la vérification, quatre
+  minutes de la preuve en tout.
+- **La preuve** : aucune erreur de chiffre. Imprécisions reprises :
+  - les essais intermédiaires dits non journalisés ;
+  - la comparaison des 75 attributs du banc ajoutée au script ;
+  - l'origine de la DLL de G14.1 notée ;
+  - le cas `pic2` → `temp2` décrit juste, et les 24 erreurs pour 20 imprimées ;
+  - le paragraphe de PLAN-G15 qui promettait encore les générateurs et le refus des deux `using static`.
+
+**Ce que ce vert ne dit pas.**
+- Ce que la liaison ne voit pas, parce qu'aucun nom ne le porte : les membres qu'une construction appelle par le
+  compilateur (`GetEnumerator` et `Current` d'un `foreach`, `Dispose`, `Add` d'un initialiseur, `Deconstruct`,
+  `GetAwaiter`, les opérateurs), la correspondance implicite d'une implémentation d'interface, et la valeur d'un
+  `nameof`, qui suit le nom renommé. L'IL (`ildump`) les juge.
+- Les cinq entrées de l'essai ne couvrent pas :
+  - les méthodes partielles, les constructeurs d'un type imbriqué, les surcharges multiples ;
+  - les `override` et les interfaces, les arguments nommés, les `cref` (0 partout) ;
+  - le cas de deux surcharges importées par deux `using static`.
+
+  La répétition générale (0b6) renomme une famille entière ; ces cas y seront comptés.
+- La liaison n'est éprouvée que sur ces tables : les « 0 écart » valent pour elles.
+- Les noms au début d'un bloc remplacé (G14) ne sont vérifiés que par l'IL.

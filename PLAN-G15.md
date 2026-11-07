@@ -13,9 +13,9 @@ proposition est la décision. G15.0a est faite (le banc des constructions interd
 base à R ; VERIFICATION.md § G15.0a). Q48 est rouverte le 05/11 : G15.P, la performance avant les renommages, est
 faite (P0, quatre candidats mesurés ; P1, OP_ARITH par des structures, sous la règle du témoin calé, son résidu admis
 le 08/11 ; VERIFICATION.md § G15.P). G15.0b est en cours, feu vert du 08/11 : 0b1 (la table des membres), 0b2
-(`ildump`) et 0b3 (`listings-jit.sh`) sont faites (VERIFICATION.md § G15.0b). La référence reste celle de G14 :
-le commit R = `f15e11f`, `/var/tmp/ixtal-g14/ref-R`, les séries `g14r` et `g14r-tout` (VERIFICATION.md § G14.0d),
-jusqu'à la fin de G15.
+(`ildump`), 0b3 (`listings-jit.sh`) et 0b4 (le renommage des membres) sont faites (VERIFICATION.md § G15.0b). La
+référence reste celle de G14 : le commit R = `f15e11f`, `/var/tmp/ixtal-g14/ref-R`, les séries `g14r` et `g14r-tout`
+(VERIFICATION.md § G14.0d), jusqu'à la fin de G15.
 
 ### Ce que les lectures ont trouvé
 
@@ -193,9 +193,10 @@ d'iXtal26 identique au sha256, ses essais et ses contrôles négatifs ; ni séri
 - **0b2, `ildump`** ✅ : la table des membres appliquée, les noms générés normalisés, l'écart attendu,
   `references`, l'option des paramètres ;
 - **0b3, `listings-jit.sh compare`** ✅ : la table des membres, les noms générés, la liste close ;
-- **0b4, `tools/renommage`** : les membres et la vérification de liaison ; les générateurs de `Cpu/` ;
-- **0b5, les relevés et les petits outils** : les `using`, le code mort privé, les constructions interdites ; les
-  générateurs de `Cpu/` régénérés à HEAD ; `compare-ref.sh` ; `check-doc5150.sh` ;
+- **0b4, `tools/renommage`** ✅ : les membres et la vérification de liaison ;
+- **0b5, les générateurs et les petits outils** : les générateurs de `Cpu/` régénérés à HEAD et sensibles à la table
+  (venus de 0b4 : ils transcrivent par du texte, il leur faut une traduction des identifiants qu'ils écrivent) ; les
+  relevés (les `using`, le code mort privé, les constructions interdites) ; `compare-ref.sh` ; `check-doc5150.sh` ;
 - **0b6, la répétition générale** sur `Ics/Intel8259A.cs` et ses appelants, les contrôles négatifs d'ensemble, la
   clôture de l'étape.
 
@@ -212,8 +213,10 @@ Ce qui suit est le contenu de l'étape entière.
 - **`listings-jit.sh compare`** : la table des membres, les noms générés normalisés, la liste close.
 - **`tools/renommage`** : les membres, par l'API `Renamer` de Roslyn (celle de `DotnetTools/dotnet-format`, sans
   paquet) ou par sa syntaxe étendue, avec une vérification de liaison (un masquage, une autre surcharge par deux
-  `using static` : refusés) ; les générateurs de `Cpu/` renommés avec les fichiers qu'ils écrivent, `gen46.py`, qui
-  relit et retouche ceux de `gen43` et `gen44`, compris.
+  `using static` : refusés). *Fait en 0b4 par la syntaxe étendue ; le masquage est éprouvé, les deux `using static`
+  n'ont pas d'essai propre (VERIFICATION.md § G15.0b4).*
+- **Les générateurs de `Cpu/`** renommés avec les fichiers qu'ils écrivent, `gen46.py`, qui relit et retouche ceux de
+  `gen43` et `gen44`, compris. *En 0b5, avec leur porte « régénéré = commité ».*
 - **Le relevé exact des `using`** : CS8019 par le Roslyn de `tools/renommage`, IDE0005 dans une construction
   jetable (le `globalconfig` de style du SDK, `AnalysisLevelStyle`, la règle sans liste à la main), ou `dotnet format
   style --diagnostics IDE0005`, au premier essai ; IDE0051 et IDE0052 à `warning` dans une copie jetable, en second
