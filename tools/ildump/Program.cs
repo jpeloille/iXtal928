@@ -412,8 +412,9 @@ internal sealed class Videur : ISignatureTypeProvider<string, object?>
     //   - un accesseur, get_X, set_X, add_X, remove_X, raise_X, suit la propriété ou l'événement X de son type (une
     //     méthode ordinaire de ce nom, set_use32, non : pour un type défini ici, la propriété doit exister) ;
     //   - le champ d'une propriété automatique, <X>k__BackingField, suit X ;
-    //   - une lambda, <X>b__N_M (ou <X>b__K dans une classe de fermeture), une fonction locale, <X>g__F|N_M, une
-    //     machine d'états, <X>d__N, suivent la méthode X du type qui les porte (le type non généré qui les contient) ;
+    //   - une lambda, <X>b__N_M (ou <X>b__K dans une classe de fermeture), une fonction locale, <X>g__F|N_M (ou
+    //     <X>g__F|K), une machine d'états, <X>d__N, suivent la méthode X du type qui les porte (le type non généré qui
+    //     les contient) ;
     //   - un champ du cache de délégués, <>O.<k>__X, suit la méthode X du type qui porte <>O, ou, s'il n'en a pas
     //     d'entrée, la seule méthode X de la table, si elle est unique (le cache nomme la cible d'un groupe de
     //     méthodes, qui peut être d'un autre type ; ambiguë, elle n'est pas traduite, et la comparaison le montre).
@@ -436,7 +437,7 @@ internal sealed class Videur : ISignatureTypeProvider<string, object?>
     private static readonly System.Text.RegularExpressions.Regex Machine =
         new(@"^<(?<x>[^>]+)>d__(?<n>\d+)(?<a>`\d+)?$");
     private static readonly System.Text.RegularExpressions.Regex LambdaDeFermeture =
-        new(@"^<(?<x>[^>]+)>b__(?<k>\d+)$");
+        new(@"^<(?<x>[^>]+)>(?<g>b__|g__[^|]*\|)(?<k>\d+)$");
     private static readonly System.Text.RegularExpressions.Regex Support = new(@"^<(?<x>[^>]+)>k__BackingField$");
     private static readonly System.Text.RegularExpressions.Regex Cache = new(@"^<(?<k>\d+)>__(?<x>.+)$");
 
@@ -528,7 +529,7 @@ internal sealed class Videur : ISignatureTypeProvider<string, object?>
         m = Machine.Match(nom);
         if (m.Success) return $"<{Membre(m.Groups["x"].Value)}>d__{Rang(m.Groups["n"].Value)}{m.Groups["a"].Value}";
         m = LambdaDeFermeture.Match(nom);
-        if (m.Success) return $"<{Membre(m.Groups["x"].Value)}>b__{m.Groups["k"].Value}";
+        if (m.Success) return $"<{Membre(m.Groups["x"].Value)}>{m.Groups["g"].Value}{m.Groups["k"].Value}";
         m = Support.Match(nom);
         if (m.Success) return $"<{Membre(m.Groups["x"].Value)}>k__BackingField";
         m = Cache.Match(nom);

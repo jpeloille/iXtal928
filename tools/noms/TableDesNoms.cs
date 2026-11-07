@@ -196,7 +196,12 @@ internal sealed class TableDesNoms
                 if (!Parametres.TryGetValue(k, out var dd)) Parametres[k] = dd = new(StringComparer.Ordinal);
                 foreach (var (a, nv) in d) dd[a] = nv;
             }
-            foreach (var (k, v) in u.Litteraux) Litteraux[k] = v;
+            // Les littéraux se composent comme les types : "a" → "b", puis "b" → "c", donne "a" → "c".
+            var courantsL = Litteraux.Values.ToHashSet(StringComparer.Ordinal);
+            foreach (var k in Litteraux.Keys.ToList())
+                if (u.Litteraux.TryGetValue(Litteraux[k], out var plusL)) Litteraux[k] = plusL;
+            foreach (var (a, nv) in u.Litteraux)
+                if (!courantsL.Contains(a)) Litteraux.TryAdd(a, nv);
         }
     }
 

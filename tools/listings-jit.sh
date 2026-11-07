@@ -10,9 +10,9 @@
 #                                                         par scénario dans SORTIE (défaut : tous les scénarios)
 #   tools/listings-jit.sh compare REF AUTRE               compare deux captures méthode par méthode : les méthodes
 #                                                         changées, apparues ou disparues ; retour 1 s'il y en a
-#   tools/listings-jit.sh compare --noms TABLE [--jusqua ETAPE] REF AUTRE
+#   tools/listings-jit.sh compare --noms TABLE [--noms TABLE…] [--depuis ETAPE] [--jusqua ETAPE] [--generes] REF AUTRE
 #                                                         de même, la table des noms appliquée à REF (G14.0c)
-#   tools/listings-jit.sh compare [--noms TABLE [--jusqua ETAPE]] --dll-ref DLL --dll-autre DLL REF AUTRE
+#   tools/listings-jit.sh compare [--noms TABLE… …] --dll-ref DLL --dll-autre DLL REF AUTRE
 #                                                         de même, chaque jeton de chaîne lu dans la DLL de sa
 #                                                         capture (Q39)
 #   tools/listings-jit.sh methode CAPTURE NOM             imprime le listing d'une méthode (le premier scénario qui
@@ -27,14 +27,27 @@
 # sans randomisation des adresses (setarch -R) : selon l'endroit où tombent ses champs statiques, le JIT les atteint
 # par un adressage relatif ou par une adresse absolue, et deux exécutions du même binaire donnaient deux listings.
 #
-# --noms TABLE (G14.0c, PLAN-G14.md § G14.0c) : la table des noms (tools/noms/g14.txt, dont l'en-tête dit la
-# grammaire ; --jusqua ETAPE en garde les étapes jusqu'à ETAPE comprise) est appliquée aux listings de REF avant la
-# comparaison, aux en-têtes comme aux corps : chaque nom de type ancien, borné (ni lettre, chiffre, « _ » ou « . »
-# devant, ni lettre, chiffre ou « _ » derrière), devient le nouveau ; les membres gardent leur nom. Les entrées de
-# fichiers ne concernent pas les listings. La table est refusée (retour 2) si une entrée désigne un membre d'un type
-# de REF, si un ancien est encore dans AUTRE, si un nouveau est déjà dans REF, ou si un ancien vu dans REF n'a pas
-# son nouveau dans AUTRE (et l'inverse). Un type que les scénarios ne compilent pas (absent des deux côtés) est dit,
-# sans refus : les listings ne prouvent rien pour ce qu'ils ne compilent pas (R2-noms.md § 1.5).
+# --noms TABLE (G14.0c, PLAN-G14.md § G14.0c ; étendu aux membres en G15.0b3, PLAN-G15.md § G15.0b) : la table des noms
+# (tools/noms/g14.txt, puis g15.txt, dont les en-têtes disent la grammaire ; --noms se répète, --depuis et --jusqua
+# bornent les étapes) est appliquée aux listings de REF avant la comparaison, aux en-têtes comme aux corps : chaque nom
+# qualifié d'iXtal26 (Type[+Imbriqué][[arguments]]:membre) est traduit en passant les étapes dans l'ordre, comme
+# tools/ildump le fait de l'IL (son Videur, « LES NOMS ») : le type, ses types imbriqués, le membre (une méthode : les
+# listings ne nomment jamais un champ), l'accesseur get_X… dont la propriété X est renommée (la capture ne dit pas si X
+# est une propriété : le nom suit), et les noms générés par le membre qu'ils portent. La liste close des littéraux,
+# composée d'étape en étape, s'applique aux jetons de chaîne lus avec --dll-ref et --dll-autre. Les entrées de fichiers
+# et de paramètres ne concernent pas les listings (un listing ne nomme pas un paramètre). Les types de premier niveau,
+# composés d'étape en étape, sont vérifiés comme en G14 : la table est refusée (retour 2) si une entrée de la grammaire
+# de G14 désigne un membre d'un type de REF (A.B.membre), si un ancien est encore dans AUTRE, si un nouveau est déjà
+# dans REF, ou si un ancien vu dans REF n'a pas son nouveau dans AUTRE (et l'inverse) ; aussi, si une entrée est
+# invalide ou en double dans son étape (les étapes d'avant --depuis comprises), si un ancien est repris par une étape
+# après qu'une autre l'a renommé, ou si la traduction confond deux méthodes (les collisions de membres et CS0542 sont
+# jugées par tools/renommage verifier). Un type que les scénarios ne compilent pas (absent des deux côtés) est dit, sans
+# refus : les listings ne prouvent rien pour ce qu'ils ne compilent pas (R2-noms.md § 1.5).
+#
+# --generes (G15.0b3), des deux côtés : le numéro de méthode des noms générés (b__N_M, g__F|N_M, d__N,
+# <>c__DisplayClassN_M, <>c__N) devient « méthode#rang », comme ildump --generes. Le propriétaire et le rang se lisent
+# dans les seuls noms de la capture : une surcharge que les scénarios ne compilent pas d'un côté décalerait le rang
+# (sans exemple dans les captures de G15.0b).
 #
 # --dll-ref DLL --dll-autre DLL (Q39, PLAN-G14.md, la vérification) : le JIT charge une chaîne littérale par son jeton,
 # « mov edi, T », « mov rsi, … », « call [CORINFO_HELP_STRCNS] » ; T est le décalage de la chaîne dans le tas #US des
@@ -229,85 +242,278 @@ def lire(d):
     return m
 def refuser(m):
     print('  table refusée :', m, file=sys.stderr); sys.exit(2)
-def table_des_noms(chemin, jusqua):
-    # La grammaire de tools/noms/g14.txt, la même que tools/noms/TableDesNoms.cs.
-    etape, etapes, entrees, arret, vue = '', [], [], False, jusqua is None
-    typ = re.compile(r'^iXtal26(\.[A-Za-z_][A-Za-z0-9_]*)+$'); che = re.compile(r'^iXtal26/[A-Za-z0-9_./-]+\.cs$')
-    for n, l in enumerate(open(chemin, encoding='utf-8'), 1):
-        l = l.rstrip()
-        e = re.match(r'^//\s+étape\s+(\S+)', l)
-        if e:
-            if arret:
-                break
-            etape = e.group(1); etapes.append(etape)
-            if etape == jusqua:
-                vue = arret = True
-            continue
-        if re.match(r'^//   "', l) or re.match(r'^//   iXtal26\S*(::|\+)', l):
-            # La grammaire de G15.0b (TableDesNoms.cs) : un littéral, un membre, un paramètre ou un type imbriqué, que
-            # cette lecture n'applique pas encore.
-            refuser(f'{chemin}:{n} : un membre, un paramètre, un type imbriqué ou un littéral : pas encore appliqué')
-        m = re.match(r'^//   (iXtal26\S*)(?:\s+(\S+))?', l)
-        if not m:
-            continue
-        anc, nou = m.group(1), m.group(2) or ''
-        fichier = bool(che.match(anc) and che.match(nou)); t = bool(typ.match(anc) and typ.match(nou))
-        if not (fichier or t):
-            refuser(f'{chemin}:{n} : entrée invalide (« {anc} » → « {nou} »)')
-        if not etape:
-            refuser(f'{chemin}:{n} : entrée hors de toute étape')
-        if anc == nou:
-            refuser(f'{chemin}:{n} : « {anc} » ne change pas de nom')
-        entrees.append((anc, nou, fichier, n))
+def table_des_noms(chemins, jusqua, depuis):
+    # La grammaire de tools/noms/g14.txt et g15.txt, celle de tools/noms/TableDesNoms.cs : les étapes, lues à la suite
+    # dans les fichiers donnés et bornées par --depuis et --jusqua ; chaque entrée classée (type de premier niveau, type
+    # imbriqué, fichier, membre Type::membre, paramètre Type::méthode(p), littéral "a" "b"). Cette lecture refuse une
+    # entrée invalide, hors de toute étape, sans changement, ou en double dans son étape ; les collisions d'une portée
+    # et CS0542 sont jugées par TableDesNoms.cs (tools/renommage verifier), et pour les types par appliquer().
+    seg = r'[A-Za-z_][A-Za-z0-9_]*(?:`[0-9]+)?'
+    typ = re.compile(r'^iXtal26(\.' + seg + r')+(\+' + seg + r')*$')
+    che = re.compile(r'^iXtal26/[A-Za-z0-9_./-]+\.cs$')
+    mem = re.compile(r'^(iXtal26(?:\.' + seg + r')+(?:\+' + seg + r')*)::([A-Za-z_][A-Za-z0-9_]*)'
+                     r'(?:\(([A-Za-z_][A-Za-z0-9_]*)\))?$')
+    ident = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$'); lit = re.compile(r'^"[^"\s]*"$')
+    etapes, toutes, etape, arret = [], [], None, False
+    vue, commence, entrees = jusqua is None, depuis is None, 0
+    for chemin in chemins:
+        if arret:
+            break
+        ouverte = False
+        for n, l in enumerate(open(chemin, encoding='utf-8'), 1):
+            l = l.rstrip()
+            e = re.match(r'^//\s+étape\s+(\S+)', l)
+            if e:
+                if arret:
+                    break
+                nom = e.group(1)
+                if nom in toutes:
+                    refuser(f'{chemin}:{n} : l\'étape « {nom} » est ouverte deux fois')
+                toutes.append(nom); ouverte = True
+                if nom == depuis:
+                    commence = True
+                etape = {'nom': nom, 'types': {}, 'imbr': {}, 'membres': {}, 'params': {}, 'lits': {},
+                         'fichiers': 0, 'cles': set()} if commence else None
+                if etape is not None:
+                    etapes.append(etape)
+                if nom == jusqua:
+                    vue = arret = True
+                continue
+            m = re.match(r'^//   ((?:iXtal26|")\S*)(?:\s+(\S+))?', l)
+            if not m:
+                continue
+            anc, nou = m.group(1), m.group(2) or ''
+            if not ouverte:
+                refuser(f'{chemin}:{n} : entrée hors de toute étape')
+            if anc == nou:
+                refuser(f'{chemin}:{n} : « {anc} » ne change pas de nom')
+            # Chaque entrée est classée, celles des étapes d'avant --depuis comprises (comme TableDesNoms.cs), puis
+            # écartée si son étape n'est pas gardée.
+            cible = etape if etape is not None else {'nom': '', 'types': {}, 'imbr': {}, 'membres': {},
+                                                       'params': {}, 'lits': {}, 'fichiers': 0, 'cles': set()}
+            if anc in cible['cles']:
+                refuser(f'{chemin}:{n} : « {anc} » en double dans l\'étape {cible["nom"] or "(non gardée)"}')
+            cible['cles'].add(anc)
+            if etape is not None:
+                entrees += 1
+            etape_n = cible
+            mm = mem.match(anc)
+            if che.match(anc) and che.match(nou):
+                etape_n['fichiers'] += 1
+            elif lit.match(anc) and lit.match(nou):
+                etape_n['lits'][anc[1:-1]] = nou[1:-1]
+            elif typ.match(anc) and typ.match(nou):
+                if '+' not in anc and '+' not in nou:
+                    etape_n['types'][anc] = nou
+                elif '+' in anc and '+' in nou and anc.rsplit('+', 1)[0] == nou.rsplit('+', 1)[0]:
+                    etape_n['imbr'][anc] = nou.rsplit('+', 1)[1]
+                else:
+                    refuser(f'{chemin}:{n} : un type imbriqué garde son conteneur dans l\'entrée (« {anc} »)')
+            elif mm and ident.match(nou):
+                if mm.group(3):
+                    etape_n['params'].setdefault(f'{mm.group(1)}::{mm.group(2)}', {})[mm.group(3)] = nou
+                else:
+                    etape_n['membres'].setdefault(mm.group(1), {})[mm.group(2)] = nou
+            else:
+                refuser(f'{chemin}:{n} : entrée invalide (« {anc} » → « {nou} »)')
     if not vue:
-        refuser(f'{chemin} : l\'étape « {jusqua} » n\'existe pas (étapes : {", ".join(etapes)})')
-    anciens = [x[0] for x in entrees]; nouveaux = [x[1] for x in entrees]
-    for x in entrees:
-        if anciens.count(x[0]) > 1 or nouveaux.count(x[1]) > 1:
-            refuser(f'{chemin}:{x[3]} : « {x[0]} » ou « {x[1]} » en double')
-        if x[1] in anciens:
-            refuser(f'{chemin}:{x[3]} : chaîne de noms : « {x[1]} » est aussi un ancien')
+        refuser(f'l\'étape « {jusqua} » n\'existe pas (étapes : {", ".join(toutes)})')
+    if not commence:
+        refuser(f'l\'étape « {depuis} » vient après « {jusqua} »' if depuis in toutes
+                else f'l\'étape « {depuis} » n\'existe pas (étapes : {", ".join(toutes)})')
+    # Un même ancien dans deux étapes gardées : la première l'a renommé, il n'existe plus pour la seconde, sauf si une
+    # étape entre elles le redonne (comme TableDesNoms.cs).
+    vus = set()
+    for e in etapes:
+        neufs = set()
+        for d in [e['types'], e['imbr'], e['lits']]:
+            for a_, n_ in d.items():
+                if a_ in vus:
+                    refuser(f'« {a_} » est l\'ancien d\'une entrée de l\'étape {e["nom"]}, qu\'une étape d\'avant a '
+                            'renommé')
+                neufs.add(n_ if d is not e['imbr'] else a_.rsplit('+', 1)[0] + '+' + n_)
+        for t_, d in e['membres'].items():
+            for a_, n_ in d.items():
+                if f'{t_}::{a_}' in vus:
+                    refuser(f'« {t_}::{a_} » est l\'ancien d\'une entrée de l\'étape {e["nom"]}, qu\'une étape '
+                            'd\'avant a renommé')
+                neufs.add(f'{t_}::{n_}')
+        vus -= neufs
+        vus |= set(e['types']) | set(e['imbr']) | set(e['lits']) | {f'{t_}::{a_}' for t_, d in e['membres'].items()
+                                                                    for a_ in d}
     if not entrees:
-        refuser(f'{chemin} : aucune entrée retenue')
-    return [(x[0], x[1], x[3]) for x in entrees if not x[2]], sum(1 for x in entrees if x[2])
-def borne(nom):
-    return re.compile(r'(?<![\w.])' + re.escape(nom) + r'(?!\w)')
-def appliquer(a, b, chemin, jusqua):
-    types, fichiers = table_des_noms(chemin, jusqua)
+        refuser('aucune entrée retenue')
+    return etapes
+def tr_type(etapes, t):
+    # Un nom de type (A.B+C, sous son nom d'avant la première étape) après les étapes, chacune à son tour.
+    for e in etapes:
+        parts = t.split('+'); res = [e['types'].get(parts[0], parts[0])]; vieux = parts[0]
+        for q in parts[1:]:
+            vieux += '+' + q; res.append(e['imbr'].get(vieux, q))
+        t = '+'.join(res)
+    return t
+def tr_membre(etapes, t, m):
+    # Un membre après les étapes : à chaque étape, le membre (sa clé porte le type du début de l'étape), puis le type.
+    for e in etapes:
+        d = e['membres'].get(t)
+        if d and m in d:
+            m = d[m]
+        t = tr_type([e], t)
+    return m
+def tr_litteral(etapes, s):
+    for e in etapes:
+        s = e['lits'].get(s, s)
+    return s
+GEN_LAMBDA = re.compile(r'^<([^>]*)>(b|g)__([^|]*\|)?(\d+)_(\d+)$')
+GEN_FERM = re.compile(r'^<>(c__DisplayClass|9__)(\d+)_(\d+)(`\d+)?$')
+GEN_CLASSE = re.compile(r'^<>c__(\d+)(`\d+)?$')
+GEN_MACHINE = re.compile(r'^<([^>]+)>d__(\d+)(`\d+)?$')
+GEN_SUPPORT = re.compile(r'^<([^>]+)>k__BackingField$')
+GEN_LFERM = re.compile(r'^<([^>]+)>(b__|g__[^|]*\|)(\d+)$')
+# Un nom qualifié d'iXtal26 : le type de premier niveau, ses segments imbriqués, ses arguments génériques, le membre.
+QN = re.compile(r'(?<![\w.`+<>])(iXtal26(?:\.[A-Za-z_]\w*(?:`\d+)?)+)((?:\+[^\s:\[\](),]+)*)'
+                r'(\[(?:[^\[\]]|\[[^\[\]]*\])*\])?(?::([^\s(\[\],:]+))?')
+def porteur(segs):
+    k = len(segs)
+    while k > 1 and segs[k - 1].startswith('<'):
+        k -= 1
+    return '+'.join(segs[:k])
+def rangs(textes):
+    # --generes : par porteur, chaque numéro de méthode N et son propriétaire X, lus dans les noms ; puis « X#k », k le
+    # rang de N parmi les numéros de X (la règle d'ildump, Videur « LES NOMS », sur les seuls noms que la capture voit).
+    pro = {}
+    def noter(p, n, x):
+        pro.setdefault(p, {}).setdefault(int(n), x)
+    for t in textes:
+        for m in QN.finditer(t):
+            segs = (m.group(1) + m.group(2)).split('+'); p = porteur(segs); mb = m.group(4) or ''
+            if GEN_LAMBDA.match(mb):
+                g = GEN_LAMBDA.match(mb); noter(p, g.group(4), g.group(1))
+            if GEN_MACHINE.match(segs[-1]):
+                g = GEN_MACHINE.match(segs[-1]); noter(p, g.group(2), g.group(1))
+            f = GEN_FERM.match(segs[-1]) or GEN_CLASSE.match(segs[-1])
+            if f and len(segs) > 1:
+                x = (GEN_LAMBDA.match(mb) or GEN_LFERM.match(mb))
+                if x:
+                    noter(p, f.group(2) if GEN_FERM.match(segs[-1]) else f.group(1), x.group(1))
+    r = {}
+    for p, d in pro.items():
+        par = {}
+        for n, x in sorted(d.items()):
+            par.setdefault(x, []).append(n)
+        r[p] = {n: f'{x}#{k}' for x, ns in par.items() for k, n in enumerate(ns)}
+    return r
+def nommer(t, etapes, rg, compte):
+    # Le texte d'une méthode, chaque nom qualifié d'iXtal26 traduit : le type, ses segments générés (le membre qu'ils
+    # nomment, puis le numéro si rg), le membre (et l'accesseur get_X… dont la propriété X est renommée : la capture ne
+    # dit pas si X est une propriété, le nom suit).
+    def un(m):
+        top, imb, gen, mb = m.group(1), m.group(2), m.group(3) or '', m.group(4)
+        segs = (top + imb).split('+'); p = porteur(segs)
+        def membre(x):
+            if not x or x.startswith('.') or not etapes:
+                return x
+            return tr_membre(etapes, p, x)
+        def rang(n):
+            if rg is None:
+                return n
+            xk = rg.get(p, {}).get(int(n))
+            if xk is None:
+                return '?' + n
+            x, k = xk.rsplit('#', 1)
+            return membre(x) + '#' + k
+        def genere(s):
+            g = GEN_LAMBDA.match(s)
+            if g: return f'<{membre(g.group(1))}>{g.group(2)}__{g.group(3) or ""}{rang(g.group(4))}_{g.group(5)}'
+            g = GEN_FERM.match(s)
+            if g: return f'<>{g.group(1)}{rang(g.group(2))}_{g.group(3)}{g.group(4) or ""}'
+            g = GEN_CLASSE.match(s)
+            if g: return f'<>c__{rang(g.group(1))}{g.group(2) or ""}'
+            g = GEN_MACHINE.match(s)
+            if g: return f'<{membre(g.group(1))}>d__{rang(g.group(2))}{g.group(3) or ""}'
+            g = GEN_SUPPORT.match(s)
+            if g: return f'<{membre(g.group(1))}>k__BackingField'
+            g = GEN_LFERM.match(s)
+            if g: return f'<{membre(g.group(1))}>{g.group(2)}{g.group(3)}'
+            return s
+        neuf = tr_type(etapes, '+'.join(segs)) if etapes else '+'.join(segs)
+        ns = neuf.split('+')
+        for i in range(1, len(segs)):
+            if segs[i].startswith('<'):
+                ns[i] = genere(segs[i])
+        res = '+'.join(ns)
+        if gen:
+            res += QN.sub(un, gen)
+        if mb is not None:
+            nm = genere(mb) if mb.startswith('<') else membre(mb)
+            if nm == mb and etapes:
+                for pre in ('get_', 'set_', 'add_', 'remove_', 'raise_'):
+                    if mb.startswith(pre):
+                        x = membre(mb[len(pre):])
+                        if x != mb[len(pre):]:
+                            nm = pre + x
+                        break
+            res += ':' + nm
+        if res != m.group(0):
+            compte.add((m.group(0), res))
+        return res
+    return QN.sub(un, t)
+def appliquer(a, b, chemins, jusqua, depuis, generes):
+    # La table (si chemins) appliquée à REF, et --generes appliqué aux deux côtés. Les types de premier niveau, composés
+    # d'une étape à l'autre, sont vérifiés comme en G14 : refusés si l'ancien est encore dans AUTRE, si le nouveau est
+    # déjà dans REF, ou si l'un est vu sans l'autre ; un type que les scénarios ne compilent pas est dit.
+    etapes = table_des_noms(chemins, jusqua, depuis) if chemins else []
     tout_a = '\n'.join(k + '\n' + v[1] for k, v in a.items()); tout_b = '\n'.join(k + '\n' + v[1] for k, v in b.items())
-    refus, absents, retenus = [], [], []
-    for anc, nou, n in types:
+    def borne(nom):
+        return re.compile(r'(?<![\w.])' + re.escape(nom) + r'(?!\w)')
+    # Les types de premier niveau suivis depuis leur nom d'origine : un ancien d'une étape qui est le nom courant d'un
+    # type déjà suivi le prolonge (iXtal26.Ics.PIC, de G14.1 à G15).
+    origines, courants = [], set()
+    for i, e in enumerate(etapes):
+        origines += [anc for anc in e['types'] if anc not in courants and anc not in origines]
+        courants = {tr_type(etapes[:i + 1], o) for o in origines}
+    composes = [(o, tr_type(etapes, o)) for o in origines]
+    refus, absents, retenus = [], [], 0
+    for anc, nou in composes:
         parent = anc.rsplit('.', 1)[0]
         if re.search(r'(?<![\w.])' + re.escape(parent) + r'[:+]', tout_a):
-            refus.append(f'ligne {n} : « {anc} » désigne un membre de {parent}, pas un type (décision n° 1)'); continue
+            refus.append(f'« {anc} » désigne un membre de {parent}, pas un type (décision n° 1)'); continue
         va, vb = bool(borne(anc).search(tout_a)), bool(borne(nou).search(tout_b))
         if borne(anc).search(tout_b):
-            refus.append(f'ligne {n} : « {anc} » est encore dans AUTRE : la table renomme ce qu\'AUTRE garde')
+            refus.append(f'« {anc} » est encore dans AUTRE : la table renomme ce qu\'AUTRE garde')
         elif borne(nou).search(tout_a):
-            refus.append(f'ligne {n} : « {nou} » est déjà dans REF')
+            refus.append(f'« {nou} » est déjà dans REF')
         elif va != vb:
-            refus.append(f'ligne {n} : « {anc} » ' + ('vu dans REF, « ' + nou + ' » absent d\'AUTRE' if va
+            refus.append(f'« {anc} » ' + ('vu dans REF, « ' + nou + ' » absent d\'AUTRE' if va
                          else 'absent de REF, « ' + nou + ' » vu dans AUTRE'))
         elif not va:
             absents.append(anc)
         else:
-            retenus.append((borne(anc), nou))
+            retenus += 1
     if refus:
         for r in refus:
             print('  table refusée :', r, file=sys.stderr)
         sys.exit(2)
-    compte = [0]
-    def ecrire(t):
-        for motif, nou in retenus:
-            t, k = motif.subn(nou, t); compte[0] += k
-        return t
-    a2 = {}
-    for k, (f, corps) in a.items():
-        a2[ecrire(k)] = (f, ecrire(corps))
-    print(f'  table : {len(types)} types ({len(retenus)} vus, {len(absents)} que les scénarios ne compilent pas'
-          + (' : ' + ', '.join(absents) if absents else '') + f') et {fichiers} fichiers (ignorés) ; '
-          + f'{compte[0]} noms réécrits dans REF')
-    return a2
+    rga = rangs([k + '\n' + v[1] for k, v in a.items()]) if generes else None
+    rgb = rangs([k + '\n' + v[1] for k, v in b.items()]) if generes else None
+    compte, rien = set(), set()
+    a2 = {nommer(k, etapes, rga, compte): (f, nommer(c, etapes, rga, compte)) for k, (f, c) in a.items()}
+    b2 = {nommer(k, [], rgb, rien): (f, nommer(c, [], rgb, rien)) for k, (f, c) in b.items()} if generes else b
+    # Deux méthodes que la traduction confondrait (une collision que verifier aurait dû refuser) : refusé, plutôt que
+    # de perdre l'une des deux en silence.
+    if len(a2) != len(a) or len(b2) != len(b):
+        refuser(f'la traduction confond des méthodes ({len(a)} → {len(a2)} dans REF, {len(b)} → {len(b2)} dans AUTRE)')
+    if etapes:
+        nm = sum(len(d) for e in etapes for d in e['membres'].values())
+        print(f'  table : {len(composes)} types ({retenus} vus, {len(absents)} que les scénarios ne compilent pas'
+              + (' : ' + ', '.join(absents) if absents else '') + f'), {sum(len(e["imbr"]) for e in etapes)} types '
+              f'imbriqués, {nm} membres, {sum(len(e["lits"]) for e in etapes)} littéraux et '
+              f'{sum(e["fichiers"] for e in etapes)} fichiers et '
+              f'{sum(len(d) for e in etapes for d in e["params"].values())} paramètres (ignorés : les listings ne les '
+              f'nomment pas) ; {len(compte)} noms qualifiés distincts réécrits dans REF')
+    if generes:
+        print('  noms générés : les numéros de méthode remplacés par « méthode#rang », des deux côtés')
+    return a2, b2, etapes
 def refuser_dll(m):
     print('  DLL refusée :', m, file=sys.stderr); sys.exit(2)
 def tas_us(dll, capture):
@@ -372,7 +578,7 @@ def jeton(lignes, k):
     if j < len(lignes) and re.match(r'^\s+mov\s+rsi, ', lignes[j]): j += 1
     if j < len(lignes) and re.match(r'^\s+call\s+\[CORINFO_HELP_STRCNS\]\s*$', lignes[j]): return int(m.group(1), 0)
     return None
-def egaux_par_jetons(x, y, ua, ub, compte):
+def egaux_par_jetons(x, y, ua, ub, compte, etapes):
     # Deux listings qui diffèrent sont égaux si chaque ligne qui diffère est un jeton de chaîne des deux côtés, et que
     # les deux jetons, lus chacun dans le tas #US de sa DLL, désignent la même chaîne. Une ligne égale reste égale :
     # une chaîne qu'une méthode changerait sous un jeton égal changerait l'IL (ildump compare un ldstr par sa chaîne).
@@ -383,7 +589,9 @@ def egaux_par_jetons(x, y, ua, ub, compte):
         if p == q: continue
         tp, tq = jeton(lx, k), jeton(ly, k)
         if tp is None or tq is None: return False
-        paires.append((chaine(ua, tp), chaine(ub, tq)))
+        sp = chaine(ua, tp)
+        # La liste close de la table : une chaîne qui suit un membre est comparée sous son nouveau nom.
+        paires.append((tr_litteral(etapes, sp) if sp is not None else None, chaine(ub, tq)))
     for sp, sq in paires:
         if sp is None or sq is None: compte['illisibles'] += 1
         elif sp == sq: compte['même chaîne'] += 1
@@ -391,19 +599,28 @@ def egaux_par_jetons(x, y, ua, ub, compte):
     return all(sp is not None and sp == sq for sp, sq in paires)
 mode = sys.argv[1]
 if mode == 'compare':
-    opts = dict(zip(sys.argv[4::2], sys.argv[5::2]))
+    opts, noms, generes, k = {}, [], False, 4
+    while k < len(sys.argv):
+        if sys.argv[k] == '--generes':
+            generes = True; k += 1; continue
+        if sys.argv[k] == '--noms':
+            noms.append(sys.argv[k + 1])
+        else:
+            opts[sys.argv[k]] = sys.argv[k + 1]
+        k += 2
     lus = '--dll-ref' in opts
     if lus:
         ua, ub = tas_us(opts['--dll-ref'], sys.argv[2]), tas_us(opts['--dll-autre'], sys.argv[3])
         compte = {'même chaîne': 0, 'autre chaîne': 0, 'illisibles': 0}; par_jetons = []
     a, b = lire(sys.argv[2]), lire(sys.argv[3])
-    if '--noms' in opts:
-        a = appliquer(a, b, opts['--noms'], opts.get('--jusqua'))
+    etapes = []
+    if noms or generes:
+        a, b, etapes = appliquer(a, b, noms, opts.get('--jusqua'), opts.get('--depuis'), generes)
     seuls_a = sorted(set(a) - set(b)); seuls_b = sorted(set(b) - set(a))
     change = sorted(k for k in set(a) & set(b) if a[k][1] != b[k][1])
     if lus:
         for k in change:
-            if egaux_par_jetons(a[k][1], b[k][1], ua, ub, compte): par_jetons.append(k)
+            if egaux_par_jetons(a[k][1], b[k][1], ua, ub, compte, etapes): par_jetons.append(k)
         change = [k for k in change if k not in par_jetons]
         print(f'  jetons de chaîne (CORINFO_HELP_STRCNS), lus dans le tas #US de chaque DLL : '
               f'{sum(compte.values())} qui changent, {compte["même chaîne"]} vers la même chaîne, '
@@ -428,21 +645,25 @@ PY
 case "${1:-}" in
 capture) shift; [ $# -ge 2 ] || { echo "usage : listings-jit.sh capture DLL SORTIE [SCÉNARIO…]" >&2; exit 2; }; capture "$@" ;;
 compare)
-  shift; noms=(); jusqua=(); dllr=(); dlla=()
+  shift; noms=(); jusqua=(); depuis=(); generes=(); dllr=(); dlla=()
   while [ $# -gt 0 ]; do
     case "$1" in
-      --noms) [ $# -ge 2 ] || break; noms=(--noms "$2"); shift 2 ;;
+      --noms) [ $# -ge 2 ] || break; noms+=(--noms "$2"); shift 2 ;;
       --jusqua) [ $# -ge 2 ] || break; jusqua=(--jusqua "$2"); shift 2 ;;
+      --depuis) [ $# -ge 2 ] || break; depuis=(--depuis "$2"); shift 2 ;;
+      --generes) generes=(--generes); shift ;;
       --dll-ref) [ $# -ge 2 ] || break; dllr=(--dll-ref "$2"); shift 2 ;;
       --dll-autre) [ $# -ge 2 ] || break; dlla=(--dll-autre "$2"); shift 2 ;;
       *) break ;;
     esac
   done
-  if [ $# -ne 2 ] || { [ ${#jusqua[@]} -gt 0 ] && [ ${#noms[@]} -eq 0 ]; } || [ ${#dllr[@]} -ne ${#dlla[@]} ]; then
-    echo "usage : listings-jit.sh compare [--noms TABLE [--jusqua ETAPE]] [--dll-ref DLL --dll-autre DLL] REF AUTRE" >&2
+  if [ $# -ne 2 ] || { [ $((${#jusqua[@]} + ${#depuis[@]})) -gt 0 ] && [ ${#noms[@]} -eq 0 ]; } \
+     || [ ${#dllr[@]} -ne ${#dlla[@]} ]; then
+    echo "usage : listings-jit.sh compare [--noms TABLE…] [--depuis ETAPE] [--jusqua ETAPE] [--generes]" \
+         "[--dll-ref DLL --dll-autre DLL] REF AUTRE" >&2
     exit 2
   fi
-  decoupe compare "$1" "$2" "${noms[@]}" "${jusqua[@]}" "${dllr[@]}" "${dlla[@]}" ;;
+  decoupe compare "$1" "$2" "${noms[@]}" "${jusqua[@]}" "${depuis[@]}" "${generes[@]}" "${dllr[@]}" "${dlla[@]}" ;;
 methode) [ $# -eq 3 ] || { echo "usage : listings-jit.sh methode CAPTURE NOM" >&2; exit 2; }; decoupe methode "$2" "$3" ;;
 *) sed -n '5,19p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac

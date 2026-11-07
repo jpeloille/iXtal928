@@ -12,10 +12,10 @@ Les onze questions (Q40 à Q50, ci-dessous) sont tranchées par Julien le 04/11 
 proposition est la décision. G15.0a est faite (le banc des constructions interdites, la frontière des chemins chauds, la
 base à R ; VERIFICATION.md § G15.0a). Q48 est rouverte le 05/11 : G15.P, la performance avant les renommages, est
 faite (P0, quatre candidats mesurés ; P1, OP_ARITH par des structures, sous la règle du témoin calé, son résidu admis
-le 08/11 ; VERIFICATION.md § G15.P). G15.0b est en cours, feu vert du 08/11 : 0b1 (la table des membres) et 0b2
-(`ildump`) sont faites (VERIFICATION.md § G15.0b). La référence reste celle de G14 : le commit R =
-`f15e11f`, `/var/tmp/ixtal-g14/ref-R`, les séries `g14r` et `g14r-tout` (VERIFICATION.md § G14.0d), jusqu'à la fin de
-G15.
+le 08/11 ; VERIFICATION.md § G15.P). G15.0b est en cours, feu vert du 08/11 : 0b1 (la table des membres), 0b2
+(`ildump`) et 0b3 (`listings-jit.sh`) sont faites (VERIFICATION.md § G15.0b). La référence reste celle de G14 :
+le commit R = `f15e11f`, `/var/tmp/ixtal-g14/ref-R`, les séries `g14r` et `g14r-tout` (VERIFICATION.md § G14.0d),
+jusqu'à la fin de G15.
 
 ### Ce que les lectures ont trouvé
 
@@ -192,7 +192,7 @@ d'iXtal26 identique au sha256, ses essais et ses contrôles négatifs ; ni séri
   générateur et la vérification (`tools/renommage generer`, `verifier`) ;
 - **0b2, `ildump`** ✅ : la table des membres appliquée, les noms générés normalisés, l'écart attendu,
   `references`, l'option des paramètres ;
-- **0b3, `listings-jit.sh compare`** : la table des membres, les noms générés, la liste close ;
+- **0b3, `listings-jit.sh compare`** ✅ : la table des membres, les noms générés, la liste close ;
 - **0b4, `tools/renommage`** : les membres et la vérification de liaison ; les générateurs de `Cpu/` ;
 - **0b5, les relevés et les petits outils** : les `using`, le code mort privé, les constructions interdites ; les
   générateurs de `Cpu/` régénérés à HEAD ; `compare-ref.sh` ; `check-doc5150.sh` ;

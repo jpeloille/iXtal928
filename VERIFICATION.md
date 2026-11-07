@@ -20599,3 +20599,115 @@ une règle plus grossière qui ramenait aussi les sigles de deux lettres à une 
 - Les interfaces suivies par le relevé sont celles que le type nomme directement ; une interface héritée, ou
   implémentée par la classe de base, ne l'est pas (le relevé sous-compte alors ce qui est mort).
 - Le relevé des références est une borne : une référence d'une autre DLL vaut pour toutes les surcharges de son nom.
+
+### G15.0b3 — `listings-jit.sh compare`, la table des membres et les noms générés
+
+**Ce qui est livré** (`tools/listings-jit.sh`, son en-tête ; la lecture et l'application de la table, en python).
+- **La lecture de la table** est celle de `TableDesNoms.cs` : les étapes lues à la suite, `--noms` répété,
+  `--depuis` et `--jusqua`, chaque entrée classée. Elle refuse :
+  - une entrée invalide, hors de toute étape, sans changement, ou en double dans son étape ;
+  - une entrée de la grammaire de G14 qui désigne un membre ;
+  - pour les types de premier niveau composés d'étape en étape, les refus de G14.
+
+  Elle refuse aussi, comme `TableDesNoms.cs` :
+  - une entrée invalide d'une étape d'avant `--depuis` (chaque entrée est classée, gardée ou non) ;
+  - un ancien repris par une étape après qu'une autre l'a renommé ;
+  - et, à l'application, une traduction qui confondrait deux méthodes, plutôt que d'en perdre une en silence.
+
+  Les collisions de membres et CS0542 restent à `tools/renommage verifier`. Les paramètres et les fichiers sont lus
+  et dits ignorés : un listing ne les nomme pas. Le refus provisoire de 0b1 est levé.
+- **La traduction**, sur les en-têtes et les corps de REF : chaque nom qualifié d'iXtal26
+  (`Type[+Imbriqué][[arguments]]:membre`) passe les étapes dans l'ordre, par la règle d'`ildump`. Elle traduit le type
+  et ses imbriqués, la méthode (les listings ne nomment jamais un champ) et l'accesseur. Les noms générés suivent le
+  membre qu'ils portent, y compris dans les arguments génériques.
+- **`--generes`**, des deux côtés : le numéro de méthode devient « méthode#rang », comme `ildump --generes`. Le
+  propriétaire et le rang se lisent dans les seuls noms de la capture.
+- **La liste close des littéraux**, composée d'étape en étape, s'applique aux jetons de chaîne lus dans les DLL
+  (`--dll-ref`, `--dll-autre`). `TableDesNoms.cs` compose désormais les littéraux de même (« a » → « b », puis
+  « b » → « c », donne « a » → « c ») : `ildump` et `listings-jit.sh` disent la même chose.
+- Dans `ildump` aussi : la fonction locale d'une classe de fermeture (`<X>g__F|K`, `<OP_ARITH_386>g__LRm|5`) suit sa
+  méthode, comme la lambda `<X>b__K`. La preuve de 0b2, rejouée (`b2-preuve-rejeu.log`), rend les mêmes résultats et
+  les mêmes empreintes ; seuls diffèrent les horodatages et la liste des fichiers copiés.
+
+**Les captures** (`b3/`) :
+- trois scénarios qui compilent les noms en jeu, `ibmat-287` (le 286), `ami386dx-387` (le x87) et `pc1512`, par
+  `listings-jit.sh capture` de l'arbre principal (qui a les ROM et `os/`) ;
+- quatre côtés : HEAD (`jit-H`, `56f5ffd8…`, recapturée au commit de 0b2 : contre la première capture,
+  `da8849a3…` au commit de 0b1, 0/0/0), le renommage à la main de `b2-essai` (`jit-E`, l'état d'`essai-4`),
+  l'iXtal26 d'avant G15.P (`jit-AV`), et les trois mêmes scénarios de R, liés depuis `ref-R-captures-10.0.14`
+  (`jit-R3`) ;
+- 2 268 listings pour HEAD et l'essai, 2 161 pour l'avant G15.P et R.
+
+**Les essais** (`b3-preuve.log`, `outils/b3-preuve.sh`, chaque contrôle avec son journal dans `b3/`) :
+- **Auto-comparaison** : HEAD contre HEAD sous `--generes`, 0/0/0.
+- **La non-régression** : les 30 scénarios de R contre la capture de G14.4, par `g14.txt --jusqua G14.4` et les
+  DLL : 0 changée, 0 disparue, 0 apparue, 16 jetons vers la même chaîne, 4 méthodes égales par leurs jetons, comme
+  en G14.4 ; de même sous `--generes`.
+- **Le renommage à la main** (`b3/essai.txt`, cinq entrées) :
+  - les noms renommés : `picintc`, `pic_intpending`, le paramètre de `picint`, `PoserIncDecRegistres` (une méthode à
+    lambdas de classe de fermeture) et le littéral ; l'essai porte aussi `Inutile()` devant `_x87_materiel.poser` ;
+  - sans table, 6 changées, 4 disparues, 4 apparues ; avec, **0/0/0**, et de même sous `--generes` et avec les DLL ;
+  - seules deux des cinq entrées sont éprouvées par les listings, `picintc` et `PoserIncDecRegistres` : la table
+    réduite à elles deux rend déjà 0/0/0, et le champ, le paramètre et le littéral seuls laissent les 6/4/4. Un champ
+    et un paramètre n'ont pas de nom dans un listing, et le littéral n'y est pas chargé ; `ildump` les éprouve
+    (§ G15.0b2).
+- **Les noms générés, sur le vrai changement de G15.P** (l'avant G15.P contre HEAD) : 2 changées, 47 disparues, 84
+  apparues en brut ; 2/29/66 sous `--generes`. Ce qui reste est OP_ARITH et ses appelants :
+  - les deux changées, `PoserGroupeArith` et `PoserGroupeArith386` ;
+  - les lambdas et fermetures d'avant ;
+  - les instanciations génériques d'après.
+
+  Les renumérotations de `PoserGroupePile`, `PoserGroupeSauts`, `PoserIncDecRegistres`, `Loop`… ne sortent plus.
+- **Depuis R**, par `g14.txt`, `g15.txt` et l'essai, sous `--generes`, contre l'essai : 2/29/66, **les mêmes
+  entrées** que l'avant G15.P contre HEAD (`b3/R-essai-contre-p1.diff` vide). La traduction d'un membre à travers
+  les étapes tient aussi dans les listings.
+- **Les refus**, rc 2 chacun :
+  - une entrée de membre en grammaire de G14 (`iXtal26.Models.pic.picint`, décision n° 1) ;
+  - un identifiant invalide ;
+  - une entrée en double ;
+  - une étape `--depuis` absente ;
+  - `--depuis` sans table ;
+  - une entrée invalide dans une étape d'avant `--depuis` ;
+  - un ancien repris après qu'une étape l'a renommé ;
+  - une traduction qui confond deux méthodes (`picintc` → `picint`, 964 → 963 dans REF).
+- **La composition des littéraux**, dans `ildump` : « opFCLEX » → « OpFclex2 », puis « OpFclex2 » → « OpFclex3 » ;
+  le vidage de HEAD par cette table porte « OpFclex3 », et ni « OpFclex2 » ni « opFCLEX ».
+
+**Les portes.**
+- La DLL d'iXtal26 est identique au sha256, construite au même chemin, dans `g150b-ref` avancé au parent de l'étape
+  (`eefd870`), avant puis après y avoir copié les fichiers de l'étape : `56f5ffd8…` les deux fois
+  (`b2-preuve-porte-b3.log`).
+- `ildump` et `tools/renommage` se construisent sans avertissement.
+- Les preuves de 0b1 et de 0b2, rejouées avec les outils de l'étape (`b1-preuve-rejeu-b3.log`,
+  `b2-preuve-rejeu-b3.log`), rendent les mêmes résultats. Les deux seules lignes qui changent dans celle de 0b1 sont
+  ses refus provisoires, levés par 0b2 et 0b3.
+- Aucune ligne neuve au-delà de 120 caractères. Ni série ni banc.
+
+**Contre-lecture**, en deux relectures, reprises :
+- **Le code** : aucune erreur bloquante. Sept écarts avec `TableDesNoms.cs` et `ildump` sont repris :
+  - les étapes d'avant `--depuis` classées, et un ancien repris refusé ;
+  - les littéraux composés, dans les deux lectures ;
+  - le message d'un `--depuis` placé après `--jusqua` ;
+  - le compte des noms réécrits, qui comptait deux fois (désormais les noms qualifiés distincts) ;
+  - deux méthodes confondues par la traduction, refusées ;
+  - les paramètres dits ignorés ;
+  - la ligne d'usage.
+
+  Les formes que la regex ne couvre pas (un membre d'interface qualifié d'iXtal26, des génériques imbriqués sur trois
+  niveaux) n'ont aucune occurrence dans les captures : un faux écart, si elles venaient, pas un écart caché.
+- **La preuve** : aucune erreur de chiffre. Imprécisions reprises : seules deux des cinq entrées de l'essai sont
+  éprouvées par les listings ; la preuve de 0b2 rejouée rend les mêmes résultats, non le même journal ; ce que la
+  non-régression exerce des jetons ; le compte des méthodes que les trois scénarios compilent.
+
+**Ce que ce vert ne dit pas.**
+- Aucun listing des trois scénarios ne charge un littéral de la liste close : la non-régression exerce la lecture
+  des jetons de chaîne (16), mais pas leur traduction par la liste, que seul l'IL éprouve (§ G15.0b2). De même, les
+  champs et les paramètres ne se vérifient que par `ildump`.
+- Les trois scénarios compilent 964 méthodes, dont 937 d'iXtal26 ; les trente scénarios de la capture de G14.4 en
+  compilent 1 512, dont 1 481 d'iXtal26.
+- Les listings ne prouvent rien pour ce que les scénarios ne compilent pas : les 30 scénarios restent la porte des
+  étapes qui renomment.
+- Sous `--generes`, une surcharge que les scénarios compilent d'un côté et pas de l'autre décalerait le rang ; aucun
+  cas dans ces captures.
+- Un accesseur `get_X` dont X est un champ renommé suit le champ, à tort, si la méthode elle-même garde son nom : la
+  capture ne dit pas si X est une propriété (`ildump` le sait, et le refuse).
