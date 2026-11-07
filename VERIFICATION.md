@@ -20307,3 +20307,164 @@ Deux relectures, en lecture seule.
 
 Les journaux sont dans `/var/tmp/ixtal-g15/g15-p/` (P0) et `/var/tmp/ixtal-g15/g15-p1/` (P1), doublés dans
 `/var/tmp/ixtal-g13/g15-p/` et `/var/tmp/ixtal-g13/g15-p1/`.
+
+## G15.0b — Les outils de la preuve des membres
+
+Feu vert du 08/11 (« feu vert pour G15.0b » ; PLAN-G15.md § G15.0b). Rien de l'émulateur ne change. L'étape se coupe
+en six sous-étapes, chacune commitée avec ses portes (PLAN-G15 § G15.0b) ; les journaux sont dans
+`/var/tmp/ixtal-g15/g15-0b/`, doublés dans `/var/tmp/ixtal-g13/g15-0b/`.
+
+### G15.0b1 — La table des membres
+
+**Ce qui est livré.**
+- `tools/noms/TableDesNoms.cs`, la lecture de la table, étendue :
+  - quatre genres d'entrée de plus : le type imbriqué (`A+B`), le membre (`A::membre`, toutes les surcharges d'une
+    méthode), le paramètre (`A::methode(param)`) et le littéral de la liste close (`"ancien" "nouveau"`) ;
+  - plusieurs fichiers lus à la suite (`g14.txt`, puis `g15.txt`), et les étapes bornées par `--depuis` et
+    `--jusqua` ;
+  - chaque étape nomme ce qu'elle renomme sous les noms qu'il porte à son début : `iXtal26.Ics.PIC`, nouveau de
+    G14.1, est un ancien de G15. Les refus se jugent donc étape par étape (doublons, chaînes, deux anciens vers un
+    nouveau dans une même portée, CS0542). D'une étape à l'autre, un même ancien est refusé si une étape d'avant l'a
+    renommé sans qu'une autre le redonne, comme G14 refusait un ancien en double. Un nom se traduit en passant les
+    étapes dans l'ordre (`NouveauNomDeType`, `NouveauMembre`, `NouveauParametre`).
+  - `listings-jit.sh` garde sa lecture des types et des fichiers, et ses refus sur toute la table.
+- `tools/noms/RegleNoms.cs`, la règle de Q40 :
+  - les mots d'un identifiant : coupés au « _ » et à la casse ; un chiffre reste dans son mot (`x86seg`), ou en fait
+    un après un « _ » (`fetch_ea_16` : trois mots) ;
+  - un sigle de deux lettres gardé en majuscules (les chiffres ne comptent pas : `ST0` reste `ST0`), au-delà une
+    majuscule ;
+  - PascalCase et camelCase.
+- `tools/renommage/Membres.cs`, deux modes de `renommer.sh`, sur les projets que Roslyn lie, comme le renommage :
+  - `generer` écrit, triées par clé, les entrées d'une famille (des préfixes de chemin), par la règle et les
+    exceptions :
+    - PascalCase pour les types, les méthodes, les propriétés, les constantes, les membres d'enum et les champs non
+      privés ; camelCase pour les champs privés, sauf un `private static readonly` déjà en PascalCase ;
+    - le suffixe `_t` perdu s'il ne collisionne pas avec un voisin : les types de son espace de noms dans son
+      assemblage, ou, pour un type imbriqué, les autres imbriqués et les membres de son conteneur, sous leurs
+      nouveaux noms ;
+    - un `override`, ou l'implémentation implicite d'un membre d'interface du même assemblage, suit le membre qu'il
+      redéfinit ;
+    - sans entrée, ce qui garde son nom : constructeurs, accesseurs, ce qui redéfinit un membre d'un autre assemblage
+      (`ToString`, `Dispose`), `extern` et P/Invoke.
+
+    Il refuse :
+    - une classe partielle à cheval sur la famille ;
+    - une collision : dans un type ; entre types d'un espace de noms d'un assemblage, ceux de la famille contre tous ;
+    - CS0542, CS0101, un nom qui commence par un chiffre, un mot-clé (une exception comprise) ;
+    - une exception sans raison, ou qui ne sert pas.
+  - `verifier` juge une étape (une sélection de plusieurs étapes avec des entrées est refusée : l'arbre n'en montre
+    qu'un état) contre l'arbre au début de cette étape. Il refuse :
+    - un type, un membre, un paramètre absent ;
+    - le nouveau d'un type qui existe déjà ;
+    - un littéral écrit nulle part ;
+    - une collision avec un membre que la table ne renomme pas.
+- `tools/noms/g15.txt` (la grammaire étendue, sans entrée) et `tools/noms/exceptions-g15.txt` (la grammaire des
+  exceptions, sans exception : elles s'écrivent avec la famille qui en a besoin).
+- Trois refus provisoires, en attendant qu'ils sachent appliquer les membres, les types imbriqués, les paramètres et
+  les littéraux :
+  - `tools/ildump`, jusqu'à 0b2 ;
+  - `tools/listings-jit.sh`, jusqu'à 0b3 ;
+  - le mode renommage de `tools/renommage`, jusqu'à 0b4 (il les aurait sinon ignorés en silence).
+
+**Ce que la règle seule rencontre sur tout iXtal26** (`b1/gen-tout.log`, `generer --famille iXtal26/` sans
+exception). Il y a 24 refus, chacun demandant une exception :
+- six conteneurs dont le nom commencerait par un chiffre : `_386`, `_386_common`, `_386_materiel`, `_386_noyau`,
+  `_808x`, `_808x_noyau` ;
+- quatorze collisions de membres :
+  - dans `_386`, `prefetch_run`/`PREFETCH_RUN`, `prefetch_flush`/`PREFETCH_FLUSH` et
+    `PoserGroupeArith386`/`PoserGroupe_arith_386` ;
+  - dans `_x87_noyau`, `Classe`/`classe`, `ZERO`/`zero` et `VIDE`/`vide` ;
+  - `Expm1`/`expm1` dans `_x87_transcendantes`, `dma_read`/`_dma_read` et `dma_write`/`_dma_write` dans
+    `Intel8237`, `types`/`Types` dans `mfm_xebec+CavaliersXebec` ;
+  - dans `DBOPL`, `TREMOLO_TABLE`/`TremoloTable`, et `op`/`Op`, `keyOn`/`KeyOn` dans ses types imbriqués ;
+  - `read_`/`read` dans `CDROM_Interface_Image+BinaryFile`, où `read` implémente un membre d'interface de
+    l'assemblage, qu'il suit ;
+- trois CS0542 : `keyboard_amstrad_`, `keyboard_olim24_` et `keyboard_xt_` ;
+- une collision de types, `IDE` et `ide` de l'espace `iXtal26.Ide`. Son remède n'est pas un nom de membre : l'un des
+  deux types doit en prendre un autre.
+
+Le générateur dit aussi, sans les refuser :
+- 14 types qui gardent leur suffixe `_t`, parce que le perdre ferait collision (`rom_t`, `mouse_t`, `keyboard_xt_t`,
+  `video+blit_data_t`…) ;
+- 24 portées où des noms ne diffèrent que par la casse. Cinq sont les `CS`/`Cs`, `DS`… de `x86` (le sigle de deux
+  lettres reste en majuscules, `cs` devient `Cs`) ; les autres ont d'autres origines (`Read`/`read`,
+  `Screen`/`screen`, `Vblankstart`/`VblankStart`, `ScancodeSet1`/`scancodeSet1`…). C# les admet ; la règle de Q40 les
+  produit.
+
+Ce relevé est l'ordre de grandeur que R0 annonçait (§ 1.1 : 30 paires, trois CS0542, six conteneurs à chiffre, par
+une règle plus grossière qui ramenait aussi les sigles de deux lettres à une majuscule).
+
+**Les essais** (`b1-preuve.log`, `outils/b1-preuve.sh`, chaque contrôle avec son journal dans `b1/`) :
+- `generer` sur `Ics/Intel8259A` : 3 types, 57 entrées. Le type `PIC` devient `Pic`, et 56 membres changent de nom :
+  ceux de la classe statique `Intel8259A`, de son type imbriqué `Etat8259` et de `PIC`. Rejouée dans le script, la
+  génération rend le même fichier. `verifier` accepte l'étape (`--depuis essai --jusqua essai` : seule cette étape
+  est jugée, celles de `g14.txt` sont hors de la sélection).
+- Sur `Keyboard/`, avec trois exceptions (deux nouveaux noms, un nom gardé) : 123 entrées, les trois servies, et
+  `verifier` les accepte. Le repli du suffixe `_t` y joue (`keyboard_xt_t` → `KeyboardXtT`).
+- Sur `Materiel/`, avec l'exception de Q43, `iXtal26.materiel::pb_*  =` : aucune des 202 `pb_nn` de `materiel.cs`
+  n'a d'entrée ; seul le type change (`materiel` → `Materiel`), et `verifier` l'accepte.
+- Une table écrite à la main, `b1/positif.txt`, porte les genres qu'aucune génération ne produit encore : un type
+  imbriqué, un membre de type imbriqué, un membre, un paramètre et un littéral (`"opFCLEX"`). `verifier` l'accepte.
+- La non-régression, avec la lecture neuve :
+  - `ildump comparer` de R contre la DLL de G14.5, par `g14.txt --jusqua G14.4` : 0 changée, 0 disparue, 0 apparue
+    sur 5 738 entrées, comme en G14.5 ;
+  - `listings-jit.sh compare` de R contre la capture de G14.4, avec les DLL : 0 changée, 0 disparue, 0 apparue sur
+    1 512 méthodes, 16 jetons vers la même chaîne, 4 méthodes égales par leurs jetons, comme en G14.4.
+- Ce qui n'est pas encore éprouvé : la traduction d'un membre à travers plusieurs étapes. `ildump` ne lit encore
+  qu'une table ; 0b2 l'éprouve.
+
+**Les contrôles négatifs**, chacun refusé (retour 2) pour la raison dite dans son journal :
+- **Par la lecture de la table** :
+  - une collision : `CS` et `cs` de `x86` vers `Cs` ;
+  - une chaîne dans une étape (`picint` → `pic_reset_x`, et `pic_reset_x` ancien d'une autre entrée) ;
+  - un nouveau égal au conteneur : `picint` → `Intel8259A`, CS0542.
+- **Par `verifier`** :
+  - un membre absent (`Intel8259A::pic_inexistant`) ;
+  - un nouveau qui est un membre resté (`picint` → `pic_reset`) ;
+  - un paramètre absent ;
+  - un littéral écrit nulle part ;
+  - une sélection de deux étapes.
+- **Par `generer`** :
+  - une famille qui coupe la classe partielle `Intel8259A` (le seul `Intel8259A.cs`) ;
+  - un type vers le nom d'un espace de noms (`materiel` → `Cpu`, CS0101) ;
+  - un champ vers un mot-clé (`int`) ;
+  - une exception qui ne désigne rien de la famille ;
+  - une exception sans raison.
+- **Par les outils qui ne lisent pas encore les membres** : une table de membres donnée à `ildump` et à
+  `listings-jit.sh`.
+
+**Les portes.**
+- **La DLL d'iXtal26 est identique au sha256** : construite au même chemin, dans un worktree propre de HEAD
+  (`g150b-ref`, `a88ba5e`), avant puis après y avoir copié les fichiers de l'étape, `23361bae…` les deux fois. Le
+  script note la liste des fichiers copiés et l'état de `git status`, puis remet l'arbre à HEAD (0 ligne de
+  `git status`). Construite dans le worktree de l'étape, à un autre chemin, elle a la même taille et diffère par 180
+  octets, dont le chemin du PDB qu'elle porte (`b1/dll-chemins.log`). Après le commit, la version porte le commit neuf,
+  et l'empreinte change encore ; la porte se juge avant.
+- `tools/renommage` et `tools/ildump` se construisent sans avertissement, sans paquet (`project.assets.json` : 0
+  bibliothèque).
+- Aucune ligne neuve au-delà de 120 caractères (compte en caractères).
+- Ni série ni banc : ni l'émulateur ni la série ne changent (décision n° 5, Q50).
+
+**Contre-lecture**, en deux relectures, reprises :
+- **Le code** : quatre erreurs reprises :
+  - le repli de `_t` d'un type imbriqué, qui se comparait à lui-même et gardait toujours le suffixe ;
+  - la composition d'un type renommé à deux étapes, qui laissait une clé fantôme ;
+  - le mode renommage, qui ignorait les membres en silence ;
+  - l'alignement de la sortie pour une clé de 70 caractères.
+
+  Imprécisions reprises : un ancien en double d'une étape à l'autre, `verifier` borné à une étape, les collisions de
+  types contre ceux hors de la famille et par assemblage, l'arité dans CS0542, les entrées triées, l'override et
+  l'implémentation d'une interface du même assemblage, le mot-clé pour tout genre, un PascalCase strict, les
+  en-têtes.
+- **La preuve** : deux erreurs reprises :
+  - la porte du sha256, que le journal ne traçait pas : le script note désormais chaque pas ;
+  - le double de `/var/tmp/ixtal-g13/g15-0b/`, fait avant le commit.
+
+  Imprécisions reprises : les 202 `pb_nn` comptés par le script, les portées de casse, le refus de types, les refus
+  et les genres non éprouvés (ajoutés), `verifier` joué sur chaque génération, les builds étiquetés, la
+  non-régression de `listings-jit.sh`.
+
+**Ce que ce vert ne dit pas.**
+- Aucune table complète n'est générée : la règle seule a 24 refus, que les exceptions de chaque famille trancheront.
+- Les propriétés positionnelles d'un `record struct` (`HardDiskControllers.cs:34`, `DisplaySettings.cs:29`,
+  `ide.cs:145`) ont un paramètre de constructeur que la grammaire ne nomme pas : à juger avec leur famille.

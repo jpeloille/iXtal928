@@ -1,0 +1,16 @@
+// SPDX-FileCopyrightText: 2026 Julien Peloille
+// SPDX-License-Identifier: GPL-2.0-only
+//
+// exceptions: G15 — ce que la règle de Q40 (tools/noms/RegleNoms.cs) ne tranche pas seule, écrit avec sa raison
+// (PLAN-G15.md, Q40 : « chaque collision reçoit une exception écrite avec sa raison »). Lu par tools/renommage
+// generer, qui la fait passer avant la règle.
+//
+// La grammaire : « //   CLÉ  NOUVEAU  raison », ou « //   CLÉ  =  raison » pour garder le nom.
+//   - CLÉ : un type (iXtal26.A), un type imbriqué (iXtal26.A+B) ou un membre (iXtal26.A::membre), sous le nom qu'il
+//     porte au début de l'étape ; une CLÉ de membre qui finit par « * » vaut pour tous les membres du type dont le nom
+//     commence ainsi ;
+//   - la raison est exigée ; une exception qui ne désigne rien de la famille générée est refusée, une clé en double
+//     aussi.
+//
+// Les exceptions s'écrivent avec la famille qui en a besoin. Ce que la règle seule refuse sur tout iXtal26 est relevé
+// dans VERIFICATION.md § G15.0b.

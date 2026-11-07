@@ -173,6 +173,11 @@ internal static class Program
     /// <summary>La table contre les assemblages ; une incohérence la fait refuser (retour 2).</summary>
     private static void VerifierTable(TableDesNoms t, Assemblage r, Assemblage? a)
     {
+        // La grammaire de G15.0b (tools/noms/TableDesNoms.cs) nomme aussi des types imbriqués, des membres, des
+        // paramètres et des littéraux : ildump ne les applique pas encore, et refuse une table qui en a.
+        if (t.NommeDesMembres)
+            throw new FormatException("la table nomme des types imbriqués, des membres, des paramètres ou des "
+                                      + "littéraux, qu'ildump n'applique pas encore : refusée");
         var typesR = r.TypesDePremierNiveau();
         var typesA = a?.TypesDePremierNiveau();
         // L'assemblage qui définit les types (iXtal26) est jugé strictement ; un assemblage qui ne fait que les

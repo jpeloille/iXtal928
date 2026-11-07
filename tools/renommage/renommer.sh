@@ -16,10 +16,23 @@
 # principal est refusé, sauf si RENOMMER_DEPOT_PRINCIPAL=1 le demande en clair. Le journal des sites
 # (fichier:ligne:colonne, sorte, type, avant, après ; et les lignes de plus de 120 caractères que le renommage allonge)
 # va dans ARBRE/../renommage-<nom de l'arbre>.tsv, ou dans JOURNAL s'il est posé.
+#
+# renommer.sh generer ARBRE OPTIONS… et renommer.sh verifier ARBRE OPTIONS… (G15.0b, PLAN-G15.md § G15.0b) : la
+# table des membres, générée par la règle de Q40 ou vérifiée contre les projets (Membres.cs en dit l'usage et les
+# refus). Les étapes 1 et 2 sont les mêmes ; les OPTIONS passent telles quelles à l'outil, avec --arbre ARBRE ; rien
+# n'est écrit dans ARBRE.
 set -euo pipefail
 ICI="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-[ $# -ge 2 ] || { echo "usage : renommer.sh ARBRE TABLE [ETAPE]" >&2; exit 2; }
-A="$(cd -P "$1" && pwd)"; T="$(realpath "$2")"; E="${3:-}"
+MODE=renommer
+case "${1:-}" in generer|verifier) MODE=$1; shift ;; esac
+if [ "$MODE" = renommer ]; then
+  [ $# -ge 2 ] || { echo "usage : renommer.sh ARBRE TABLE [ETAPE] | renommer.sh generer|verifier ARBRE OPTIONS…" >&2
+                    exit 2; }
+  A="$(cd -P "$1" && pwd)"; T="$(realpath "$2")"; E="${3:-}"
+else
+  [ $# -ge 2 ] || { echo "usage : renommer.sh $MODE ARBRE OPTIONS…" >&2; exit 2; }
+  A="$(cd -P "$1" && pwd)"; shift; OPTIONS=("$@")
+fi
 refus() { echo "renommer.sh : $A $1 ; refusé." >&2; exit 2; }
 [ -e "$A/.git" ] || refus "n'a pas de .git (une copie hors de git : git mv n'y agirait pas)"
 HAUT=$(git -C "$A" rev-parse --show-toplevel 2> /dev/null) || refus "n'est pas dans un arbre git"
@@ -50,6 +63,12 @@ for p in iXtal26/iXtal26.csproj tools/iXtal26.Diff/iXtal26.Diff.csproj tools/per
       echo "renommer.sh : msbuild a échoué sur $p ($W/$n.json)." >&2; exit 2; }
   J+=("$W/$n.json")
 done
+if [ "$MODE" != renommer ]; then
+  rc=0
+  dotnet "$ICI/bin/Release/net10.0/iXtal26.Renommage.dll" "$MODE" --arbre "$A" "${OPTIONS[@]}" "${J[@]}" || rc=$?
+  rm -rf "$W"
+  exit $rc
+fi
 JOURNAL=${JOURNAL:-$(dirname "$A")/renommage-$(basename "$A").tsv}
 ET=(); [ -n "$E" ] && ET=(--jusqua "$E")
 dotnet "$ICI/bin/Release/net10.0/iXtal26.Renommage.dll" --noms "$T" "${ET[@]}" --arbre "$A" --journal "$JOURNAL" \

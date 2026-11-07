@@ -1,0 +1,27 @@
+// SPDX-FileCopyrightText: 2026 Julien Peloille
+// SPDX-License-Identifier: GPL-2.0-only
+//
+// noms: G15 — les membres prennent la forme .NET (PLAN-G15.md, Q40 ; § G15.0b). Ancien → nouveau → ce qu'il désigne.
+//   La suite de tools/noms/g14.txt : les outils de la preuve lisent les deux à la suite (--noms g14.txt --noms
+//   g15.txt), comme une seule table, d'étape en étape depuis le commit R.
+//
+// La grammaire, celle de g14.txt (les étapes, les types de premier niveau, les fichiers, les refus), ÉTENDUE :
+//   - CHAQUE ÉTAPE nomme ce qu'elle renomme sous les noms qu'il porte à son début, après les étapes d'avant
+//     (iXtal26.Ics.PIC, le nouveau de G14.1, est un ancien de G15) ; les refus se jugent étape par étape, et un nom
+//     se traduit en passant les étapes dans l'ordre ;
+//   - un TYPE IMBRIQUÉ : « //   iXtal26.A+B  iXtal26.A+C », le conteneur écrit à l'identique des deux côtés (il a sa
+//     propre entrée s'il change) ;
+//   - un MEMBRE : « //   iXtal26.A::membre  Nouveau », le type déclarant sous son ancien nom (A+B pour un type
+//     imbriqué), le nouveau un identifiant ; une entrée vaut pour toutes les surcharges d'une méthode ;
+//   - un PARAMÈTRE : « //   iXtal26.A::methode(param)  nouveau », dans toutes les surcharges de la méthode ;
+//   - un LITTÉRAL de la liste close : « //   "ancien"  "nouveau" », une chaîne qui suit un membre (la réflexion,
+//     h.Method.Name, les noms de champs lus par GetField : PLAN-G15 § G15.0b, R0 § 1.4) ; toute autre chaîne
+//     changée reste un écart pour les outils.
+//   Refusés, dans une étape : deux anciens vers un même nouveau dans une même portée (les membres et les types
+//   imbriqués d'un type ; les paramètres d'une méthode), un nouveau qui est l'ancien d'une autre entrée de la même
+//   portée, un membre qui prendrait le nom de son conteneur (CS0542). Contre les projets (tools/renommage verifier) :
+//   un type, un membre, un paramètre absent, un littéral écrit nulle part, une collision avec un membre que la table
+//   ne renomme pas.
+//
+// Les entrées se génèrent par la règle de Q40 (tools/noms/RegleNoms.cs, tools/renommage generer) et les exceptions
+// écrites de tools/noms/exceptions-g15.txt ; une étape les copie ici, telles que générées.

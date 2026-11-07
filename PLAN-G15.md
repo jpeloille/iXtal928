@@ -12,7 +12,8 @@ Les onze questions (Q40 à Q50, ci-dessous) sont tranchées par Julien le 04/11 
 proposition est la décision. G15.0a est faite (le banc des constructions interdites, la frontière des chemins chauds, la
 base à R ; VERIFICATION.md § G15.0a). Q48 est rouverte le 05/11 : G15.P, la performance avant les renommages, est
 faite (P0, quatre candidats mesurés ; P1, OP_ARITH par des structures, sous la règle du témoin calé, son résidu admis
-le 08/11 ; VERIFICATION.md § G15.P). G15.0b attend son feu vert. La référence reste celle de G14 : le commit R =
+le 08/11 ; VERIFICATION.md § G15.P). G15.0b est en cours, feu vert du 08/11 : 0b1 est faite (la table des membres ;
+VERIFICATION.md § G15.0b). La référence reste celle de G14 : le commit R =
 `f15e11f`, `/var/tmp/ixtal-g14/ref-R`, les séries `g14r` et `g14r-tout` (VERIFICATION.md § G14.0d), jusqu'à la fin de
 G15.
 
@@ -185,7 +186,20 @@ G15.8 renomment le code final, et que leurs outils n'aient pas à normaliser des
 
 ### G15.0b — Les outils de la preuve des membres
 
-Rien de l'émulateur ne change.
+Rien de l'émulateur ne change. Feu vert du 08/11. Six sous-étapes, chacune commitée avec ses portes (la DLL
+d'iXtal26 identique au sha256, ses essais et ses contrôles négatifs ; ni série ni banc) :
+- **0b1, la table des membres** ✅ : la grammaire étendue, la lecture étape par étape, la règle de Q40, le
+  générateur et la vérification (`tools/renommage generer`, `verifier`) ;
+- **0b2, `ildump`** : la table des membres appliquée, les noms générés normalisés, l'écart attendu, `references`,
+  l'option des paramètres ;
+- **0b3, `listings-jit.sh compare`** : la table des membres, les noms générés, la liste close ;
+- **0b4, `tools/renommage`** : les membres et la vérification de liaison ; les générateurs de `Cpu/` ;
+- **0b5, les relevés et les petits outils** : les `using`, le code mort privé, les constructions interdites ; les
+  générateurs de `Cpu/` régénérés à HEAD ; `compare-ref.sh` ; `check-doc5150.sh` ;
+- **0b6, la répétition générale** sur `Ics/Intel8259A.cs` et ses appelants, les contrôles négatifs d'ensemble, la
+  clôture de l'étape.
+
+Ce qui suit est le contenu de l'étape entière.
 - **La table des membres** : générée par la règle de Q40, avec ses exceptions écrites et ses refus (une collision,
   un membre absent, un nouveau égal à son conteneur) ; la liste close des littéraux qui suivent leur membre (les onze
   chaînes, les états attendus de `Reference.cs`), lue par `ildump` comme par `listings-jit.sh` ; la grammaire de

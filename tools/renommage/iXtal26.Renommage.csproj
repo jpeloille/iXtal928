@@ -34,6 +34,8 @@
         </Reference>
         <!-- La lecture de la table des noms, partagée avec tools/ildump. -->
         <Compile Include="../noms/TableDesNoms.cs" Link="TableDesNoms.cs"/>
+        <!-- La règle de conversion de Q40 (G15.0b). -->
+        <Compile Include="../noms/RegleNoms.cs" Link="RegleNoms.cs"/>
     </ItemGroup>
 
 </Project>

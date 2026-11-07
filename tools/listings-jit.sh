@@ -243,6 +243,10 @@ def table_des_noms(chemin, jusqua):
             if etape == jusqua:
                 vue = arret = True
             continue
+        if re.match(r'^//   "', l) or re.match(r'^//   iXtal26\S*(::|\+)', l):
+            # La grammaire de G15.0b (TableDesNoms.cs) : un littéral, un membre, un paramètre ou un type imbriqué, que
+            # cette lecture n'applique pas encore.
+            refuser(f'{chemin}:{n} : un membre, un paramètre, un type imbriqué ou un littéral : pas encore appliqué')
         m = re.match(r'^//   (iXtal26\S*)(?:\s+(\S+))?', l)
         if not m:
             continue

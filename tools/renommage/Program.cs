@@ -82,13 +82,14 @@ internal static class Program
         }
     }
 
-    private sealed class Refus(string m) : Exception(m);
+    internal sealed class Refus(string m) : Exception(m);
 
     /// <summary>Les fichiers qui commencent par la marque d'ordre des octets, réécrits avec elle.</summary>
     private static readonly HashSet<string> Bom = new(StringComparer.Ordinal);
 
     private static int Lancer(string[] args)
     {
+        if (args.Length > 0 && args[0] is "generer" or "verifier") return LancerMembres(args);
         string? noms = null, jusqua = null, arbre = null, journal = null, deplacements = null;
         var jsons = new List<string>();
         for (var i = 0; i < args.Length; i++)
@@ -110,6 +111,11 @@ internal static class Program
             return 2;
         }
         var table = TableDesNoms.Lire(noms, jusqua);
+        // La grammaire de G15.0b nomme aussi des membres : ce mode ne renomme que des types et des fichiers, et refuse
+        // une table qui en a, plutôt que de les ignorer.
+        if (table.NommeDesMembres)
+            throw new Refus("la table nomme des types imbriqués, des membres, des paramètres ou des littéraux, que ce "
+                            + "mode ne renomme pas encore");
         var projets = new List<Projet>();
         foreach (var j in jsons) projets.Add(Charger(j, projets));
         var avertissementsAvant = new Dictionary<string, int>(StringComparer.Ordinal);
@@ -384,6 +390,53 @@ internal static class Program
         return 0;
     }
 
+    /// <summary>Les deux modes de la table des membres (Membres.cs en dit l'usage).</summary>
+    private static int LancerMembres(string[] args)
+    {
+        var noms = new List<string>();
+        var famille = new List<string>();
+        string? jusqua = null, depuis = null, exceptions = null, etape = null, sortie = null, arbre = null;
+        var jsons = new List<string>();
+        for (var i = 1; i < args.Length; i++)
+        {
+            switch (args[i])
+            {
+                case "--noms" when i + 1 < args.Length: noms.Add(args[++i]); break;
+                case "--jusqua" when i + 1 < args.Length: jusqua = args[++i]; break;
+                case "--depuis" when i + 1 < args.Length: depuis = args[++i]; break;
+                case "--famille" when i + 1 < args.Length: famille.Add(args[++i]); break;
+                case "--exceptions" when i + 1 < args.Length: exceptions = args[++i]; break;
+                case "--etape" when i + 1 < args.Length: etape = args[++i]; break;
+                case "--sortie" when i + 1 < args.Length: sortie = args[++i]; break;
+                case "--arbre" when i + 1 < args.Length: arbre = Path.GetFullPath(args[++i]); break;
+                default: jsons.Add(args[i]); break;
+            }
+        }
+        var generer = args[0] == "generer";
+        if (jsons.Count == 0 || arbre == null
+            || (generer ? famille.Count == 0 || exceptions == null || etape == null || sortie == null
+                : noms.Count == 0))
+        {
+            Console.Error.WriteLine("usage : renommage generer --arbre ARBRE --famille PRÉFIXE… --exceptions F "
+                                    + "--etape ETAPE --sortie F J1 [J2…]");
+            Console.Error.WriteLine("        renommage verifier --arbre ARBRE --noms TABLE… [--depuis ETAPE] "
+                                    + "[--jusqua ETAPE] J1 [J2…]");
+            return 2;
+        }
+        var projets = new List<Projet>();
+        foreach (var j in jsons) projets.Add(Charger(j, projets));
+        foreach (var p in projets)
+        {
+            var err = p.Comp.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
+            if (err.Count > 0)
+                throw new Refus($"la compilation de {p.Nom} a {err.Count} erreurs, la première : {err[0]}");
+        }
+        Console.WriteLine($"  {projets.Count} projets, {projets.Sum(p => p.Arbres.Count)} fichiers ; la compilation "
+                          + "est sans erreur");
+        return generer ? Membres.Generer(projets, arbre, famille, exceptions!, etape!, sortie!)
+            : Membres.Verifier(projets, TableDesNoms.Lire(noms, jusqua, depuis));
+    }
+
     /// <summary>
     /// La partie gauche d'un nom qualifié, l'espace de noms remplacé, dans la forme où elle était écrite :
     /// `iXtal26.Models` devient `iXtal26.Ics`, `Models` (relatif à l'espace englobant iXtal26) devient `Ics`,
@@ -452,7 +505,7 @@ internal static class Program
     }
 
     /// <summary>Un projet, d'après le JSON de `dotnet msbuild -getItem:Compile -getItem:ReferencePath…`.</summary>
-    private static Projet Charger(string json, List<Projet> avant)
+    internal static Projet Charger(string json, List<Projet> avant)
     {
         using var doc = JsonDocument.Parse(File.ReadAllText(json));
         var props = doc.RootElement.GetProperty("Properties");
