@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: 2026 Julien Peloille
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Les faux positifs connus d'ildump references (G15.0b2, References.cs en dit la règle) : un membre que l'IL ne nomme
+# pas, et qui sert. « Type::nom  raison » par ligne.
+#
+# ConditionalWeakTable<TKey, TValue>.GetOrCreateValue construit sa valeur par son constructeur sans paramètre, par
+# réflexion (Activator) : les états du mode matériel attachés à un objet du transcrit.
+iXtal26.Scsi.scsi_aha1540+EtatAha+Cavalier::.ctor     ConditionalWeakTable.GetOrCreateValue (scsi_aha1540.Materiel.cs)
+iXtal26.Scsi.scsi_aha1540+EtatAha+Mailbox::.ctor      ConditionalWeakTable.GetOrCreateValue (scsi_aha1540.Materiel.cs)
+iXtal26.Scsi.scsi_aha1540+EtatAha+Transfert::.ctor    ConditionalWeakTable.GetOrCreateValue (scsi_aha1540.Materiel.cs)
+iXtal26.Scsi.scsi_hd_c+EtatHd+Extension::.ctor        ConditionalWeakTable.GetOrCreateValue (scsi_hd.Materiel.cs)
+iXtal26.Scsi.scsi_zip_c+EtatZip+Extension::.ctor      ConditionalWeakTable.GetOrCreateValue (scsi_zip.Materiel.cs)
+iXtal26.Sound.sound_sb_dsp+EtatDsp+Etat::.ctor        ConditionalWeakTable.GetOrCreateValue (sound_sb_dsp.Materiel.cs)
+iXtal26.Video.vid_et4000+EtatEt4+Etat::.ctor          ConditionalWeakTable.GetOrCreateValue (vid_et4000.Materiel.cs)
+iXtal26.Video.vid_hercules+EtatHerc+Etat::.ctor       ConditionalWeakTable.GetOrCreateValue (vid_hercules.Materiel.cs)
+iXtal26.Video.vid_mda+EtatMda+Etat::.ctor             ConditionalWeakTable.GetOrCreateValue (vid_mda.Materiel.cs)
+iXtal26.Mfm.mfm_xebec+AdresseSense::.ctor              ConditionalWeakTable.GetOrCreateValue (mfm_xebec.Materiel.cs)

@@ -20468,3 +20468,134 @@ une règle plus grossière qui ramenait aussi les sigles de deux lettres à une 
 - Aucune table complète n'est générée : la règle seule a 24 refus, que les exceptions de chaque famille trancheront.
 - Les propriétés positionnelles d'un `record struct` (`HardDiskControllers.cs:34`, `DisplaySettings.cs:29`,
   `ide.cs:145`) ont un paramètre de constructeur que la grammaire ne nomme pas : à juger avec leur famille.
+
+### G15.0b2 — `ildump`, la table des membres et les noms générés
+
+**Ce qui est livré** (`tools/ildump/Program.cs`, son en-tête et celui du `Videur`, « LES NOMS »).
+- **La table entière.** `--noms` se répète (`g14.txt`, puis `g15.txt`), `--depuis` et `--jusqua` bornent les
+  étapes. La table s'applique au vidage de REF, aux types, aux types imbriqués, aux membres et aux paramètres, chacun
+  traduit en passant les étapes dans l'ordre. Le refus provisoire de 0b1 est levé.
+- **Ce qui dérive d'un membre suit ce membre** :
+  - un accesseur (`get_X`, `set_X`, `add_X`, `remove_X`, `raise_X`), si la propriété ou l'événement X existe dans le
+    type (une méthode ordinaire de ce nom, `set_nvr_path`, `set_use32`, non) ;
+  - le champ d'une propriété automatique (`<X>k__BackingField`) ;
+  - une lambda (`<X>b__N_M`, ou `<X>b__K` dans une classe de fermeture), une fonction locale (`<X>g__F|N_M`) et une
+    machine d'états (`<X>d__N`), par la méthode X du type qui les porte ;
+  - un champ du cache de délégués (`<>O.<k>__X`), par la méthode X du type qui porte `<>O`, ou par la seule entrée X
+    de la table si elle est unique. Ambiguë, elle n'est pas traduite, et la comparaison le montre.
+- **La liste close des littéraux** : une chaîne de la liste (`ldstr`, et la valeur d'une constante) devient la
+  nouvelle ; toute autre chaîne changée reste un écart.
+- **Les vérifications de la table** jugent les types de premier niveau sur la table composée, de leur nom de R à leur
+  dernier nom. Les membres ne sont pas jugés par `ildump` : `tools/renommage verifier` les juge contre les sources,
+  et la comparaison montre ce qui manque.
+- **`--generes`, la normalisation des noms générés, des deux côtés.** Le numéro de méthode N de `b__N_M`, `g__F|N_M`,
+  `d__N`, `<>c__DisplayClassN_M`, `<>9__N_M` et `<>c__N` devient « X#k » : X la méthode propriétaire, k le rang de N
+  parmi ses surcharges. N est le rang de la méthode dans son type : une méthode ôtée, ajoutée ou déplacée le décale
+  sans rien changer au code (R2-contre § 1.6). Le propriétaire se lit dans le nom quand il y est, sinon dans les
+  lambdas que le nom porte. Le numéro d'un champ du cache de délégués devient son rang parmi ceux de la même méthode.
+  Une première forme, par le rang de N parmi tous les numéros du type, n'enlevait presque rien de l'écart de G15.P :
+  un numéro ôté décale tous les suivants. Cet essai n'est pas journalisé, la forme ayant été récrite aussitôt.
+- **`--attendu FICHIER`, l'écart attendu** : une ligne « changée|disparue|apparue CLÉ » par entrée. La comparaison
+  rend 0 si et seulement si l'écart est exactement celui-là, et dit ce qui en sort et ce qui manque.
+- **`--sans-noms-de-parametres`** : les paramètres comparés par leur rang, leurs drapeaux et leur constante (G15.9).
+- **Une option que la commande n'emploie pas** est une erreur d'usage (rc 2), et un écart attendu absent est refusé
+  avant la comparaison.
+- **`ildump references DLL…`** (`References.cs`), le relevé des méthodes et des champs que l'IL ne nomme pas, pour le
+  code mort de G15.1 :
+  - une méthode, un champ, sont cherchés dans l'IL des DLL données et dans les attributs ; un champ est classé lu ou
+    écrit, et l'écriture dans un constructeur est comptée à part ;
+  - une référence (MemberRef) vaut pour toutes les surcharges de son nom : le relevé est une borne, il sous-compte
+    ce qui est mort ;
+  - ne sont pas candidats : ce que le compilateur déclare (un nom en « < », `[CompilerGenerated]`), les `.cctor`, le
+    virtuel, ce que le runtime implémente, l'implémentation d'un membre d'une interface de l'assemblage nommée par le
+    type (`static abstract` compris), le point d'entrée, les constantes, les champs d'enum et à RVA ;
+  - `--faux-positifs` nomme ce que l'IL ne voit pas (`tools/ildump/faux-positifs.txt`, un doublon refusé) : les dix
+    états que `ConditionalWeakTable.GetOrCreateValue` construit par réflexion.
+
+**Les essais** (`b2-preuve.log`, `outils/b2-preuve.sh`, chaque contrôle avec son journal dans `b2/`) :
+- **Auto-comparaisons** : R contre R, et HEAD contre HEAD sous `--generes --sans-noms-de-parametres`, 0/0/0.
+- **La non-régression** : R contre la DLL de G14.5 par `g14.txt --jusqua G14.4`, 0/0/0 sur 5 738 entrées, avec et
+  sans `--generes`.
+- **Les noms générés, sur un vrai changement**, l'iXtal26 d'avant G15.P (`bca2759`, égal à `61a85d9`) contre HEAD :
+  - sans `--generes`, 102 changées, 184 disparues, 170 apparues, l'écart que § G15.P laissait à la renumérotation ;
+  - avec, 4 changées, 105 disparues, 91 apparues, toutes dans OP_ARITH et ses appelants. Les quatre changées sont
+    `PoserGroupeArith`, `PoserGroupeArith386`, `_386+<>O` et `_386+<>c`. Les disparues et apparues sont les délégués,
+    les fermetures et les lambdas d'avant (les 50 disparues de `_386+<>c` sont celles de `PoserGroupeArith` et de
+    `PoserGroupeArith386`), et les structures et les lambdas génériques d'après. Les 98 entrées (94 méthodes, 4
+    classes de fermeture) qui ne changeaient que par les numéros des noms générés ne sortent plus.
+- **Un renommage fait à la main**, dans un worktree jetable de HEAD (`b2-essai`), par `sed` :
+  - la méthode `Intel8259A::picintc` (27 occurrences) et le champ `pic_intpending` (10) dans iXtal26 et Diff, le
+    paramètre `num` de `picint` (7 : la signature et 6 dans le corps), le littéral `"opFCLEX"` de `x87.Materiel.cs` ;
+  - sans table : 25 changées, 1 disparue, 1 apparue ;
+  - avec la table de quatre entrées (`b2/essai.txt`) : **0/0/0**. La comparaison compte 29 occurrences de noms de
+    membres réécrites dans le vidage de REF, 1 de paramètre et 1 de littéral ;
+  - depuis R, par `g14.txt`, `g15.txt` et la table d'essai, sous `--generes` : 4/105/91, exactement l'écart de G15.P.
+    La traduction d'un membre à travers les étapes tient : R, puis G14.1 (`Models.pic` → `Ics.Intel8259A`), puis
+    l'essai.
+- **L'écart attendu**, sur ce dernier cas (par `g14.txt` et la table d'essai) : les 200 lignes de l'écart, rc 0 ; une
+  ligne en moins, rc 1, l'entrée hors de l'écart nommée ; une ligne fausse en plus, rc 1, « attendu, non vu ». Les
+  200 lignes ont été tirées de la sortie de l'outil : le vert n'a de valeur que par les deux variantes, qui doivent
+  rougir.
+- **Les paramètres** : la table sans l'entrée du paramètre, 1 changée (`picint`) ; la même sous
+  `--sans-noms-de-parametres`, 0/0/0.
+- **Le littéral** : la table sans l'entrée de `"opFCLEX"`, 1 changée, la lambda de `_x87_materiel` qui le lit.
+- **Une méthode ajoutée avant des lambdas**, `Inutile()` devant `_x87_materiel.poser` (`b2/essai-2.dll`) :
+  - sans `--generes`, 4 changées, 7 disparues, 8 apparues : les lambdas et les fermetures du type ont toutes changé
+    de numéro ;
+  - avec, et l'écart attendu d'une ligne (« apparue `Inutile` »), **rc 0**. C'est le contrôle négatif du plan, « une
+    méthode ôtée avant une lambda : l'écart attendu tient, le nom généré normalisé ».
+- **Un vrai changement dans une lambda reste vu** (`essai-3`, `"OpFclex2"` dans la lambda de `poser`) : sous
+  `--generes`, 1 changée.
+- **Une méthode à lambdas de classe de fermeture renommée** (`essai-4`, `_386::PoserIncDecRegistres`) : sans table,
+  1/3/3 ; avec, 0/0/0, sous `--generes` aussi.
+- **Un accesseur et une méthode ordinaire** : le champ `paths::nvr_path` renommé par la table, `paths::set_nvr_path`
+  reste (2 lignes), aucun `set_NvrPath`.
+- **Un type imbriqué référencé** garde le préfixe de son assemblage : `[System.Collections]…List`1+Enumerator`,
+  34 lignes, aucune sans.
+- **Les options** : `vider --attendu`, `references --generes`, un `--attendu` absent : rc 2.
+- **Le relevé des références** sur HEAD (iXtal26, Diff, le banc) :
+  - 5 104 méthodes, dont 4 062 candidates ; 6 080 champs, dont 3 263 candidats ;
+  - 140 méthodes que l'IL ne nomme jamais, dont les 10 faux positifs connus, soit 130 ; 55 champs jamais nommés ;
+    119 écrits mais jamais lus ;
+  - contrôle positif : `X87NonTranscrit`, la seule fonction morte du fait d'iXtal26 selon R2, y est ;
+  - les cibles des six sites de réflexion de R2-contre § 1.1 (`ILLEGAL`, `memcycs`, les `_iir_x` et `_iir_y`,
+    `speaker_pos`, `speaker_buffer`, `setadc8`) ne sont pas parmi les candidats : l'IL les nomme aussi ailleurs.
+
+  R2 comptait 191 méthodes, 129 une fois les `record` et les constructeurs ôtés (`R2-nettoyage.md:12`). La
+  contre-lecture de R2 ramenait cela à 127 méthodes transcrites mortes (80 + 47), plus `X87NonTranscrit` et sa
+  cascade, et 55 champs ; R2 comptait aussi 120 champs écrits jamais lus. L'ordre de grandeur est le même ; le tri
+  revient à G15.1 (Q47).
+  - Deux faux positifs ont été trouvés et écartés en route : les implémentations des membres `static abstract`
+    d'`IAluArith`, que l'IL appelle par `!!TAlu::Op8`, et les membres que le compilateur synthétise pour un `record`.
+  - Un défaut de lecture a été repris en route : le `switch` de l'IL, lu de 4 octets trop court (`r.Offset += 4 *
+    r.ReadInt32()` lisait la position avant le compte).
+
+**Les portes.**
+- La DLL d'iXtal26 est identique au sha256, construite au même chemin, dans `g150b-ref` avancé à HEAD (`dba3721`),
+  avant puis après y avoir copié les fichiers de l'étape : `da8849a3…` les deux fois, chaque pas noté. La porte est
+  nécessaire mais presque vide ici : `tools/ildump` n'entre pas dans le projet d'iXtal26.
+- `tools/ildump` se construit sans avertissement, sans paquet.
+- Aucune ligne neuve au-delà de 120 caractères.
+- Ni série ni banc (décision n° 5, Q50).
+
+**Contre-lecture**, en deux relectures, reprises :
+- **Le code** : deux erreurs reprises, et des essais ajoutés pour chacune :
+  - les lambdas d'une classe de fermeture (`<X>b__K`) ne suivaient pas le renommage de leur méthode : un faux écart
+    après un vrai renommage ;
+  - un type imbriqué référencé perdait le préfixe de son assemblage.
+
+  Imprécisions reprises : un accesseur suivi seulement si la propriété existe ; les commentaires du relevé (la
+  borne des surcharges, le lu et l'écrit, les constructeurs) ; l'arité d'une machine d'états ; les options mal
+  placées ; le message de `--generes` ; un doublon de faux positif ; un opcode inconnu refusé par le relevé.
+- **La preuve** : une erreur reprise, le dixième faux positif de `ConditionalWeakTable` (`mfm_xebec+AdresseSense`),
+  que le texte disait absent : le plan et R2 avaient raison. Imprécisions reprises : « OP_ARITH et ses appelants »,
+  98 entrées et non 98 méthodes, Diff et non le banc, les occurrences du paramètre, ce que compte « 29 », les
+  chiffres de R2, le premier essai non journalisé. Contrôles ajoutés : une lambda changée reste vue, les cibles de
+  réflexion et `X87NonTranscrit` relevés dans le journal.
+
+**Ce que ce vert ne dit pas.**
+- Les noms générés que les essais n'ont pas rencontrés : une lambda asynchrone (`<<M>b__0_0>d`), les champs hissés
+  d'une machine d'états (`<x>5__2`), qui portent le nom d'une locale (G15.9). Aucun n'est dans HEAD.
+- Les interfaces suivies par le relevé sont celles que le type nomme directement ; une interface héritée, ou
+  implémentée par la classe de base, ne l'est pas (le relevé sous-compte alors ce qui est mort).
+- Le relevé des références est une borne : une référence d'une autre DLL vaut pour toutes les surcharges de son nom.

@@ -2,18 +2,23 @@
 // SPDX-License-Identifier: GPL-2.0-only
 //
 // ORACLE: (aucun) — outillage de la preuve des noms (G14.0c, PLAN-G14.md § G14.0c ; R2-noms.md § 1.7, R2-contre.md
-// § 0 point 7).
+// § 0 point 7) ; étendu aux membres en G15.0b2 (PLAN-G15.md § G15.0b).
 //
 // LE VIDAGE DE L'IL d'un assemblage, par System.Reflection.Metadata (dans le runtime : rien à installer).
 //
-//   ildump vider DLL SORTIE [--noms TABLE [--jusqua ETAPE]]
-//   ildump comparer REF AUTRE [--noms TABLE [--jusqua ETAPE]] [--sorties DOSSIER]
+//   ildump vider DLL SORTIE [OPTIONS]
+//   ildump comparer REF AUTRE [OPTIONS] [--sorties DOSSIER] [--attendu FICHIER]
+//   ildump references DLL [DLL…] [--faux-positifs FICHIER]
+//   OPTIONS : [--noms TABLE…] [--depuis ETAPE] [--jusqua ETAPE] [--generes] [--sans-noms-de-parametres]
 //
 // Le vidage est une suite d'entrées « == clé », triées par clé (l'ordre ordinal) : l'assemblage, chaque type, chaque
 // méthode. La clé est le nom qualifié : l'ordre des TypeDef et des jetons, qui suit l'ordre de compilation des
-// fichiers, n'y entre pas (R2-noms.md § 1.7). Chaque jeton de l'IL est résolu en nom ; la table des noms s'applique
-// à chaque nom de type, à la clé comme au corps, et seulement au vidage de REF (les noms anciens deviennent les
-// nouveaux). Ce qui est vidé :
+// fichiers, n'y entre pas (R2-noms.md § 1.7). Chaque jeton de l'IL est résolu en nom ; la table des noms (--noms,
+// plusieurs à la suite : tools/noms/g14.txt puis g15.txt ; --depuis et --jusqua bornent les étapes) s'applique à
+// chaque nom de type, de membre et de paramètre, et à la liste close des littéraux, à la clé comme au corps, et
+// seulement au vidage de REF (les noms anciens deviennent les nouveaux ; Videur, « LES NOMS », dit comment, et ce que
+// --generes normalise des deux côtés). --sans-noms-de-parametres compare les paramètres par leur rang, leurs drapeaux
+// et leur constante, sans leur nom (G15.9). Ce qui est vidé :
 //   - l'assemblage : nom, version, culture, drapeaux, clé publique, algorithme ; les références d'assemblage et de
 //     module et les ressources (leur sha256), chacune avec ses attributs ; les attributs de l'assemblage et du
 //     module ; le point d'entrée ;
@@ -32,15 +37,19 @@
 // seul bruit connu, retiré et dit : le suffixe « +commit » d'AssemblyInformationalVersionAttribute, que le SDK pose
 // d'après le commit de l'arbre ; les deux commits sont imprimés en tête de la comparaison.
 //
-// La table (tools/noms/g14.txt) est vérifiée contre les assemblages : chaque type ANCIEN doit être un type de premier
-// niveau de REF, qu'il le définisse ou le référence (iXtal26.Diff référence les types d'iXtal26 ; un assemblage qui
-// ne fait que référencer peut ne pas nommer tel type, des deux côtés, et c'est dit) ; avec comparer, chaque NOUVEAU
-// doit être un type d'AUTRE, absent de REF, et l'ANCIEN absent d'AUTRE.
-// Une entrée qui désigne un membre (le parent est un type de REF) est refusée : la table ne renomme que des types.
-// Les entrées de fichiers ne concernent pas l'IL : elles sont comptées et ignorées.
+// La table est vérifiée contre les assemblages pour ses types de premier niveau, composés d'étape en étape (du nom de
+// R au dernier) : chaque ANCIEN doit être un type de premier niveau de REF, qu'il le définisse ou le référence
+// (iXtal26.Diff référence les types d'iXtal26 ; un assemblage qui ne fait que référencer peut ne pas nommer tel type,
+// des deux côtés, et c'est dit) ; avec comparer, chaque NOUVEAU doit être un type d'AUTRE, absent de REF, et l'ANCIEN
+// absent d'AUTRE. Une entrée de la grammaire de G14 qui désigne un membre (A.B.membre, le parent un type de REF) est
+// refusée. Les membres, les types imbriqués, les paramètres et les littéraux ne sont pas jugés ici (tools/renommage
+// verifier les juge contre les sources) : le vidage les applique, la comparaison montre ce qui manque. Les entrées de
+// fichiers ne concernent pas l'IL : elles sont comptées et ignorées.
+// --attendu FICHIER : l'écart attendu, une ligne « changée|disparue|apparue CLÉ » par entrée (# commente) ; la
+// comparaison rend 0 si et seulement si l'écart est exactement celui-là, et dit ce qui en sort et ce qui manque.
+// ildump references : le relevé des membres que l'IL ne nomme pas (References.cs en dit la règle).
 //
-// Retour : 0 identiques ; 1 des écarts (entrées changées, disparues ou apparues) ; 2 usage, lecture ou table
-// refusée.
+// Retour : 0 identiques (ou l'écart attendu exact) ; 1 des écarts ; 2 usage, lecture ou table refusée.
 
 using System.Collections.Immutable;
 using System.Globalization;
@@ -73,36 +82,53 @@ internal static class Program
 
     private static int Usage()
     {
-        Console.Error.WriteLine("usage : ildump vider DLL SORTIE [--noms TABLE [--jusqua ETAPE]]");
-        Console.Error.WriteLine("        ildump comparer REF AUTRE [--noms TABLE [--jusqua ETAPE]] "
-                                + "[--sorties DOSSIER]");
+        Console.Error.WriteLine("usage : ildump vider DLL SORTIE [OPTIONS]");
+        Console.Error.WriteLine("        ildump comparer REF AUTRE [OPTIONS] [--sorties DOSSIER] [--attendu FICHIER]");
+        Console.Error.WriteLine("        ildump references DLL [DLL…] [--faux-positifs FICHIER]");
+        Console.Error.WriteLine("OPTIONS : [--noms TABLE…] [--depuis ETAPE] [--jusqua ETAPE] [--generes] "
+                                + "[--sans-noms-de-parametres]");
         return 2;
     }
 
     private static int Lancer(string[] args)
     {
         var pos = new List<string>();
-        string? noms = null, jusqua = null, sorties = null;
+        var noms = new List<string>();
+        string? jusqua = null, depuis = null, sorties = null, attendu = null, fauxPositifs = null;
+        bool generes = false, sansParametres = false;
         for (var i = 0; i < args.Length; i++)
         {
             switch (args[i])
             {
-                case "--noms" when i + 1 < args.Length: noms = args[++i]; break;
+                case "--noms" when i + 1 < args.Length: noms.Add(args[++i]); break;
                 case "--jusqua" when i + 1 < args.Length: jusqua = args[++i]; break;
+                case "--depuis" when i + 1 < args.Length: depuis = args[++i]; break;
                 case "--sorties" when i + 1 < args.Length: sorties = args[++i]; break;
+                case "--attendu" when i + 1 < args.Length: attendu = args[++i]; break;
+                case "--faux-positifs" when i + 1 < args.Length: fauxPositifs = args[++i]; break;
+                case "--generes": generes = true; break;
+                case "--sans-noms-de-parametres": sansParametres = true; break;
                 default:
                     if (args[i].StartsWith("--", StringComparison.Ordinal)) return Usage();
                     pos.Add(args[i]);
                     break;
             }
         }
-        if (jusqua != null && noms == null) return Usage();
-        var table = noms == null ? null : TableDesNoms.Lire(noms, jusqua);
+        if ((jusqua != null || depuis != null) && noms.Count == 0) return Usage();
+        // Une option que la commande n'emploie pas est une erreur d'usage, pas une option ignorée.
+        var cmd = pos.Count > 0 ? pos[0] : "";
+        if ((attendu != null || sorties != null) && cmd != "comparer") return Usage();
+        if (fauxPositifs != null && cmd != "references") return Usage();
+        if (cmd == "references" && (noms.Count > 0 || generes || sansParametres)) return Usage();
+        if (attendu != null && !File.Exists(attendu))
+            throw new FileNotFoundException($"l'écart attendu {attendu} n'existe pas");
+        if (pos.Count >= 2 && pos[0] == "references") return References.Lancer(pos.Skip(1).ToList(), fauxPositifs);
+        var table = noms.Count == 0 ? null : TableDesNoms.Lire(noms, jusqua, depuis);
         if (pos.Count == 3 && pos[0] == "vider")
         {
             using var r = new Assemblage(pos[1]);
             if (table != null) VerifierTable(table, r, null);
-            var v = new Videur(r, table).Vider();
+            var v = new Videur(r, table, generes, sansParametres).Vider();
             Ecrire(v, pos[2]);
             Console.WriteLine($"  {v.Count} entrées, {Compter(v)} ; vidées dans {pos[2]}");
             return 0;
@@ -112,9 +138,9 @@ internal static class Program
             using var r = new Assemblage(pos[1]);
             using var a = new Assemblage(pos[2]);
             if (table != null) VerifierTable(table, r, a);
-            var videurR = new Videur(r, table);
+            var videurR = new Videur(r, table, generes, sansParametres);
             var vr = videurR.Vider();
-            var va = new Videur(a, null).Vider();
+            var va = new Videur(a, null, generes, sansParametres).Vider();
             if (sorties != null)
             {
                 Directory.CreateDirectory(sorties);
@@ -125,8 +151,21 @@ internal static class Program
             if (table != null)
                 Console.WriteLine($"  table : {table.Types.Count} types et "
                                   + $"{table.Entrees.Count(e => e.EstFichier)} fichiers (ignorés par l'IL) ; "
-                                  + $"{videurR.Reecrits} noms réécrits dans le vidage de REF");
-            return Comparer(vr, va);
+                                  + $"{videurR.Reecrits} noms réécrits dans le vidage de REF"
+                                  + (table.NommeDesMembres
+                                      ? $" ; {table.Imbriques.Count} types imbriqués, "
+                                        + $"{table.Membres.Values.Sum(d => d.Count)} membres, "
+                                        + $"{table.Parametres.Values.Sum(d => d.Count)} paramètres, "
+                                        + $"{table.Litteraux.Count} littéraux : {videurR.ReecritsMembres} noms de "
+                                        + $"membres, {videurR.ReecritsParametres} paramètres, "
+                                        + $"{videurR.ReecritsLitteraux} littéraux réécrits (des occurrences)"
+                                      : ""));
+            if (generes)
+                Console.WriteLine("  noms générés : les numéros de méthode (b__N_M, g__…|N_M, d__N, "
+                                  + "<>c__DisplayClassN_M, <>9__N_M, <>c__N) remplacés par « méthode#rang », ceux du "
+                                  + "cache <>O par leur rang, des deux côtés");
+            if (sansParametres) Console.WriteLine("  paramètres : comparés sans leur nom, des deux côtés");
+            return Comparer(vr, va, attendu);
         }
         return Usage();
     }
@@ -149,7 +188,8 @@ internal static class Program
         }
     }
 
-    private static int Comparer(SortedDictionary<string, List<string>> r, SortedDictionary<string, List<string>> a)
+    private static int Comparer(SortedDictionary<string, List<string>> r, SortedDictionary<string, List<string>> a,
+                                string? attendu)
     {
         var disparues = r.Keys.Where(k => !a.ContainsKey(k)).ToList();
         var apparues = a.Keys.Where(k => !r.ContainsKey(k)).ToList();
@@ -167,17 +207,37 @@ internal static class Program
         }
         foreach (var k in disparues) Console.WriteLine($"  disparue   {k}");
         foreach (var k in apparues) Console.WriteLine($"  apparue    {k}");
-        return changees.Count + disparues.Count + apparues.Count == 0 ? 0 : 1;
+        if (attendu == null) return changees.Count + disparues.Count + apparues.Count == 0 ? 0 : 1;
+        // L'écart attendu : la comparaison rend 0 si et seulement si l'écart est exactement celui-là.
+        var vus = changees.Select(k => "changée " + k).Concat(disparues.Select(k => "disparue " + k))
+                          .Concat(apparues.Select(k => "apparue " + k)).ToHashSet(StringComparer.Ordinal);
+        var voulus = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var brute in File.ReadLines(attendu))
+        {
+            var l = brute.Trim();
+            if (l.Length == 0 || l.StartsWith('#')) continue;
+            var m = System.Text.RegularExpressions.Regex.Match(l, @"^(changée|disparue|apparue)\s+(.+)$");
+            if (!m.Success) throw new FormatException($"{attendu} : ligne illisible « {l} »");
+            if (!voulus.Add(m.Groups[1].Value + " " + m.Groups[2].Value))
+                throw new FormatException($"{attendu} : ligne en double « {l} »");
+        }
+        var inattendus = vus.Where(x => !voulus.Contains(x)).OrderBy(x => x, StringComparer.Ordinal).ToList();
+        var manquants = voulus.Where(x => !vus.Contains(x)).OrderBy(x => x, StringComparer.Ordinal).ToList();
+        foreach (var x in inattendus) Console.WriteLine($"  hors de l'écart attendu : {x}");
+        foreach (var x in manquants) Console.WriteLine($"  attendu, non vu : {x}");
+        Console.WriteLine($"  écart attendu ({attendu}) : {voulus.Count} lignes ; "
+                          + $"{voulus.Count - manquants.Count} vues, "
+                          + $"{manquants.Count} non vues, {inattendus.Count} écarts hors de lui");
+        return inattendus.Count + manquants.Count == 0 ? 0 : 1;
     }
 
     /// <summary>La table contre les assemblages ; une incohérence la fait refuser (retour 2).</summary>
     private static void VerifierTable(TableDesNoms t, Assemblage r, Assemblage? a)
     {
-        // La grammaire de G15.0b (tools/noms/TableDesNoms.cs) nomme aussi des types imbriqués, des membres, des
-        // paramètres et des littéraux : ildump ne les applique pas encore, et refuse une table qui en a.
-        if (t.NommeDesMembres)
-            throw new FormatException("la table nomme des types imbriqués, des membres, des paramètres ou des "
-                                      + "littéraux, qu'ildump n'applique pas encore : refusée");
+        // Les types de premier niveau sont jugés sur la table composée (de leur nom de R à leur dernier nom) : une
+        // étape qui renomme un type déjà renommé (iXtal26.Ics.PIC) ne nomme pas un type de R. Les membres, les types
+        // imbriqués, les paramètres et les littéraux ne sont pas jugés ici : le vidage les applique, et la
+        // comparaison montre ce qui manque (tools/renommage verifier les juge contre les sources).
         var typesR = r.TypesDePremierNiveau();
         var typesA = a?.TypesDePremierNiveau();
         // L'assemblage qui définit les types (iXtal26) est jugé strictement ; un assemblage qui ne fait que les
@@ -185,7 +245,9 @@ internal static class Program
         var definis = r.TypesDefinis();
         var strict = t.Types.Keys.Any(definis.Contains);
         var absents = new List<string>();
-        foreach (var e in t.Entrees.Where(e => !e.EstFichier))
+        foreach (var e in t.Types.Select(kv => t.Entrees.First(x => x.Genre == GenreNom.Type
+                                                                    && (x.Ancien == kv.Key || x.Nouveau == kv.Value))
+                                                 with { Ancien = kv.Key, Nouveau = kv.Value }))
         {
             if (!strict && !typesR.Contains(e.Ancien) && (typesA == null || !typesA.Contains(e.Nouveau))
                 && !typesR.Contains(e.Ancien[..e.Ancien.LastIndexOf('.')]))
@@ -299,19 +361,43 @@ internal sealed class Videur : ISignatureTypeProvider<string, object?>
     private readonly Assemblage _a;
     private readonly MetadataReader _md;
     private readonly TableDesNoms? _table;
+    private readonly bool _generes, _sansNomsDeParametres;
     private readonly SortedDictionary<string, List<string>> _sortie = new(StringComparer.Ordinal);
 
-    public int Reecrits { get; private set; }
+    /// <summary>Par type porteur (son ancien nom) : chaque numéro de méthode des noms générés, « X#k ».</summary>
+    private readonly Dictionary<string, Dictionary<int, string>> _rangs = new(StringComparer.Ordinal);
 
-    public Videur(Assemblage a, TableDesNoms? table)
+    /// <summary>Par type porteur : le numéro k de chaque champ du cache &lt;&gt;O, son rang parmi ceux de X.</summary>
+    private readonly Dictionary<string, Dictionary<int, int>> _rangsCache = new(StringComparer.Ordinal);
+
+    public int Reecrits { get; private set; }
+    public int ReecritsMembres { get; private set; }
+    public int ReecritsParametres { get; private set; }
+    public int ReecritsLitteraux { get; private set; }
+
+    public Videur(Assemblage a, TableDesNoms? table, bool generes = false, bool sansNomsDeParametres = false)
     {
         _a = a;
         _md = a.Md;
         _table = table;
+        _generes = generes;
+        _sansNomsDeParametres = sansNomsDeParametres;
     }
+
+    /// <summary>Les propriétés et les événements de chaque type défini (son ancien nom).</summary>
+    private readonly Dictionary<string, HashSet<string>> _accesseurs = new(StringComparer.Ordinal);
 
     public SortedDictionary<string, List<string>> Vider()
     {
+        foreach (var h in _md.TypeDefinitions)
+        {
+            var td = _md.GetTypeDefinition(h);
+            var s = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var ph in td.GetProperties()) s.Add(_md.GetString(_md.GetPropertyDefinition(ph).Name));
+            foreach (var eh in td.GetEvents()) s.Add(_md.GetString(_md.GetEventDefinition(eh).Name));
+            _accesseurs[AncienNomType(h)] = s;
+        }
+        if (_generes) CompterOrdinaux();
         ViderAssemblage();
         foreach (var h in _md.TypeDefinitions) ViderType(h);
         return _sortie;
@@ -319,31 +405,294 @@ internal sealed class Videur : ISignatureTypeProvider<string, object?>
 
     // ---- les noms ----
 
-    private string NomType(TypeDefinitionHandle h)
+    // LES NOMS. Chaque nom se lit d'abord sous son nom dans l'assemblage (l'« ancien », pour REF), puis se traduit :
+    // les types de premier niveau et imbriqués par la table (NouveauNomDeType, les étapes dans l'ordre), les membres et
+    // les paramètres par la table aussi (NouveauMembre, NouveauParametre), sous le nom du type qui les déclare ; les
+    // noms que le compilateur dérive d'un membre suivent ce membre :
+    //   - un accesseur, get_X, set_X, add_X, remove_X, raise_X, suit la propriété ou l'événement X de son type (une
+    //     méthode ordinaire de ce nom, set_use32, non : pour un type défini ici, la propriété doit exister) ;
+    //   - le champ d'une propriété automatique, <X>k__BackingField, suit X ;
+    //   - une lambda, <X>b__N_M (ou <X>b__K dans une classe de fermeture), une fonction locale, <X>g__F|N_M, une
+    //     machine d'états, <X>d__N, suivent la méthode X du type qui les porte (le type non généré qui les contient) ;
+    //   - un champ du cache de délégués, <>O.<k>__X, suit la méthode X du type qui porte <>O, ou, s'il n'en a pas
+    //     d'entrée, la seule méthode X de la table, si elle est unique (le cache nomme la cible d'un groupe de
+    //     méthodes, qui peut être d'un autre type ; ambiguë, elle n'est pas traduite, et la comparaison le montre).
+    // --generes (les deux côtés) remplace ensuite le numéro de méthode N de b__N_M, g__F|N_M, d__N,
+    // <>c__DisplayClassN_M, <>9__N_M et <>c__N (la classe des lambdas d'une méthode générique) par « X#k » : X, la
+    // méthode propriétaire (son nom, traduit par la table), k le rang de N parmi les numéros des méthodes de ce nom
+    // dans le même type porteur (ses surcharges). N est le rang de la méthode dans son type (R2-contre § 1.6) : une
+    // méthode ôtée, ajoutée ou déplacée ailleurs le décale sans rien changer au code ; X#k ne bouge que si les
+    // surcharges de X changent. Le propriétaire d'un nom qui ne le porte pas se lit dans les lambdas qu'il porte :
+    // celles de la classe de fermeture, de la classe générique, ou la lambda <X>b__N_M de même N_M que le champ de
+    // cache <>9__N_M. M, le rang de la lambda dans sa méthode, reste. Un numéro dont le propriétaire est introuvable
+    // devient « ?N », tel quel. Le numéro k d'un champ du cache de délégués, <>O.<k>__X, est l'ordre de création des
+    // caches du type : il devient « #r », le rang de k parmi les caches de la même méthode X.
+
+    private static readonly System.Text.RegularExpressions.Regex Lambda =
+        new(@"^<(?<x>[^>]*)>(?<g>b|g)__(?<f>[^|]*\|)?(?<n>\d+)_(?<m>\d+)$");
+    private static readonly System.Text.RegularExpressions.Regex Fermeture =
+        new(@"^<>(?<g>c__DisplayClass|9__)(?<n>\d+)_(?<m>\d+)(?<a>`\d+)?$");
+    private static readonly System.Text.RegularExpressions.Regex ClasseGenerique = new(@"^<>c__(?<n>\d+)(?<a>`\d+)?$");
+    private static readonly System.Text.RegularExpressions.Regex Machine =
+        new(@"^<(?<x>[^>]+)>d__(?<n>\d+)(?<a>`\d+)?$");
+    private static readonly System.Text.RegularExpressions.Regex LambdaDeFermeture =
+        new(@"^<(?<x>[^>]+)>b__(?<k>\d+)$");
+    private static readonly System.Text.RegularExpressions.Regex Support = new(@"^<(?<x>[^>]+)>k__BackingField$");
+    private static readonly System.Text.RegularExpressions.Regex Cache = new(@"^<(?<k>\d+)>__(?<x>.+)$");
+
+    private static bool Genere(string segment) => segment.StartsWith('<');
+
+    /// <summary>Le nom d'un type défini, sous son nom dans l'assemblage (A.B+C).</summary>
+    private string AncienNomType(TypeDefinitionHandle h)
     {
         var td = _md.GetTypeDefinition(h);
         var n = _md.GetString(td.Name);
         var d = td.GetDeclaringType();
-        if (!d.IsNil) return NomType(d) + "+" + n;
+        if (!d.IsNil) return AncienNomType(d) + "+" + n;
         var ns = _md.GetString(td.Namespace);
-        return Renommer(ns.Length == 0 ? n : ns + "." + n);
+        return ns.Length == 0 ? n : ns + "." + n;
     }
 
-    private string Renommer(string qualifie)
+    /// <summary>Le type porteur des noms générés d'un type : le dernier de ses segments qui n'est pas généré.</summary>
+    private static string Porteur(string ancien)
     {
-        if (_table == null || !_table.Types.TryGetValue(qualifie, out var nouveau)) return qualifie;
-        Reecrits++;
-        return nouveau;
+        var parts = ancien.Split('+');
+        var k = parts.Length;
+        while (k > 1 && Genere(parts[k - 1])) k--;
+        return string.Join("+", parts[..k]);
     }
 
-    private string NomReference(TypeReferenceHandle h)
+    /// <summary>Un nom de type complet (ancien) traduit : la table, puis chaque segment généré.</summary>
+    private string TraduireType(string ancien)
+    {
+        var nouveau = _table == null ? ancien : _table.NouveauNomDeType(ancien);
+        if (nouveau != ancien) Reecrits++;
+        if (!ancien.Contains('<')) return nouveau;
+        var vieux = ancien.Split('+');
+        var neufs = nouveau.Split('+');
+        var porteur = vieux[0];
+        for (var i = 1; i < vieux.Length; i++)
+        {
+            if (Genere(vieux[i])) neufs[i] = TraduireGenere(porteur, vieux[i]);
+            else porteur += "+" + vieux[i];
+        }
+        return string.Join("+", neufs);
+    }
+
+    private string NomType(TypeDefinitionHandle h) => TraduireType(AncienNomType(h));
+
+    /// <summary>Un membre (son type déclarant sous son ancien nom) traduit par la table, accesseurs compris.</summary>
+    private string TraduireMembre(string type, string membre)
+    {
+        if (Genere(membre)) return TraduireGenere(Porteur(type), membre);
+        if (_table == null) return membre;
+        var nv = _table.NouveauMembre(type, membre).Membre;
+        if (nv == membre)
+            foreach (var pre in new[] { "get_", "set_", "add_", "remove_", "raise_" })
+                if (membre.StartsWith(pre, StringComparison.Ordinal))
+                {
+                    // Un accesseur suit sa propriété ou son événement ; une méthode ordinaire nommée set_x
+                    // (set_use32), non. Pour un type que cet assemblage définit, la propriété doit y exister ; pour un
+                    // type référencé, l'assemblage ne le sait pas, et le nom suit.
+                    var x = membre[pre.Length..];
+                    if (_accesseurs.TryGetValue(type, out var props) && !props.Contains(x)) break;
+                    var xn = _table.NouveauMembre(type, x).Membre;
+                    if (xn != x) nv = pre + xn;
+                    break;
+                }
+        if (nv != membre) ReecritsMembres++;
+        return nv;
+    }
+
+    /// <summary>Un nom généré (un segment de type ou un nom de membre) : son membre, puis son numéro.</summary>
+    private string TraduireGenere(string porteur, string nom)
+    {
+        string Membre(string x) => x.Length == 0 || x.StartsWith('.') ? x : TraduireMembre(porteur, x);
+        string Rang(string n)
+        {
+            if (!_generes) return n;
+            if (!_rangs.TryGetValue(porteur, out var d)
+                || !d.TryGetValue(int.Parse(n, CultureInfo.InvariantCulture), out var xk)) return "?" + n;
+            var i = xk.LastIndexOf('#');
+            return Membre(xk[..i]) + xk[i..];
+        }
+        var m = Lambda.Match(nom);
+        if (m.Success)
+            return $"<{Membre(m.Groups["x"].Value)}>{m.Groups["g"].Value}__{m.Groups["f"].Value}"
+                   + $"{Rang(m.Groups["n"].Value)}_{m.Groups["m"].Value}";
+        m = Fermeture.Match(nom);
+        if (m.Success)
+            return $"<>{m.Groups["g"].Value}{Rang(m.Groups["n"].Value)}_{m.Groups["m"].Value}{m.Groups["a"].Value}";
+        m = ClasseGenerique.Match(nom);
+        if (m.Success) return $"<>c__{Rang(m.Groups["n"].Value)}{m.Groups["a"].Value}";
+        m = Machine.Match(nom);
+        if (m.Success) return $"<{Membre(m.Groups["x"].Value)}>d__{Rang(m.Groups["n"].Value)}{m.Groups["a"].Value}";
+        m = LambdaDeFermeture.Match(nom);
+        if (m.Success) return $"<{Membre(m.Groups["x"].Value)}>b__{m.Groups["k"].Value}";
+        m = Support.Match(nom);
+        if (m.Success) return $"<{Membre(m.Groups["x"].Value)}>k__BackingField";
+        m = Cache.Match(nom);
+        if (m.Success && _table != null)
+        {
+            var x = m.Groups["x"].Value;
+            var nv = _table.NouveauMembre(porteur, x).Membre;
+            if (nv == x)
+            {
+                var autres = _table.Membres.Values.Where(d => d.ContainsKey(x)).Select(d => d[x]).Distinct().ToList();
+                if (autres.Count == 1) nv = autres[0];
+            }
+            if (nv != x) ReecritsMembres++;
+            return $"<{RangCache(m.Groups["k"].Value)}>__{nv}";
+        }
+        if (m.Success) return $"<{RangCache(m.Groups["k"].Value)}>__{m.Groups["x"].Value}";
+        return nom;
+
+        string RangCache(string k)
+        {
+            if (!_generes) return k;
+            return _rangsCache.TryGetValue(porteur, out var d)
+                   && d.TryGetValue(int.Parse(k, CultureInfo.InvariantCulture), out var rg)
+                ? "#" + rg.ToString(CultureInfo.InvariantCulture) : "?" + k;
+        }
+    }
+
+    /// <summary>Les numéros de méthode des noms générés, par type porteur : leur propriétaire et leur rang.</summary>
+    private void CompterOrdinaux()
+    {
+        // Par porteur : N → X (la méthode propriétaire), lu dans les noms qui le portent ; puis, pour les noms qui ne
+        // le portent pas (une classe de fermeture, une classe générique, un champ de cache), dans leurs lambdas.
+        var proprio = new Dictionary<string, Dictionary<int, string>>(StringComparer.Ordinal);
+        var parNm = new Dictionary<string, Dictionary<string, string>>(StringComparer.Ordinal);
+        void Noter(string porteur, int n, string x)
+        {
+            if (!proprio.TryGetValue(porteur, out var d)) proprio[porteur] = d = [];
+            d.TryAdd(n, x);
+        }
+        var sansProprio = new List<(string Porteur, int N, TypeDefinitionHandle T)>();
+        foreach (var h in _md.TypeDefinitions)
+        {
+            var ancien = AncienNomType(h);
+            var porteur = Porteur(ancien);
+            var dernier = ancien[(ancien.LastIndexOf('+') + 1)..];
+            var td = _md.GetTypeDefinition(h);
+            var noms = td.GetMethods().Select(mh => _md.GetString(_md.GetMethodDefinition(mh).Name)).ToList();
+            foreach (var n in noms)
+            {
+                var ml = Lambda.Match(n);
+                if (ml.Success)
+                {
+                    var nn = int.Parse(ml.Groups["n"].Value, CultureInfo.InvariantCulture);
+                    Noter(porteur, nn, ml.Groups["x"].Value);
+                    if (!parNm.TryGetValue(porteur, out var pm)) parNm[porteur] = pm = new(StringComparer.Ordinal);
+                    pm.TryAdd($"{ml.Groups["n"].Value}_{ml.Groups["m"].Value}", ml.Groups["x"].Value);
+                }
+            }
+            if (!ancien.Contains('+') || !Genere(dernier)) continue;
+            var mm = Machine.Match(dernier);
+            if (mm.Success)
+            {
+                Noter(porteur, int.Parse(mm.Groups["n"].Value, CultureInfo.InvariantCulture), mm.Groups["x"].Value);
+                continue;
+            }
+            var mf = Fermeture.Match(dernier);
+            if (!mf.Success) mf = ClasseGenerique.Match(dernier);
+            if (mf.Success)
+                sansProprio.Add((porteur, int.Parse(mf.Groups["n"].Value, CultureInfo.InvariantCulture), h));
+        }
+        // Une classe de fermeture ou une classe générique : le propriétaire de ses lambdas (<X>b__…).
+        foreach (var (porteur, n, h) in sansProprio)
+        {
+            var x = _md.GetTypeDefinition(h).GetMethods()
+                       .Select(mh => Lambda.Match(_md.GetString(_md.GetMethodDefinition(mh).Name)))
+                       .Where(m => m.Success).Select(m => m.Groups["x"].Value).FirstOrDefault()
+                    ?? (_md.GetTypeDefinition(h).GetMethods()
+                           .Select(mh => System.Text.RegularExpressions.Regex.Match(
+                               _md.GetString(_md.GetMethodDefinition(mh).Name), @"^<(?<x>[^>]+)>b__\d+$"))
+                           .Where(m => m.Success).Select(m => m.Groups["x"].Value).FirstOrDefault());
+            if (x != null) Noter(porteur, n, x);
+        }
+        // Un champ de cache <>9__N_M : la lambda <X>b__N_M du même porteur.
+        foreach (var h in _md.TypeDefinitions)
+        {
+            var porteur = Porteur(AncienNomType(h));
+            foreach (var fh in _md.GetTypeDefinition(h).GetFields())
+            {
+                var mf = Fermeture.Match(_md.GetString(_md.GetFieldDefinition(fh).Name));
+                if (!mf.Success || mf.Groups["g"].Value != "9__") continue;
+                if (parNm.TryGetValue(porteur, out var pm)
+                    && pm.TryGetValue($"{mf.Groups["n"].Value}_{mf.Groups["m"].Value}", out var x))
+                    Noter(porteur, int.Parse(mf.Groups["n"].Value, CultureInfo.InvariantCulture), x);
+            }
+        }
+        // Les caches de délégués : <Porteur>+<>O, ses champs <k>__X ; le rang de k parmi ceux de X.
+        foreach (var h in _md.TypeDefinitions)
+        {
+            var ancien = AncienNomType(h);
+            if (!ancien.EndsWith("+<>O", StringComparison.Ordinal)) continue;
+            var porteur = Porteur(ancien);
+            var d = new Dictionary<int, int>();
+            var champs = _md.GetTypeDefinition(h).GetFields()
+                            .Select(fh => Cache.Match(_md.GetString(_md.GetFieldDefinition(fh).Name)))
+                            .Where(m => m.Success)
+                            .Select(m => (K: int.Parse(m.Groups["k"].Value, CultureInfo.InvariantCulture),
+                                          X: m.Groups["x"].Value));
+            foreach (var g in champs.GroupBy(c => c.X, StringComparer.Ordinal))
+            {
+                var i = 0;
+                foreach (var c in g.OrderBy(c => c.K)) d[c.K] = i++;
+            }
+            _rangsCache[porteur] = d;
+        }
+        // Le rang de N parmi les numéros d'un même propriétaire (ses surcharges), dans l'ordre des numéros.
+        foreach (var (porteur, d) in proprio)
+        {
+            var r = new Dictionary<int, string>();
+            foreach (var g in d.GroupBy(kv => kv.Value, StringComparer.Ordinal))
+            {
+                var k = 0;
+                foreach (var n in g.Select(kv => kv.Key).OrderBy(n => n)) r[n] = $"{g.Key}#{k++}";
+            }
+            _rangs[porteur] = r;
+        }
+    }
+
+    /// <summary>Le nom d'un type référencé, sous son nom dans l'assemblage (A.B+C).</summary>
+    private string AncienNomReference(TypeReferenceHandle h)
     {
         var tr = _md.GetTypeReference(h);
         var n = _md.GetString(tr.Name);
         var ns = _md.GetString(tr.Namespace);
-        var portee = tr.ResolutionScope;
-        if (portee.Kind == HandleKind.TypeReference) return NomReference((TypeReferenceHandle)portee) + "+" + n;
-        var nom = Renommer(ns.Length == 0 ? n : ns + "." + n);
+        if (tr.ResolutionScope.Kind == HandleKind.TypeReference)
+            return AncienNomReference((TypeReferenceHandle)tr.ResolutionScope) + "+" + n;
+        return ns.Length == 0 ? n : ns + "." + n;
+    }
+
+    /// <summary>Le nom ancien du type parent d'un membre (défini, référencé, ou instance générique).</summary>
+    private string? AncienNomParent(EntityHandle h)
+    {
+        switch (h.Kind)
+        {
+            case HandleKind.TypeDefinition: return AncienNomType((TypeDefinitionHandle)h);
+            case HandleKind.TypeReference: return AncienNomReference((TypeReferenceHandle)h);
+            case HandleKind.TypeSpecification:
+            {
+                var r = _md.GetBlobReader(_md.GetTypeSpecification((TypeSpecificationHandle)h).Signature);
+                if (r.ReadSignatureTypeCode() != SignatureTypeCode.GenericTypeInstance) return null;
+                r.ReadSignatureTypeCode();
+                return AncienNomParent(r.ReadTypeHandle());
+            }
+            default: return null;
+        }
+    }
+
+    private string NomReference(TypeReferenceHandle h)
+    {
+        // La portée d'un type imbriqué référencé est celle de son type le plus extérieur : son assemblage préfixe le
+        // nom.
+        var portee = _md.GetTypeReference(h).ResolutionScope;
+        while (portee.Kind == HandleKind.TypeReference)
+            portee = _md.GetTypeReference((TypeReferenceHandle)portee).ResolutionScope;
+        var nom = TraduireType(AncienNomReference(h));
         return portee.Kind switch
         {
             HandleKind.AssemblyReference =>
@@ -372,7 +721,8 @@ internal sealed class Videur : ISignatureTypeProvider<string, object?>
     {
         var m = _md.GetMethodDefinition(h);
         var s = m.DecodeSignature(this, null);
-        return $"{NomType(m.GetDeclaringType())}::{_md.GetString(m.Name)}{Generique(s.GenericParameterCount)}"
+        var nom = TraduireMembre(AncienNomType(m.GetDeclaringType()), _md.GetString(m.Name));
+        return $"{NomType(m.GetDeclaringType())}::{nom}{Generique(s.GenericParameterCount)}"
                + $"({string.Join(", ", s.ParameterTypes)}) : {s.ReturnType}{Statique(s.Header)}";
     }
 
@@ -382,7 +732,8 @@ internal sealed class Videur : ISignatureTypeProvider<string, object?>
     private string NomChamp(FieldDefinitionHandle h)
     {
         var f = _md.GetFieldDefinition(h);
-        return $"{NomType(f.GetDeclaringType())}::{_md.GetString(f.Name)} : {f.DecodeSignature(this, null)}";
+        var nom = TraduireMembre(AncienNomType(f.GetDeclaringType()), _md.GetString(f.Name));
+        return $"{NomType(f.GetDeclaringType())}::{nom} : {f.DecodeSignature(this, null)}";
     }
 
     private string NomMembre(MemberReferenceHandle h)
@@ -390,6 +741,7 @@ internal sealed class Videur : ISignatureTypeProvider<string, object?>
         var m = _md.GetMemberReference(h);
         var parent = NomEntite(m.Parent);
         var nom = _md.GetString(m.Name);
+        if (AncienNomParent(m.Parent) is { } ap) nom = TraduireMembre(ap, nom);
         if (m.GetKind() == MemberReferenceKind.Field) return $"{parent}::{nom} : {m.DecodeFieldSignature(this, null)}";
         var s = m.DecodeMethodSignature(this, null);
         return $"{parent}::{nom}{Generique(s.GenericParameterCount)}({string.Join(", ", s.ParameterTypes)}) : "
@@ -491,10 +843,18 @@ internal sealed class Videur : ISignatureTypeProvider<string, object?>
             ConstantTypeCode.UInt64 => b.ReadUInt64().ToString(CultureInfo.InvariantCulture),
             ConstantTypeCode.Single => BitConverter.SingleToInt32Bits(b.ReadSingle()).ToString("X8"),
             ConstantTypeCode.Double => BitConverter.DoubleToInt64Bits(b.ReadDouble()).ToString("X16"),
-            ConstantTypeCode.String => Litteral(b.ReadUTF16(b.Length)),
+            ConstantTypeCode.String => Litteral(SuivreLitteral(b.ReadUTF16(b.Length))),
             _ => Blob(c.Value),
         };
         return $" = {c.TypeCode} {v}";
+    }
+
+    /// <summary>Une chaîne de la liste close de la table devient la nouvelle ; toute autre reste.</summary>
+    private string SuivreLitteral(string s)
+    {
+        if (_table == null || !_table.Litteraux.TryGetValue(s, out var nv)) return s;
+        ReecritsLitteraux++;
+        return nv;
     }
 
     private static string Litteral(string s)
@@ -572,6 +932,7 @@ internal sealed class Videur : ISignatureTypeProvider<string, object?>
     {
         var td = _md.GetTypeDefinition(h);
         var nom = NomType(h);
+        var ancien = AncienNomType(h);
         var l = Entree("type " + nom);
         l.Add($"  drapeaux {td.Attributes}");
         l.Add($"  base {(td.BaseType.IsNil ? "-" : NomEntite(td.BaseType))}");
@@ -591,7 +952,8 @@ internal sealed class Videur : ISignatureTypeProvider<string, object?>
         foreach (var fh in td.GetFields())
         {
             var f = _md.GetFieldDefinition(fh);
-            var ligne = $"  champ {_md.GetString(f.Name)} : {f.DecodeSignature(this, null)} [{f.Attributes}]"
+            var ligne = $"  champ {TraduireMembre(ancien, _md.GetString(f.Name))} : {f.DecodeSignature(this, null)} "
+                        + $"[{f.Attributes}]"
                         + Constante(f.GetDefaultValue());
             var off = f.GetOffset();
             if (off >= 0) ligne += $" décalage={off}";
@@ -609,8 +971,9 @@ internal sealed class Videur : ISignatureTypeProvider<string, object?>
             var s = p.DecodeSignature(this, null);
             var b = new List<string>
             {
-                $"  propriété {_md.GetString(p.Name)} : {s.ReturnType}({string.Join(", ", s.ParameterTypes)}) "
-                + $"[{p.Attributes}] get={Acc(acc.Getter)} set={Acc(acc.Setter)}" + Constante(p.GetDefaultValue()),
+                $"  propriété {TraduireMembre(ancien, _md.GetString(p.Name))} : {s.ReturnType}"
+                + $"({string.Join(", ", s.ParameterTypes)}) [{p.Attributes}] get={Acc(ancien, acc.Getter)} "
+                + $"set={Acc(ancien, acc.Setter)}" + Constante(p.GetDefaultValue()),
             };
             Attributs(b, "    ", p.GetCustomAttributes());
             props.Add(b);
@@ -621,8 +984,8 @@ internal sealed class Videur : ISignatureTypeProvider<string, object?>
             var acc = e.GetAccessors();
             var b = new List<string>
             {
-                $"  événement {_md.GetString(e.Name)} : {NomEntite(e.Type)} [{e.Attributes}] "
-                + $"add={Acc(acc.Adder)} remove={Acc(acc.Remover)} raise={Acc(acc.Raiser)}",
+                $"  événement {TraduireMembre(ancien, _md.GetString(e.Name))} : {NomEntite(e.Type)} [{e.Attributes}] "
+                + $"add={Acc(ancien, acc.Adder)} remove={Acc(ancien, acc.Remover)} raise={Acc(ancien, acc.Raiser)}",
             };
             Attributs(b, "    ", e.GetCustomAttributes());
             props.Add(b);
@@ -645,7 +1008,8 @@ internal sealed class Videur : ISignatureTypeProvider<string, object?>
         foreach (var b in blocs) l.AddRange(b);
     }
 
-    private string Acc(MethodDefinitionHandle h) => h.IsNil ? "-" : _md.GetString(_md.GetMethodDefinition(h).Name);
+    private string Acc(string type, MethodDefinitionHandle h) =>
+        h.IsNil ? "-" : TraduireMembre(type, _md.GetString(_md.GetMethodDefinition(h).Name));
 
     private void Generiques(List<string> l, GenericParameterHandleCollection c)
     {
@@ -702,10 +1066,20 @@ internal sealed class Videur : ISignatureTypeProvider<string, object?>
                   + $"[{imp.Attributes}]");
         Generiques(l, m.GetGenericParameters());
         Attributs(l, "  ", m.GetCustomAttributes());
+        var typeAncien = AncienNomType(m.GetDeclaringType());
+        var methodeAncienne = _md.GetString(m.Name);
         foreach (var ph in m.GetParameters())
         {
             var p = _md.GetParameter(ph);
-            l.Add($"  paramètre {p.SequenceNumber} {_md.GetString(p.Name)} [{p.Attributes}]"
+            var pn = _md.GetString(p.Name);
+            if (_table != null)
+            {
+                var nv = _table.NouveauParametre(typeAncien, methodeAncienne, pn);
+                if (nv != pn) ReecritsParametres++;
+                pn = nv;
+            }
+            if (_sansNomsDeParametres) pn = "_";
+            l.Add($"  paramètre {p.SequenceNumber} {pn} [{p.Attributes}]"
                   + Constante(p.GetDefaultValue())
                   + (p.GetMarshallingDescriptor().IsNil ? "" : $" marshal={Blob(p.GetMarshallingDescriptor())}"));
             Attributs(l, "    ", p.GetCustomAttributes());
@@ -752,7 +1126,8 @@ internal sealed class Videur : ISignatureTypeProvider<string, object?>
                 OperandType.ShortInlineR => BitConverter.SingleToInt32Bits(r.ReadSingle()).ToString("X8"),
                 OperandType.InlineR => BitConverter.DoubleToInt64Bits(r.ReadDouble()).ToString("X16"),
                 OperandType.InlineString =>
-                    Litteral(_md.GetUserString(MetadataTokens.UserStringHandle(r.ReadInt32() & 0xFFFFFF))),
+                    Litteral(SuivreLitteral(
+                        _md.GetUserString(MetadataTokens.UserStringHandle(r.ReadInt32() & 0xFFFFFF)))),
                 OperandType.InlineSwitch => Aiguillage(ref r),
                 OperandType.InlineField or OperandType.InlineMethod or OperandType.InlineType
                     or OperandType.InlineTok or OperandType.InlineSig =>
