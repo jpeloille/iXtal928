@@ -10,7 +10,9 @@
 
 Les onze questions (Q40 à Q50, ci-dessous) sont tranchées par Julien le 04/11 : « ok pour tes propositions » ; chaque
 proposition est la décision. G15.0a est faite (le banc des constructions interdites, la frontière des chemins chauds, la
-base à R ; VERIFICATION.md § G15.0a). G15.0b attend son feu vert. La référence reste celle de G14 : le commit R =
+base à R ; VERIFICATION.md § G15.0a). Q48 est rouverte le 05/11 : G15.P, la performance avant les renommages, est
+faite (P0, quatre candidats mesurés ; P1, OP_ARITH par des structures, sous la règle du témoin calé, son résidu admis
+le 08/11 ; VERIFICATION.md § G15.P). G15.0b attend son feu vert. La référence reste celle de G14 : le commit R =
 `f15e11f`, `/var/tmp/ixtal-g14/ref-R`, les séries `g14r` et `g14r-tout` (VERIFICATION.md § G14.0d), jusqu'à la fin de
 G15.
 
@@ -53,8 +55,8 @@ G15.
   - aucune interface, aucune méthode virtuelle ; les délégués nommés des tables de PCem sont la forme que R4 retient
     (`TRANSCRIPTION.md:60`, `:126`) ;
   - 43 lambdas qui capturent (41 du cœur 286/386/486, 2 du mode matériel), créées au remplissage des tables, jamais
-    à l'exécution ; elles sont des DEVIATION déjà dites (`386_ops_arith.cs:33-36`, `386_ops_jump.cs:30-32`) ; l'ADD y
-    fait deux appels indirects de plus par instruction (vu au listing) ; 8 sites `Func<…>` dans `Cpu/` ;
+    à l'exécution ; elles sont des DEVIATION déjà dites (à R, `386_ops_arith.cs:33-36`, `386_ops_jump.cs:30-32`) ;
+    l'ADD y fait deux appels indirects de plus par instruction (vu au listing) ; 8 sites `Func<…>` dans `Cpu/` ;
   - 13 `new uint16_t[4]` du mode protégé (`x86seg.cs`), dont un (`pmodeiret`) probablement sur la pile : 12 au tas ;
     5 `box`, tous à l'initialisation ; aucun `params`.
   (R1 § 1, R1-contre.)
@@ -95,8 +97,9 @@ banc d'ouverture chiffre ce qu'elles coûtent.
 
 ## Les étapes
 
-L'ordre : G15.0a, 0b, 0c (le banc, les outils, les règles), G15.1 (le nettoyage), G15.2 à G15.8 (les membres, une
-famille à la fois), G15.9 (les paramètres et les locales), G15.10 (les enums), G15.11 (la clôture). G15.0a ne
+L'ordre : G15.0a, G15.P (la performance, ajoutée le 05/11), 0b, 0c (le banc, les outils, les règles), G15.1 (le
+nettoyage), G15.2 à G15.8 (les membres, une famille à la fois), G15.9 (les paramètres et les locales), G15.10 (les
+enums), G15.11 (la clôture). G15.0a ne
 dépend d'aucune question ; G15.0b, de Q40 pour sa table et de Q45 pour ce que l'outil journalise ; G15.0c et la suite,
 de Q40 à Q50 selon l'étape (dit à chacune).
 
@@ -112,7 +115,7 @@ L'équivalence des copies et du vrai code est vérifiée avant la mesure.
 |---|---|---|
 | 1 | `readmemb` (`Cpu/386_common.cs:163-169`), sur la RAM d'une machine montée | les mêmes champs, par une instance |
 | 2 | `speaker_get_buffer` (`Sound/sound_speaker.cs:70-71`) | `Enumerable.Range` et `Select` |
-| 3 | l'ADD d'`OP_ARITH` (`386_ops_arith.cs:103-131`) | une interface et un `override`, à un site polymorphe |
+| 3 | l'ADD d'`OP_ARITH` (à R, `386_ops_arith.cs:103-131`) | une interface et un `override`, à un site polymorphe |
 | 4 | le Jcc (`386_ops_jump.cs:79-87`), une fermeture | une méthode nommée (le vrai est l'interdit) |
 | 5 | une affectation de rendu de `svga_recalctimings` | une lambda qui capture, créée à chaque appel |
 | 6 | le descripteur de `loadseg` (`x86seg.cs:80`, `new uint16_t[4]`) | `stackalloc` (le vrai est l'interdit) |
@@ -151,6 +154,34 @@ L'équivalence des copies et du vrai code est vérifiée avant la mesure.
     12 à 27 % à code égal, selon la construction) ;
   - la base compte 14 `new uint16_t[4]` : les 13 de `x86seg.cs` et celui de `porte_tache_materiel` ; et l'IL s'y écrit
     en comptes par méthode et par instruction, le détail (1,9 Mo) se régénérant de R.
+
+### G15.P — La performance avant les renommages ✅
+
+Ajoutée le 05/11, Q48 rouverte (« vu tous les coups, on a rien changé ? »). Elle vient avant G15.0b, pour que G15.1 à
+G15.8 renomment le code final, et que leurs outils n'aient pas à normaliser des fermetures appelées à disparaître.
+- **P0, mesurer avant de changer** : quatre candidats, chacun seul dans un worktree, rien de commité. Ce sont le Jcc
+  sans fermeture, OP_ARITH par des structures, le descripteur sur la pile et `readmemb` inliné ; chacun passe les trois
+  passes du banc contre R. Aucun n'est vert contre R. La perte d'OP_ARITH sur le 286 est un effet de placement :
+  montré par un témoin de calage, R plus quatre appels vides dans le banc, qui perd autant ou plus sur le 286
+  sans rien changer d'iXtal26. Julien garde OP_ARITH seul (« garde OP_ARITH, règle du témoin calé », 05/11).
+- **P1, OP_ARITH** : `OP_ARITH<TAlu>` et `OP_ARITH_386<TAlu>` sur `IAluArith` (des membres `static abstract`, une
+  structure par famille, la forme retenue du cas 3 de G15.0a). Ses portes sont complètes :
+  - les séries entières dans les deux modes, 0 écart sur 827 portes chacune ;
+  - le banc contre le témoin calé : 61 verts et 4 rouges retenus (+0,13 à +0,36 %, sur le pc1512, l'olivetti_m24 et
+    l'ibmat), sur des machines dont trois n'exécutent pas le code changé ;
+  - l'IL relevé, tout le changement dans OP_ARITH ;
+  - la construction sans avertissement, les lignes ≤ 120.
+
+  Trois témoins de plus (le dernier sans banc, faute de reproduire l'empreinte de types) et les compteurs du
+  processeur n'ont pas trouvé la cause des rouges : ils ont écarté le tas et vu le front-end différer. Julien admet
+  le résidu (« admets le résidu, commite OP_ARITH », 08/11).
+- **Fait le 08/11** (VERIFICATION.md § G15.P). Ce qui s'écarte de ce qui précède :
+  - le cas 3 du banc des interdits a désormais pour vrai la forme retenue ; `interdits.py` admet le registre de
+    l'argument (une lambda de classe cache contre une copie statique) ;
+  - les passes 2 et 3 montrent deux cas verts par la règle plus lents, l'ibmxt « aucun » (+0,8 %) et l'ibmpc
+    « aucun » (+0,4 %), du même résidu.
+  - Jcc, le descripteur et `readmemb` ne sont pas retenus : Q48 reste, pour eux, ce que la proposition du 04/11
+    disait.
 
 ### G15.0b — Les outils de la preuve des membres
 
@@ -292,6 +323,10 @@ seule passe (la même preuve pour toutes les familles).
 - **Le banc** : contre le binaire figé R, jamais contre le commit précédent, selon le protocole de § G14.0b (la
   troisième passe de Q37) ; sa résolution, celle de § G14.0b ; là où elle est plus grossière que le 0 % (le décodage en
   « tout », Fetch, RenduCga, Video, trois boucles d'Exec), le 0 % repose sur les listings.
+- **La règle du témoin calé** (05/11, G15.P) : une étape qui change le code des chemins chauds se mesure contre un
+  témoin, le commit de base plus un calage hors dépôt, qui met le code jitté au même placement modulo 64 que le
+  candidat. Le placement se vérifie sur les 65 cas par la carte des méthodes jittées. Son résidu est ce que la règle
+  ne tient pas, les précodes et les stubs du runtime : quelques dixièmes de pour cent, écrits à l'étape.
 - **Le runtime** : une mise à jour d'apt de .NET entre deux étapes demande le réancrage de VERIFICATION.md § G14.1 ;
   `ref-R` ne bouge pas. Un SDK neuf reconstruit dans le job de BenchmarkDotNet le banc de R depuis son source : le gel
   du lancé (`--lancees-r`) le vérifie à chaque passage, et le passage de 10.0.113 à 10.0.114 a rendu les mêmes DLL
@@ -406,6 +441,7 @@ décisions 5 à 7 sont des choix du plan dans ce cadre, dits comme tels : Julien
   les retirer change le code machine des chemins les plus chauds et des signatures (`do_seg_load`, `taskswitch286`) ;
   c'est un levier de performance, pas une convention. Le banc d'ouverture chiffre leur coût (cas 4 et 6) ; ce qu'on en
   fait ensuite est hors de G15.*
+  *Rouverte le 05/11 : G15.P. Les fermetures d'OP_ARITH sont ôtées ; les autres restent en base, comme proposé.*
 - **Q49 (G15.11) — Les outils à installer.** L'annexe de `PLAN.md` en nomme cinq, chacun sur ton accord.
   *Proposé : aucun. Le SDK suffit à toutes les portes de G15 (les analyseurs CA et IDE, Roslyn, `dotnet format`,
   `DOTNET_JitDisasm`, `MemoryDiagnoser`) ; le « signalé » se fait par le `grep` et l'IL (décision n° 7).
@@ -457,4 +493,9 @@ Trouvé par les lectures, non proposé (règle du 18/10) :
 - le délai de 1 200 s de `Banc.cs:166-169`, déjà dit en G14 ;
 - trouvé par G15.0a : le `readmemb` statique n'est pas inliné, dans le banc ni dans le produit, sa copie d'instance
   l'est (−20,7 % sur ce chemin) ; une interpolation gardée par un champ coûte par sa présence, le prologue mettant ses
-  locales à zéro (+14,75 % sur `svga_write`, à peine au-dessus du seuil élargi de +13,47 %).
+  locales à zéro (+14,75 % sur `svga_write`, à peine au-dessus du seuil élargi de +13,47 %) ;
+- trouvé par G15.P :
+  - `ildump comparer` ne normalise pas la numérotation des fermetures et des lambdas ;
+  - les précodes et les stubs du runtime n'ont pas de témoin ;
+  - la comparaison de listings d'`interdits.py` ne connaît que deux écarts admis, les décalages et le registre de
+    l'argument.

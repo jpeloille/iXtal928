@@ -56,7 +56,7 @@ ITERATIONS=8
 # Le code machine à relever : les méthodes des copies, et celles du vrai code que chaque cas appelle (une classe se
 # nomme par un motif qui couvre son espace de noms : « Interdit7:* » ne relève rien, « *Interdit7:* » relève).
 DESASSEMBLER='*Interdit*:* *.Alu*:* *.MemoireInstance:* *.ProcesseurInstance:* *.RenduDirect*:* *.RenduCapture:*
-*.Journal*:* *._386_common:readmemb *.sound_speaker:speaker_get_buffer *:<OP_ARITH>b__0
+*.Journal*:* *._386_common:readmemb *.sound_speaker:speaker_get_buffer *:<OP_ARITH>b__*
 *:<PoserSautsConditionnels>b__0 *.x86seg_c:loadseg *.x86seg_c:do_seg_load *.vid_svga:svga_recalctimings
 *.vid_svga:svga_write *.io:outb *.io:outb_corps *._386:PREFETCH_RUN *._386:prefetch_run'
 

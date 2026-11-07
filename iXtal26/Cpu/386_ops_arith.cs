@@ -30,13 +30,20 @@
 // paramétrisation, avec les mêmes quatre paramètres et les mêmes noms.
 //
 // DEVIATION: `operation` et `setflags` sont des expressions textuelles en C ; ici
-//   des délégués. `flagops` disparaît comme paramètre : en C il vaut `(dst, src)`
-//   pour l'arithmétique et `(dst | src)` pour la logique, deux arités que le C#
-//   ne peut pas mélanger. Le délégué setflags reçoit toujours (dst, src) et la
-//   famille logique y recompose son argument unique — même appel, même effet.
+//   les membres statiques d'une structure par famille (alu_ADD… sur IAluArith),
+//   le paramètre de type d'OP_ARITH<TAlu> : liés à la compilation, comme le texte
+//   que le préprocesseur colle, et appelés en direct (G15.P ; c'étaient des
+//   délégués, un appel indirect par expression). `gettempc` devient
+//   TAlu.GetTempc, une constante que le JIT plie. `flagops` disparaît comme
+//   paramètre : en C il vaut `(dst, src)` pour l'arithmétique et `(dst | src)`
+//   pour la logique, deux arités que le C# ne peut pas mélanger. FlagsN reçoit
+//   toujours (dst, src) et la famille logique y recompose son argument unique —
+//   même appel, même effet.
 //
-// LES DÉLÉGUÉS SONT CONSTRUITS UNE FOIS, au chargement de la table. Un OpFn est
-// un champ de ops_286, pas une fermeture créée à chaque instruction.
+// LES FORMES SONT CONSTRUITES UNE FOIS, au chargement de la table. Un OpFn est
+// un champ de ops_286 ; les lambdas d'OP_ARITH<TAlu> ne capturent rien (dans
+// OP_ARITH_386<TAlu>, seules LRmw et LRm capturent `a32`), et aucune n'est une
+// fermeture créée à chaque instruction.
 //
 // L'ORDRE DE `gettempc` N'EST PAS LE MÊME PARTOUT, et c'est porteur de sens :
 // dans les formes à ModRM il est lu AVANT fetch_ea_16, dans les formes
@@ -73,14 +80,6 @@ namespace iXtal26.Cpu;
 
 internal static partial class _386
 {
-    // Les trois expressions que la macro fait varier, en délégués.
-    internal delegate uint8_t ArithOp8(uint8_t dst, uint8_t src);
-    internal delegate uint16_t ArithOp16(uint16_t dst, uint16_t src);
-    internal delegate void ArithFlags8(uint8_t dst, uint8_t src);
-    internal delegate void ArithFlags16(uint16_t dst, uint16_t src);
-    internal delegate uint32_t ArithOp32(uint32_t dst, uint32_t src);
-    internal delegate void ArithFlags32(uint32_t dst, uint32_t src);
-
     // omitted: les NEUF autres formes que la macro engendre par famille — les six
     //   variantes `_a32` (fetch_ea_32), et les trois formes longues `_l_rmw_a16`,
     //   `_l_rm_a16`, `_EAX_imm` (geteal/seteal, setflags32). Toutes inatteignables
@@ -91,26 +90,107 @@ internal static partial class _386
     //   286 au C : 6 formes posées sur 15 écrites.
     //   Elles reviendront telles quelles au jalon 386, sans rien changer ici.
 
+    /// <summary>Les trois expressions que la macro fait varier — `operation` (OpN),
+    /// `setflags` (FlagsN), `gettempc` — pour les trois tailles, une structure par
+    /// famille ; les invocations sont dans PoserGroupeArith et PoserGroupeArith386.</summary>
+    internal interface IAluArith
+    {
+        static abstract bool GetTempc { get; }
+        static abstract uint8_t Op8(uint8_t dst, uint8_t src);
+        static abstract uint16_t Op16(uint16_t dst, uint16_t src);
+        static abstract uint32_t Op32(uint32_t dst, uint32_t src);
+        static abstract void Flags8(uint8_t dst, uint8_t src);
+        static abstract void Flags16(uint16_t dst, uint16_t src);
+        static abstract void Flags32(uint32_t dst, uint32_t src);
+    }
+    private struct alu_ADD : IAluArith
+    {
+        public static bool GetTempc => false;
+        public static uint8_t Op8(uint8_t dst, uint8_t src) => (uint8_t)(dst + src);
+        public static uint16_t Op16(uint16_t dst, uint16_t src) => (uint16_t)(dst + src);
+        public static uint32_t Op32(uint32_t dst, uint32_t src) => dst + src;
+        public static void Flags8(uint8_t dst, uint8_t src) => setadd8(dst, src);
+        public static void Flags16(uint16_t dst, uint16_t src) => setadd16(dst, src);
+        public static void Flags32(uint32_t dst, uint32_t src) => setadd32(dst, src);
+    }
+    private struct alu_ADC : IAluArith
+    {
+        public static bool GetTempc => true;
+        public static uint8_t Op8(uint8_t dst, uint8_t src) => (uint8_t)(dst + src + tempc);
+        public static uint16_t Op16(uint16_t dst, uint16_t src) => (uint16_t)(dst + src + tempc);
+        public static uint32_t Op32(uint32_t dst, uint32_t src) => dst + src + (uint32_t)tempc;
+        public static void Flags8(uint8_t dst, uint8_t src) => setadc8(dst, src);
+        public static void Flags16(uint16_t dst, uint16_t src) => setadc16(dst, src);
+        public static void Flags32(uint32_t dst, uint32_t src) => setadc32(dst, src);
+    }
+    private struct alu_SUB : IAluArith
+    {
+        public static bool GetTempc => false;
+        public static uint8_t Op8(uint8_t dst, uint8_t src) => (uint8_t)(dst - src);
+        public static uint16_t Op16(uint16_t dst, uint16_t src) => (uint16_t)(dst - src);
+        public static uint32_t Op32(uint32_t dst, uint32_t src) => dst - src;
+        public static void Flags8(uint8_t dst, uint8_t src) => setsub8(dst, src);
+        public static void Flags16(uint16_t dst, uint16_t src) => setsub16(dst, src);
+        public static void Flags32(uint32_t dst, uint32_t src) => setsub32(dst, src);
+    }
+    private struct alu_SBB : IAluArith
+    {
+        public static bool GetTempc => true;
+        public static uint8_t Op8(uint8_t dst, uint8_t src) => (uint8_t)(dst - (src + tempc));
+        public static uint16_t Op16(uint16_t dst, uint16_t src) => (uint16_t)(dst - (src + tempc));
+        public static uint32_t Op32(uint32_t dst, uint32_t src) => dst - (src + (uint32_t)tempc);
+        public static void Flags8(uint8_t dst, uint8_t src) => setsbc8(dst, src);
+        public static void Flags16(uint16_t dst, uint16_t src) => setsbc16(dst, src);
+        public static void Flags32(uint32_t dst, uint32_t src) => setsbc32(dst, src);
+    }
+    private struct alu_OR : IAluArith
+    {
+        public static bool GetTempc => false;
+        public static uint8_t Op8(uint8_t dst, uint8_t src) => (uint8_t)(dst | src);
+        public static uint16_t Op16(uint16_t dst, uint16_t src) => (uint16_t)(dst | src);
+        public static uint32_t Op32(uint32_t dst, uint32_t src) => dst | src;
+        public static void Flags8(uint8_t dst, uint8_t src) => setznp8((uint8_t)(dst | src));
+        public static void Flags16(uint16_t dst, uint16_t src) => setznp16((uint16_t)(dst | src));
+        public static void Flags32(uint32_t dst, uint32_t src) => setznp32(dst | src);
+    }
+    private struct alu_AND : IAluArith
+    {
+        public static bool GetTempc => false;
+        public static uint8_t Op8(uint8_t dst, uint8_t src) => (uint8_t)(dst & src);
+        public static uint16_t Op16(uint16_t dst, uint16_t src) => (uint16_t)(dst & src);
+        public static uint32_t Op32(uint32_t dst, uint32_t src) => dst & src;
+        public static void Flags8(uint8_t dst, uint8_t src) => setznp8((uint8_t)(dst & src));
+        public static void Flags16(uint16_t dst, uint16_t src) => setznp16((uint16_t)(dst & src));
+        public static void Flags32(uint32_t dst, uint32_t src) => setznp32(dst & src);
+    }
+    private struct alu_XOR : IAluArith
+    {
+        public static bool GetTempc => false;
+        public static uint8_t Op8(uint8_t dst, uint8_t src) => (uint8_t)(dst ^ src);
+        public static uint16_t Op16(uint16_t dst, uint16_t src) => (uint16_t)(dst ^ src);
+        public static uint32_t Op32(uint32_t dst, uint32_t src) => dst ^ src;
+        public static void Flags8(uint8_t dst, uint8_t src) => setznp8((uint8_t)(dst ^ src));
+        public static void Flags16(uint16_t dst, uint16_t src) => setznp16((uint16_t)(dst ^ src));
+        public static void Flags32(uint32_t dst, uint32_t src) => setznp32(dst ^ src);
+    }
+
     /// <summary>Les six formes d'une famille, telles que OP_ARITH les engendre.
     /// L'ordre est celui de la macro.</summary>
-    private static void OP_ARITH(int slotBRmw, int slotWRmw, int slotBRm, int slotWRm,
-                                 int slotALImm, int slotAXImm,
-                                 ArithOp8 op8, ArithOp16 op16,
-                                 ArithFlags8 setflags8, ArithFlags16 setflags16,
-                                 bool gettempc)
+    private static void OP_ARITH<TAlu>(int slotBRmw, int slotWRmw, int slotBRm, int slotWRm,
+                                       int slotALImm, int slotAXImm) where TAlu : struct, IAluArith
     {
         // pcem: x86_ops_arith.h:4-30 — op##name##_b_rmw_a16
         ops_286[slotBRmw] = fetchdat =>
         {
-                if (gettempc)
+                if (TAlu.GetTempc)
                         tempc = CF_SET() != 0 ? 1 : 0;
                 if (fetch_ea_16(fetchdat)) return 1;
                 if (cpu_mod == 3)
                 {
                         uint8_t dst = getr8(cpu_rm);
                         uint8_t src = getr8(cpu_reg);
-                        setflags8(dst, src);
-                        setr8(cpu_rm, op8(dst, src));
+                        TAlu.Flags8(dst, src);
+                        setr8(cpu_rm, TAlu.Op8(dst, src));
                         CLOCK_CYCLES(cpu_c.timing_rr);
                         PREFETCH_RUN(cpu_c.timing_rr, 2, (int)fetchdat, 0, 0, 0, 0, 0);
                 }
@@ -122,10 +202,10 @@ internal static partial class _386
                         if (cpu_state.abrt != 0)
                                 return 1;
                         uint8_t src = getr8(cpu_reg);
-                        seteab(op8(dst, src));
+                        seteab(TAlu.Op8(dst, src));
                         if (cpu_state.abrt != 0)
                                 return 1;
-                        setflags8(dst, src);
+                        TAlu.Flags8(dst, src);
                         CLOCK_CYCLES(cpu_c.timing_mr);
                         PREFETCH_RUN(cpu_c.timing_mr, 2, (int)fetchdat, 1, 0, 1, 0, 0);
                 }
@@ -135,15 +215,15 @@ internal static partial class _386
         // pcem: x86_ops_arith.h:59-85 — op##name##_w_rmw_a16
         ops_286[slotWRmw] = fetchdat =>
         {
-                if (gettempc)
+                if (TAlu.GetTempc)
                         tempc = CF_SET() != 0 ? 1 : 0;
                 if (fetch_ea_16(fetchdat)) return 1;
                 if (cpu_mod == 3)
                 {
                         uint16_t dst = cpu_state.regs[cpu_rm].w;
                         uint16_t src = cpu_state.regs[cpu_reg].w;
-                        setflags16(dst, src);
-                        cpu_state.regs[cpu_rm].w = op16(dst, src);
+                        TAlu.Flags16(dst, src);
+                        cpu_state.regs[cpu_rm].w = TAlu.Op16(dst, src);
                         CLOCK_CYCLES(cpu_c.timing_rr);
                         PREFETCH_RUN(cpu_c.timing_rr, 2, (int)fetchdat, 0, 0, 0, 0, 0);
                 }
@@ -155,10 +235,10 @@ internal static partial class _386
                         if (cpu_state.abrt != 0)
                                 return 1;
                         uint16_t src = cpu_state.regs[cpu_reg].w;
-                        seteaw(op16(dst, src));
+                        seteaw(TAlu.Op16(dst, src));
                         if (cpu_state.abrt != 0)
                                 return 1;
-                        setflags16(dst, src);
+                        TAlu.Flags16(dst, src);
                         CLOCK_CYCLES(cpu_c.timing_mr);
                         // timing_rr, ET NON timing_mr — ce n'est pas une faute de
                         // frappe de ce port mais de PCem (x86_ops_arith.h:82) : la
@@ -176,7 +256,7 @@ internal static partial class _386
         ops_286[slotBRm] = fetchdat =>
         {
                 uint8_t dst, src;
-                if (gettempc)
+                if (TAlu.GetTempc)
                         tempc = CF_SET() != 0 ? 1 : 0;
                 if (fetch_ea_16(fetchdat)) return 1;
                 if (cpu_mod != 3)
@@ -185,8 +265,8 @@ internal static partial class _386
                 src = geteab();
                 if (cpu_state.abrt != 0)
                         return 1;
-                setflags8(dst, src);
-                setr8(cpu_reg, op8(dst, src));
+                TAlu.Flags8(dst, src);
+                setr8(cpu_reg, TAlu.Op8(dst, src));
                 CLOCK_CYCLES(cpu_mod == 3 ? cpu_c.timing_rr : cpu_c.timing_rm);
                 PREFETCH_RUN(cpu_mod == 3 ? cpu_c.timing_rr : cpu_c.timing_rm, 2, (int)fetchdat,
                              cpu_mod == 3 ? 0 : 1, 0, 0, 0, 0);
@@ -197,7 +277,7 @@ internal static partial class _386
         ops_286[slotWRm] = fetchdat =>
         {
                 uint16_t dst, src;
-                if (gettempc)
+                if (TAlu.GetTempc)
                         tempc = CF_SET() != 0 ? 1 : 0;
                 if (fetch_ea_16(fetchdat)) return 1;
                 if (cpu_mod != 3)
@@ -206,8 +286,8 @@ internal static partial class _386
                 src = geteaw();
                 if (cpu_state.abrt != 0)
                         return 1;
-                setflags16(dst, src);
-                cpu_state.regs[cpu_reg].w = op16(dst, src);
+                TAlu.Flags16(dst, src);
+                cpu_state.regs[cpu_reg].w = TAlu.Op16(dst, src);
                 CLOCK_CYCLES(cpu_mod == 3 ? cpu_c.timing_rr : cpu_c.timing_rm);
                 PREFETCH_RUN(cpu_mod == 3 ? cpu_c.timing_rr : cpu_c.timing_rm, 2, (int)fetchdat,
                              cpu_mod == 3 ? 0 : 1, 0, 0, 0, 0);
@@ -220,10 +300,10 @@ internal static partial class _386
         {
                 uint8_t dst = AL;
                 uint8_t src = (uint8_t)fetchdat; cpu_state.pc++;
-                if (gettempc)
+                if (TAlu.GetTempc)
                         tempc = CF_SET() != 0 ? 1 : 0;
-                setflags8(dst, src);
-                AL = op8(dst, src);
+                TAlu.Flags8(dst, src);
+                AL = TAlu.Op8(dst, src);
                 CLOCK_CYCLES(cpu_c.timing_rr);
                 PREFETCH_RUN(cpu_c.timing_rr, 2, -1, 0, 0, 0, 0, 0);
                 return 0;
@@ -234,10 +314,10 @@ internal static partial class _386
         {
                 uint16_t dst = AX;
                 uint16_t src = (uint16_t)fetchdat; cpu_state.pc += 2;
-                if (gettempc)
+                if (TAlu.GetTempc)
                         tempc = CF_SET() != 0 ? 1 : 0;
-                setflags16(dst, src);
-                AX = op16(dst, src);
+                TAlu.Flags16(dst, src);
+                AX = TAlu.Op16(dst, src);
                 CLOCK_CYCLES(cpu_c.timing_rr);
                 PREFETCH_RUN(cpu_c.timing_rr, 3, -1, 0, 0, 0, 0, 0);
                 return 0;
@@ -255,59 +335,35 @@ internal static partial class _386
     private static void PoserGroupeArith()
     {
         // x86_ops_arith.h:312 — OP_ARITH(ADD, dst + src, setadd, (dst, src), 0)
-        OP_ARITH(0x00, 0x01, 0x02, 0x03, 0x04, 0x05,
-                 (dst, src) => (uint8_t)(dst + src),
-                 (dst, src) => (uint16_t)(dst + src),
-                 setadd8, setadd16, false);
+        OP_ARITH<alu_ADD>(0x00, 0x01, 0x02, 0x03, 0x04, 0x05);
 
         // x86_ops_arith.h:313 — OP_ARITH(ADC, dst + src + tempc, setadc, (dst, src), 1)
-        OP_ARITH(0x10, 0x11, 0x12, 0x13, 0x14, 0x15,
-                 (dst, src) => (uint8_t)(dst + src + tempc),
-                 (dst, src) => (uint16_t)(dst + src + tempc),
-                 setadc8, setadc16, true);
+        OP_ARITH<alu_ADC>(0x10, 0x11, 0x12, 0x13, 0x14, 0x15);
 
         // x86_ops_arith.h:314 — OP_ARITH(SUB, dst - src, setsub, (dst, src), 0)
-        OP_ARITH(0x28, 0x29, 0x2A, 0x2B, 0x2C, 0x2D,
-                 (dst, src) => (uint8_t)(dst - src),
-                 (dst, src) => (uint16_t)(dst - src),
-                 setsub8, setsub16, false);
+        OP_ARITH<alu_SUB>(0x28, 0x29, 0x2A, 0x2B, 0x2C, 0x2D);
 
         // x86_ops_arith.h:315 — OP_ARITH(SBB, dst - (src + tempc), setsbc, (dst, src), 1)
-        OP_ARITH(0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D,
-                 (dst, src) => (uint8_t)(dst - (src + tempc)),
-                 (dst, src) => (uint16_t)(dst - (src + tempc)),
-                 setsbc8, setsbc16, true);
+        OP_ARITH<alu_SBB>(0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D);
 
         // LES TROIS FAMILLES LOGIQUES ont `flagops` = (dst | src), un argument au
         // lieu de deux — c'est ce que le paramètre `flagops` de la macro permet et
-        // que le C# ne peut pas mélanger. Le délégué reçoit toujours (dst, src) et
-        // recompose ici l'argument unique de setznp. La recomposition doit être
-        // CELLE DE LA FAMILLE et non l'opération : PCem passe `(dst | src)` à OR,
-        // `(dst & src)` à AND, `(dst ^ src)` à XOR — le même texte que l'opération,
-        // mais ce sont deux paramètres distincts de la macro, pas un seul.
+        // que le C# ne peut pas mélanger. FlagsN reçoit toujours (dst, src) et
+        // recompose dans sa structure l'argument unique de setznp. La recomposition
+        // doit être CELLE DE LA FAMILLE et non l'opération : PCem passe `(dst | src)`
+        // à OR, `(dst & src)` à AND, `(dst ^ src)` à XOR — le même texte que
+        // l'opération, mais ce sont deux paramètres distincts de la macro, pas un seul.
         //
         // Le cast est obligatoire : C# promeut byte|byte en int.
 
         // x86_ops_arith.h:316 — OP_ARITH(OR, dst | src, setznp, (dst | src), 0)
-        OP_ARITH(0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D,
-                 (dst, src) => (uint8_t)(dst | src),
-                 (dst, src) => (uint16_t)(dst | src),
-                 (dst, src) => setznp8((uint8_t)(dst | src)),
-                 (dst, src) => setznp16((uint16_t)(dst | src)), false);
+        OP_ARITH<alu_OR>(0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D);
 
         // x86_ops_arith.h:317 — OP_ARITH(AND, dst &src, setznp, (dst & src), 0)
-        OP_ARITH(0x20, 0x21, 0x22, 0x23, 0x24, 0x25,
-                 (dst, src) => (uint8_t)(dst & src),
-                 (dst, src) => (uint16_t)(dst & src),
-                 (dst, src) => setznp8((uint8_t)(dst & src)),
-                 (dst, src) => setznp16((uint16_t)(dst & src)), false);
+        OP_ARITH<alu_AND>(0x20, 0x21, 0x22, 0x23, 0x24, 0x25);
 
         // x86_ops_arith.h:318 — OP_ARITH(XOR, dst ^ src, setznp, (dst ^ src), 0)
-        OP_ARITH(0x30, 0x31, 0x32, 0x33, 0x34, 0x35,
-                 (dst, src) => (uint8_t)(dst ^ src),
-                 (dst, src) => (uint16_t)(dst ^ src),
-                 (dst, src) => setznp8((uint8_t)(dst ^ src)),
-                 (dst, src) => setznp16((uint16_t)(dst ^ src)), false);
+        OP_ARITH<alu_XOR>(0x30, 0x31, 0x32, 0x33, 0x34, 0x35);
 
         PoserCmp();
     }
@@ -546,15 +602,16 @@ internal static partial class _386
     // s'applique à (ea, immédiat). Ses deux paramètres sont des LARGEURS, collées
     // par ## : `getea##ea_width`, `setadd##flag_width`.
     //
-    // DEVIATION: le C# n'a pas de collage de jetons. Là où OP_ARITH se
-    //   paramétrait par des délégués (les trois expressions variables sont des
-    //   VALEURS), ici les sept opérations variables sont des TYPES, et le corps
-    //   porte des `return 1` en son milieu. Des délégués ne gagneraient rien et
-    //   forceraient à tout passer en uint32_t, donc à perdre le masquage que
-    //   setadd8 et setadd16 ne font pas pareil. On écrit donc les DEUX
-    //   instanciations de largeur atteignables sur un 286 — (b, 8) et (w, 16) —
-    //   et pas une de plus. Substituer b<->w et 8<->16 dans l'une doit rendre
-    //   l'autre, à l'identique.
+    // DEVIATION: le C# n'a pas de collage de jetons. Là où OP_ARITH se paramètre
+    //   par ses trois expressions variables (des VALEURS : une structure par
+    //   famille depuis G15.P, des délégués avant), ici les sept opérations
+    //   variables sont des TYPES, et le corps porte des `return 1` en son
+    //   milieu. Des délégués ne gagneraient rien et forceraient à tout passer
+    //   en uint32_t, donc à perdre le masquage que setadd8 et setadd16 ne font
+    //   pas pareil. On écrit donc les DEUX instanciations de largeur
+    //   atteignables sur un 286 — (b, 8) et (w, 16) — et pas une de plus.
+    //   Substituer b<->w et 8<->16 dans l'une doit rendre l'autre, à
+    //   l'identique.
     //
     // DEVIATION: le macro fait `return 1` depuis le milieu du corps ; une méthode
     //   C# ne peut pas rendre la main pour son appelant. Même idiome que
@@ -879,22 +936,20 @@ internal static partial class _386
     /// Les incohérences de PCem sont transcrites : les formes MOT et LONG passent
     /// timing_mr à CLOCK_CYCLES et timing_rr à PREFETCH_RUN ; les formes `l_rm`
     /// passent timing_rml à CLOCK_CYCLES et timing_rm à PREFETCH_RUN.</summary>
-    private static void OP_ARITH_386(int baseOp, ArithOp8 op8, ArithOp16 op16, ArithOp32 op32,
-                                     ArithFlags8 setflags8, ArithFlags16 setflags16,
-                                     ArithFlags32 setflags32, bool gettempc)
+    private static void OP_ARITH_386<TAlu>(int baseOp) where TAlu : struct, IAluArith
     {
         // op##name##_b_rmw_a32
         OpFn bRmwA32 = fetchdat =>
         {
-                if (gettempc)
+                if (TAlu.GetTempc)
                         tempc = CF_SET() != 0 ? 1 : 0;
                 if (fetch_ea_32(fetchdat)) return 1;
                 if (cpu_mod == 3)
                 {
                         uint8_t dst = getr8(cpu_rm);
                         uint8_t src = getr8(cpu_reg);
-                        setflags8(dst, src);
-                        setr8(cpu_rm, op8(dst, src));
+                        TAlu.Flags8(dst, src);
+                        setr8(cpu_rm, TAlu.Op8(dst, src));
                         CLOCK_CYCLES(cpu_c.timing_rr);
                         PREFETCH_RUN(cpu_c.timing_rr, 2, (int)fetchdat, 0, 0, 0, 0, 1);
                 }
@@ -906,10 +961,10 @@ internal static partial class _386
                         if (cpu_state.abrt != 0)
                                 return 1;
                         uint8_t src = getr8(cpu_reg);
-                        seteab(op8(dst, src));
+                        seteab(TAlu.Op8(dst, src));
                         if (cpu_state.abrt != 0)
                                 return 1;
-                        setflags8(dst, src);
+                        TAlu.Flags8(dst, src);
                         CLOCK_CYCLES(cpu_c.timing_mr);
                         PREFETCH_RUN(cpu_c.timing_mr, 2, (int)fetchdat, 1, 0, 1, 0, 1);
                 }
@@ -919,15 +974,15 @@ internal static partial class _386
         // op##name##_w_rmw_a32
         OpFn wRmwA32 = fetchdat =>
         {
-                if (gettempc)
+                if (TAlu.GetTempc)
                         tempc = CF_SET() != 0 ? 1 : 0;
                 if (fetch_ea_32(fetchdat)) return 1;
                 if (cpu_mod == 3)
                 {
                         uint16_t dst = cpu_state.regs[cpu_rm].w;
                         uint16_t src = cpu_state.regs[cpu_reg].w;
-                        setflags16(dst, src);
-                        cpu_state.regs[cpu_rm].w = op16(dst, src);
+                        TAlu.Flags16(dst, src);
+                        cpu_state.regs[cpu_rm].w = TAlu.Op16(dst, src);
                         CLOCK_CYCLES(cpu_c.timing_rr);
                         PREFETCH_RUN(cpu_c.timing_rr, 2, (int)fetchdat, 0, 0, 0, 0, 1);
                 }
@@ -939,10 +994,10 @@ internal static partial class _386
                         if (cpu_state.abrt != 0)
                                 return 1;
                         uint16_t src = cpu_state.regs[cpu_reg].w;
-                        seteaw(op16(dst, src));
+                        seteaw(TAlu.Op16(dst, src));
                         if (cpu_state.abrt != 0)
                                 return 1;
-                        setflags16(dst, src);
+                        TAlu.Flags16(dst, src);
                         CLOCK_CYCLES(cpu_c.timing_mr);
                         PREFETCH_RUN(cpu_c.timing_rr, 2, (int)fetchdat, 1, 0, 1, 0, 1);
                 }
@@ -952,15 +1007,15 @@ internal static partial class _386
         // op##name##_l_rmw_a16 / _a32 : même corps, fetch_ea et ea32 près.
         OpFn LRmw(bool a32) => fetchdat =>
         {
-                if (gettempc)
+                if (TAlu.GetTempc)
                         tempc = CF_SET() != 0 ? 1 : 0;
                 if (a32 ? fetch_ea_32(fetchdat) : fetch_ea_16(fetchdat)) return 1;
                 if (cpu_mod == 3)
                 {
                         uint32_t dst = cpu_state.regs[cpu_rm].l;
                         uint32_t src = cpu_state.regs[cpu_reg].l;
-                        setflags32(dst, src);
-                        cpu_state.regs[cpu_rm].l = op32(dst, src);
+                        TAlu.Flags32(dst, src);
+                        cpu_state.regs[cpu_rm].l = TAlu.Op32(dst, src);
                         CLOCK_CYCLES(cpu_c.timing_rr);
                         PREFETCH_RUN(cpu_c.timing_rr, 2, (int)fetchdat, 0, 0, 0, 0, a32 ? 1 : 0);
                 }
@@ -972,10 +1027,10 @@ internal static partial class _386
                         if (cpu_state.abrt != 0)
                                 return 1;
                         uint32_t src = cpu_state.regs[cpu_reg].l;
-                        seteal(op32(dst, src));
+                        seteal(TAlu.Op32(dst, src));
                         if (cpu_state.abrt != 0)
                                 return 1;
-                        setflags32(dst, src);
+                        TAlu.Flags32(dst, src);
                         CLOCK_CYCLES(cpu_c.timing_mr);
                         PREFETCH_RUN(cpu_c.timing_rr, 2, (int)fetchdat, 0, 1, 0, 1, a32 ? 1 : 0);
                 }
@@ -986,7 +1041,7 @@ internal static partial class _386
         OpFn bRmA32 = fetchdat =>
         {
                 uint8_t dst, src;
-                if (gettempc)
+                if (TAlu.GetTempc)
                         tempc = CF_SET() != 0 ? 1 : 0;
                 if (fetch_ea_32(fetchdat)) return 1;
                 if (cpu_mod != 3)
@@ -995,8 +1050,8 @@ internal static partial class _386
                 src = geteab();
                 if (cpu_state.abrt != 0)
                         return 1;
-                setflags8(dst, src);
-                setr8(cpu_reg, op8(dst, src));
+                TAlu.Flags8(dst, src);
+                setr8(cpu_reg, TAlu.Op8(dst, src));
                 CLOCK_CYCLES(cpu_mod == 3 ? cpu_c.timing_rr : cpu_c.timing_rm);
                 PREFETCH_RUN(cpu_mod == 3 ? cpu_c.timing_rr : cpu_c.timing_rm, 2, (int)fetchdat,
                              cpu_mod == 3 ? 0 : 1, 0, 0, 0, 1);
@@ -1007,7 +1062,7 @@ internal static partial class _386
         OpFn wRmA32 = fetchdat =>
         {
                 uint16_t dst, src;
-                if (gettempc)
+                if (TAlu.GetTempc)
                         tempc = CF_SET() != 0 ? 1 : 0;
                 if (fetch_ea_32(fetchdat)) return 1;
                 if (cpu_mod != 3)
@@ -1016,8 +1071,8 @@ internal static partial class _386
                 src = geteaw();
                 if (cpu_state.abrt != 0)
                         return 1;
-                setflags16(dst, src);
-                cpu_state.regs[cpu_reg].w = op16(dst, src);
+                TAlu.Flags16(dst, src);
+                cpu_state.regs[cpu_reg].w = TAlu.Op16(dst, src);
                 CLOCK_CYCLES(cpu_mod == 3 ? cpu_c.timing_rr : cpu_c.timing_rm);
                 PREFETCH_RUN(cpu_mod == 3 ? cpu_c.timing_rr : cpu_c.timing_rm, 2, (int)fetchdat,
                              cpu_mod == 3 ? 0 : 1, 0, 0, 0, 1);
@@ -1028,7 +1083,7 @@ internal static partial class _386
         OpFn LRm(bool a32) => fetchdat =>
         {
                 uint32_t dst, src;
-                if (gettempc)
+                if (TAlu.GetTempc)
                         tempc = CF_SET() != 0 ? 1 : 0;
                 if (a32 ? fetch_ea_32(fetchdat) : fetch_ea_16(fetchdat)) return 1;
                 if (cpu_mod != 3)
@@ -1037,8 +1092,8 @@ internal static partial class _386
                 src = geteal();
                 if (cpu_state.abrt != 0)
                         return 1;
-                setflags32(dst, src);
-                cpu_state.regs[cpu_reg].l = op32(dst, src);
+                TAlu.Flags32(dst, src);
+                cpu_state.regs[cpu_reg].l = TAlu.Op32(dst, src);
                 CLOCK_CYCLES(cpu_mod == 3 ? cpu_c.timing_rr : cpu_c.timing_rml);
                 PREFETCH_RUN(cpu_mod == 3 ? cpu_c.timing_rr : cpu_c.timing_rm, 2, (int)fetchdat,
                              0, cpu_mod == 3 ? 0 : 1, 0, 0, a32 ? 1 : 0);
@@ -1052,10 +1107,10 @@ internal static partial class _386
                 uint32_t src = getlong();
                 if (cpu_state.abrt != 0)
                         return 1;
-                if (gettempc)
+                if (TAlu.GetTempc)
                         tempc = CF_SET() != 0 ? 1 : 0;
-                setflags32(dst, src);
-                EAX = op32(dst, src);
+                TAlu.Flags32(dst, src);
+                EAX = TAlu.Op32(dst, src);
                 CLOCK_CYCLES(cpu_c.timing_rr);
                 PREFETCH_RUN(cpu_c.timing_rr, 5, -1, 0, 0, 0, 0, 0);
                 return 0;
@@ -1078,23 +1133,13 @@ internal static partial class _386
     /// <summary>G2, D2 — les sept invocations, en 32 bits (x86_ops_arith.h:312-318).</summary>
     private static void PoserGroupeArith386()
     {
-        OP_ARITH_386(0x00, (d, s) => (uint8_t)(d + s), (d, s) => (uint16_t)(d + s), (d, s) => d + s,
-                     setadd8, setadd16, setadd32, false);
-        OP_ARITH_386(0x10, (d, s) => (uint8_t)(d + s + tempc), (d, s) => (uint16_t)(d + s + tempc),
-                     (d, s) => d + s + (uint32_t)tempc, setadc8, setadc16, setadc32, true);
-        OP_ARITH_386(0x28, (d, s) => (uint8_t)(d - s), (d, s) => (uint16_t)(d - s), (d, s) => d - s,
-                     setsub8, setsub16, setsub32, false);
-        OP_ARITH_386(0x18, (d, s) => (uint8_t)(d - (s + tempc)), (d, s) => (uint16_t)(d - (s + tempc)),
-                     (d, s) => d - (s + (uint32_t)tempc), setsbc8, setsbc16, setsbc32, true);
-        OP_ARITH_386(0x08, (d, s) => (uint8_t)(d | s), (d, s) => (uint16_t)(d | s), (d, s) => d | s,
-                     (d, s) => setznp8((uint8_t)(d | s)), (d, s) => setznp16((uint16_t)(d | s)),
-                     (d, s) => setznp32(d | s), false);
-        OP_ARITH_386(0x20, (d, s) => (uint8_t)(d & s), (d, s) => (uint16_t)(d & s), (d, s) => d & s,
-                     (d, s) => setznp8((uint8_t)(d & s)), (d, s) => setznp16((uint16_t)(d & s)),
-                     (d, s) => setznp32(d & s), false);
-        OP_ARITH_386(0x30, (d, s) => (uint8_t)(d ^ s), (d, s) => (uint16_t)(d ^ s), (d, s) => d ^ s,
-                     (d, s) => setznp8((uint8_t)(d ^ s)), (d, s) => setznp16((uint16_t)(d ^ s)),
-                     (d, s) => setznp32(d ^ s), false);
+        OP_ARITH_386<alu_ADD>(0x00);
+        OP_ARITH_386<alu_ADC>(0x10);
+        OP_ARITH_386<alu_SUB>(0x28);
+        OP_ARITH_386<alu_SBB>(0x18);
+        OP_ARITH_386<alu_OR>(0x08);
+        OP_ARITH_386<alu_AND>(0x20);
+        OP_ARITH_386<alu_XOR>(0x30);
     }
 
     // ---- G2, D2 : les formes 32 bits (_l, _a32) de x86_ops_arith.h ----

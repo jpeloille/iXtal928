@@ -25,11 +25,12 @@ namespace iXtal26.PerfBanc;
 // ---- 3. OP_ARITH : un appel direct contre une interface et un `override` ----
 
 /// <summary>Cas 3. Trois instructions par tour, ADD AL,CL, OR AL,CL et SUB AL,CL (00h, 08h, 28h, ModRM C8h), sur
-/// l'ami286 : la même fabrique sert les trois familles, et son site d'appel voit trois opérations, comme dans le
-/// produit. Le vrai gestionnaire est une fermeture qui appelle deux délégués (op8 et setflags8) ; Delegue en est la
-/// copie. Retenue et AA appellent l'opération par une structure (un appel direct, lié par le JIT, sans délégué, comme
-/// la macro de PCem le développe) ; Interface et Virtuel, par une interface et par une classe abstraite, une classe
-/// par famille (trois implémentations au même site : le JIT ne peut pas le dévirtualiser).</summary>
+/// l'ami286. Le vrai gestionnaire appelle l'opération par sa structure, un corps par famille
+/// (OP_ARITH&lt;TAlu&gt;, depuis G15.P) ; Delegue est la copie de celui d'avant : une seule fabrique pour les trois
+/// familles, une fermeture qui appelait deux délégués (op8 et setflags8), dont le site d'appel voyait trois opérations.
+/// Retenue et AA appellent l'opération par une structure (un appel direct, lié par le JIT, sans délégué, comme la
+/// macro de PCem le développe) ; Interface et Virtuel, par une interface et par une classe abstraite, une classe par
+/// famille (trois implémentations au même site : le JIT ne peut pas le dévirtualiser).</summary>
 public class Interdit3Interface
 {
     private OpFn[] reel = null!, retenue = null!, aa = null!, delegue = null!, iface = null!, virtuel = null!;
@@ -76,7 +77,8 @@ internal interface IAluStatique
     static abstract void Drapeaux(uint8_t dst, uint8_t src);
 }
 
-// Les trois opérations, telles que PoserGroupeArith les passe à OP_ARITH (Cpu/386_ops_arith.cs:257-310).
+// Les trois opérations, telles que PoserGroupeArith les passait à OP_ARITH avant G15.P (Cpu/386_ops_arith.cs:257-310 à
+// 61a85d9) ; le produit les a depuis dans alu_ADD, alu_OR et alu_SUB.
 internal struct AluAdd : IAluStatique
 {
     public static uint8_t Op(uint8_t dst, uint8_t src) => (uint8_t)(dst + src);
@@ -225,8 +227,8 @@ internal static class Interdit3
         return r + cpu_state.regs[0].b.l;
     }
 
-    // Cpu/386_ops_arith.cs:96-133, op##name##_b_rmw_a16, ligne pour ligne, gettempc faux (ADD, OR, SUB) et
-    // l'opération liée par la structure.
+    // Cpu/386_ops_arith.cs:96-133 à 61a85d9, op##name##_b_rmw_a16, ligne pour ligne, gettempc faux (ADD, OR, SUB) et
+    // l'opération liée par la structure : la forme que le produit a prise en G15.P.
     internal static int opARITH_b_rmw_a16<TOp, T>(uint32_t fetchdat) where TOp : struct, IAluStatique
                                                                     where T : struct
     {
@@ -258,7 +260,11 @@ internal static class Interdit3
         return 0;
     }
 
-    // Le vrai : la fabrique d'OP_ARITH (Cpu/386_ops_arith.cs:96-133), ligne pour ligne.
+    // Le vrai jusqu'à G15.P : la fabrique d'OP_ARITH (Cpu/386_ops_arith.cs:96-133 à 61a85d9), ligne pour ligne, et
+    // ses deux délégués (:77 et :79), que le produit n'a plus.
+    internal delegate uint8_t ArithOp8(uint8_t dst, uint8_t src);
+    internal delegate void ArithFlags8(uint8_t dst, uint8_t src);
+
     private static OpFn Fabrique(ArithOp8 op8, ArithFlags8 setflags8, bool gettempc) => fetchdat =>
     {
         if (gettempc)

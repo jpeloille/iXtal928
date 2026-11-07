@@ -12,8 +12,8 @@
 // `InterditN…`, hors de la référence des 0 % (compare-ref.sh ne les nomme pas, comme GardeBanc et Is486Banc) :
 //   1. readmemb (Cpu/386_common.cs:163-169), statique contre une instance (InterditsBanc.cs) ;
 //   2. speaker_get_buffer (Sound/sound_speaker.cs:62-75), `for` contre LINQ (ici) ;
-//   3. l'ADD, l'OR et le SUB d'OP_ARITH (Cpu/386_ops_arith.cs:96-133), un appel direct contre une interface et un
-//      `override`, à un site polymorphe (InterditsCpu.cs) ;
+//   3. l'ADD, l'OR et le SUB d'OP_ARITH (Cpu/386_ops_arith.cs, OP_ARITH<TAlu>), un appel direct contre une interface
+//      et un `override`, à un site polymorphe (InterditsCpu.cs) ;
 //   4. le Jcc (Cpu/386_ops_jump.cs:83-100), une fermeture contre une méthode nommée (InterditsCpu.cs) ;
 //   5. les affectations de rendu de svga_recalctimings (Video/vid_svga.cs:550-728), un groupe de méthodes mis en
 //      cache contre une lambda qui capture, créée à chaque appel (InterditsSvga.cs) ;
@@ -30,12 +30,14 @@
 // - Retenue (la base du rapport) : une copie de ce code dans la forme que PLAN.md retient ;
 // - AA : la même copie, compilée une seconde fois : le placement du code, que l'écart de Retenue à AA mesure ;
 // - Interdite : la même copie, la seule construction interdite changée (au cas 3, deux colonnes : Interface et
-//   Virtuel ; et Delegue, la forme du vrai, des délégués capturés ; au cas 1, une seconde, InterditeInlinee ; au cas
+//   Virtuel ; et Delegue, des délégués capturés, la forme du vrai jusqu'à G15.P ; au cas 1, une seconde,
+//   InterditeInlinee ; au cas
 //   8, Champ, la garde par un champ, en plus de l'interpolation sans garde).
 // Retenue et AA sont un seul texte, une méthode générique instanciée sur deux structures vides (CopieA, CopieB) : le
-// JIT compile un corps distinct pour chaque structure, à une autre adresse, sans rien partager. Aux cas 3, 4 et 6, le
-// vrai code EST une forme interdite ou un délégué (une fermeture qui appelle des délégués, une fermeture, un tableau
-// alloué) : sa colonne se compare à celle qu'il incarne (Delegue, Interdite, Interdite), et non à la retenue.
+// JIT compile un corps distinct pour chaque structure, à une autre adresse, sans rien partager. Aux cas 4 et 6, le
+// vrai code EST une forme interdite (une fermeture, un tableau alloué) : sa colonne se compare à celle qu'il incarne
+// (Interdite), et non à la retenue. Le cas 3 en était aussi (une fermeture qui appelle des délégués, Delegue)
+// jusqu'à G15.P : depuis, le vrai est dans la forme retenue.
 //
 // L'ÉQUIVALENCE est vérifiée dans [GlobalSetup], avant toute mesure : depuis le même état, chaque colonne laisse le
 // même état que le vrai code (les registres, les drapeaux paresseux, les cycles, la mémoire touchée, selon le cas) ;

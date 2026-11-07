@@ -20012,3 +20012,298 @@ Ce qu'elle nomme un à un (Q48) :
   performance (−20,7 % sur ce chemin), qui n'est pas une convention.
 - La garde par un champ d'une interpolation coûte par sa présence (le prologue) : une interpolation de mise au point
   dans un chemin chaud gagnerait à vivre hors de la méthode.
+
+## G15.P — La performance avant les renommages ; P1, OP_ARITH par des structures
+
+Du 5 au 8 novembre 2026 (PLAN-G15.md § G15.P). Q48 rouverte : le plan de G15.P (« ce que G15.0a a chiffré, et ce
+qu'on en fait ») approuvé le 05/11, après « vu tous les coups, on a rien changé ? » ; puis, sur le tableau de P0 :
+« comprends d'abord la perte du 286 sur OP_ARITH », « oui, lance le témoin de calage », « garde OP_ARITH, règle du
+témoin calé » (05/11) ; enfin, sur les quatre rouges du banc de P1 : « admets le résidu, commite OP_ARITH » (08/11).
+P0 mesure quatre candidats sans rien commiter ; P1 commite le seul retenu, OP_ARITH.
+
+### P0 — quatre candidats, mesurés contre R
+
+Dans quatre worktrees de `61a85d9`, une seule forme changée chacun, rien de commité (les diffs :
+`/var/tmp/ixtal-g15/g15-p/variante-*.diff`) :
+- **jcc** (`p0-jcc`) : le Jcc de `386_ops_jump.cs` par une structure par condition, sans fermeture ;
+- **arith** (`p0-arith`) : OP_ARITH par une structure par famille, la forme retenue du cas 3 de G15.0a ;
+- **seg** (`p0-seg`) : le descripteur de `x86seg.cs` et de `386.Materiel.cs` sur la pile, au lieu de
+  `new uint16_t[4]` (le cas 6) ;
+- **lecture** (`p0-lecture`) : `readmemb` en `AggressiveInlining`.
+
+Chacun contre `ref-R`, les 65 cas, les trois passes de `compare-ref.sh` sous le gel de 10.0.14 (`--empreintes-r`,
+`--lancees-r`), l'un après l'autre, cinq minutes calmes avant chacun et `ref-R` revérifié après (`outils/p0.sh`, le
+05/11 de 06 h 46 à 13 h 31). Le tableau des 65 cas : `tableau-p0.txt`. En résumé (la médiane, l'étendue, la passe 1) :
+
+| Variante | Médiane | De … à | Plus lents | Plus rapides | Indistincts | Rouges retenus |
+|---|---|---|---|---|---|---|
+| jcc | −0,06 % | −10,78 à +2,51 % | 15 | 17 | 33 | 12 |
+| arith | −0,16 % | −16,92 à +5,15 % | 12 | 27 | 26 | 11 |
+| seg | −0,02 % | −2,30 à +3,99 % | 14 | 10 | 41 | 10, et 8 à confirmer |
+| lecture | +0,00 % | −7,92 à +3,73 % | 5 | 5 | 55 | 5 |
+
+Aucune variante n'était verte contre R. Celle d'OP_ARITH gagnait de 5,9 à 12,6 % sur les trois boucles d'Exec386
+et jusqu'à 16,9 % sur celles du 486 en « tout ». Mais elle perdait de 2,9 à 5,2 % sur quatre boucles du 286, et 4,6 %
+sur Exec486 « aucun » préfixe, qui exécutent pourtant le même code changé.
+
+**Le témoin de calage** (`p0-cale`, `outils/cale.sh`) : `61a85d9`, iXtal26 intact, quatre appels à une méthode vide
+dans le banc, jittés avant le premier `exec386` (`variante-cale.diff`). Ils décalent de 32 octets modulo 64 tout le
+code jitté ensuite, comme la variante arith. Pour arith, `alignement-286/resume.txt` met `exec386` à 32 modulo 64
+sous R et à 0 sous arith, ou l'inverse, dans les 19 scénarios d'Exec ; pour le témoin, `cale-contre-R.txt` donne le
+même décalage de 32 dans les 15 scénarios mesurés. Contre R, sur Exec286, Exec386 et Exec486 (15 cas, trois passes,
+05/11 de 19 h 13 à 19 h 36), ce témoin, qui ne change rien d'iXtal26, s'écarte de R de −7,6 à +11,1 % selon la
+boucle. La variante arith, lue contre lui (`tableau-cale.txt`), est plus rapide partout, de 2,6 à 10,8 %, sauf
+Exec386PrefixePcem (+1,4 %).
+**La perte du 286 s'explique par le placement du code, pas par OP_ARITH** : un seul témoin le montre, mais il perd
+autant ou plus que la variante sur les six boucles du 286, sans rien changer d'iXtal26.
+
+Julien a gardé OP_ARITH seul ; Jcc, le descripteur et `readmemb` ne sont pas retenus (leurs chiffres restent dans
+`tableau-p0.txt`).
+
+### La règle du témoin calé
+
+Le banc contre R ne peut pas juger seul une étape qui change le code des chemins chauds : déplacer le code de 32
+octets modulo 64 suffit à faire perdre jusqu'à 11 % au même code. La règle, décidée le 05/11 : le candidat C se mesure
+contre un **témoin T**. T est le commit de base, iXtal26 inchangé, plus un calage hors dépôt : k appels à une méthode
+vide (`CalageTemoin`, `Rien`), à l'endroit où C change la taille du code jitté (la fin de `PoserGroupeArith386`,
+`outils/caler.py`). k est choisi pour que le code jitté après tombe, sous T, au même placement modulo 64 que sous C.
+Ensuite, `compare-ref.sh` est lancé avec T à la place de R : le verdict, l'IC de Mann-Whitney, la confirmation et la
+passe 3 sont ceux de § G14.0b.
+
+- **Le calage choisi**, k = 4 (k = 2 et 8 essayés, `calage/construction-k*.log`). Le témoin, `p1-temoin`, est
+  `61a85d9` plus `temoin.diff` (dix lignes dans `386_ops_arith.cs`, jamais commitées).
+- **Le placement vérifié** sur les 65 cas, par la carte des méthodes jittées (PerfMap, job dry, sans mesure ;
+  `outils/cartes-65.sh`, `placement.py`, `histogrammes.py`). Pour chaque cas, `calage/histogrammes.txt` donne la
+  part du code chaud au même placement modulo 64 sous C et sous T : les méthodes d'iXtal26 de même taille des deux
+  côtés, hors méthodes froides du remplissage des tables, pondérées par leur taille. Elle vaut de 92 à 99 %
+  sur les boucles d'Exec, 100 % sur Fetch, Exec8088 et les machines pc1512 et ibmpc « aucun », de 91 à 97 % sur
+  l'ibmat, l'ibmpc « tout », l'ibmxt et l'olivetti_m24, et de 69 à 87 % sur l'ami286, l'ami386, l'ami386dx et
+  l'ami486. Trois cas sortent de ces fourchettes : Rendu8bpp cl_gd5429 « aucun » (65 %), RenduCga « tout » (80 %) et
+  SonAdpcm « aucun » (90 %), tous trois verts au banc. `placement-65.txt` compte les méthodes, froides comprises, et
+  nomme les plus grosses qui diffèrent : celles que C change (`PoserGroupe_arith_386` et ses voisines du remplissage des
+  tables, jittées une fois) et, sur les machines AMI, des méthodes de périphériques poussées plus loin.
+
+### P1 — Ce qui est livré
+
+- `iXtal26/Cpu/386_ops_arith.cs` : `OP_ARITH<TAlu>` et `OP_ARITH_386<TAlu>`, avec `TAlu : struct, IAluArith`.
+  L'interface a sept membres `static abstract` : GetTempc, Op8, Op16, Op32, Flags8, Flags16, Flags32. Il y a une
+  structure par famille, `alu_ADD`, `alu_ADC`, `alu_SUB`, `alu_SBB`, `alu_OR`, `alu_AND`, `alu_XOR`.
+  - Les six délégués `ArithOp8`… `ArithFlags32` sont ôtés, et avec eux les arguments op8, op16, op32, setflags8,
+    setflags16, setflags32 et gettempc des quatorze appels.
+  - Les corps des formes sont inchangés, ligne pour ligne, hors trois remplacements : `op8(…)` devient `TAlu.Op8(…)`,
+    `setflags8(…)` devient `TAlu.Flags8(…)`, `gettempc` devient `TAlu.GetTempc` (une constante que le JIT plie).
+    L'ordre de lecture de `tempc` ne change pas.
+  - Les deux DEVIATION de l'en-tête et d'ARITH_MULTI sont récrites, les 47 `// pcem:` gardés.
+- `tools/perfbanc/InterditsBanc.cs` et `InterditsCpu.cs` : les commentaires du cas 3 (le vrai est depuis dans la forme
+  retenue ; Delegue est la copie de celui d'avant, avec ses deux délégués, déplacés dans le banc).
+- `tools/perfbanc/interdits.py` :
+  - le cas 3 ne s'incarne plus dans Delegue (INCARNE) ;
+  - ses paires (PAIRES) sont les trois gestionnaires `b_rmw_a16` du vrai, ADD, OR et SUB, contre leur copie ;
+  - une égalité de plus, « au registre de l'argument près » : le vrai est la lambda d'une classe cache qui ne capture
+    rien, donc une méthode d'instance, qui reçoit son argument dans rsi ; la copie est statique et le reçoit dans rdi.
+    Les seules lignes admises à différer sont celles où remplacer rsi ou esi par rdi ou edi dans le vrai rend la ligne
+    de la copie ; l'égalité ne s'applique que si l'en-tête du vrai porte `:this` et celui de la copie non.
+- `tools/perfbanc/interdits.sh` : le motif du code machine à relever, `*:<OP_ARITH>b__*`.
+
+### Le banc, C contre T
+
+`compare-ref.sh`, `p1-arith` (C) contre `p1-temoin` (T), les 65 cas, trois passes (`outils/banc.sh`, le 05/11 de
+19 h 58 à 21 h 27, 5 356 s). La sortie est dans `banc/`. Résultat : **61 verts, 4 rouges retenus**, 0 refus, 0 à
+confirmer, 0 à rejouer.
+
+| Où | C contre T (passe 1) |
+|---|---|
+| Exec286, les six boucles | −1,61 à −7,02 % |
+| Exec386MemoirePcem, Exec386Pcem | −6,51 %, −7,45 % |
+| Exec386PrefixePcem | +0,05 %, indistinct |
+| Exec486, les six boucles | −1,61 à −9,98 % |
+| ami286 « aucun », « tout » | −5,04 %, −0,65 % |
+| ami386, ami386dx, les deux modes | −0,75 à −1,56 % |
+| ami486 « aucun », « tout » | −2,58 %, −2,32 % |
+| Exec8088, Fetch, MemoireLente, rendu, vidéo, son | de −0,61 à +0,36 %, verts, hors Rendu8bpp tvga8900d « tout » |
+| ibmxt « tout », ibmpc « tout », ibmat « aucun », olivetti_m24 « aucun » | de −0,42 à +0,04 %, verts |
+| ibmxt « aucun », ibmpc « aucun » | +0,74 %, +0,34 %, verts (l'IC de la passe 1 contient 0) |
+| **ibmat « tout »** | **+0,15 %, +0,15 %, +0,19 %** (passes 1, 2, 3) |
+| **olivetti_m24 « tout »** | **+0,36 %, +0,29 %, +0,36 %** |
+| **pc1512 « aucun »** | **+0,13 %, +0,14 %, +0,14 %** |
+| **pc1512 « tout »** | **+0,17 %, +0,15 %, +0,18 %** |
+
+Deux rouges de passe 1 n'ont pas été confirmés en passe 2 : Rendu8bpp tvga8900d « tout » (+1,26 %, puis +0,64 %
+[−0,01 ; +1,29]) et SonSb16Sortie « aucun » (+0,13 %, puis +0,09 %).
+
+Les passes 2 et 3 se jouent par groupe, et elles mesurent aussi les cas verts du groupe. Deux machines 808x vertes
+par la règle y sont plus lentes : l'ibmxt « aucun », au-delà de 0 aux deux passes, et l'ibmpc « aucun », au-delà de 0
+en passe 2 seulement. Les chiffres : l'ibmxt « aucun » (+0,73 % [+0,55 ; +0,87] en passe 2, +0,80 %
+[+0,70 ; +0,93] en passe 3) et l'ibmpc « aucun » (+0,40 % [+0,16 ; +0,60] en passe 2, +0,41 % [−0,13 ; +0,55] en
+passe 3). La règle de § G14.0b (Q37) ne juge que les rouges de la passe 1 : ces deux cas sont verts. Ils sont du même
+ordre et de la même nature que les quatre rouges retenus : des machines qui n'exécutent pas le code changé. Le
+résidu de placement va donc jusqu'à +0,8 %, et non +0,36 %.
+
+**Les quatre rouges retenus.** Le pc1512 et l'olivetti_m24 ont un cœur 808x : ils n'exécutent jamais OP_ARITH, ni
+aucun code que C change. L'ibmat, un 286, l'exécute en « aucun » comme en « tout », et seul « tout » est rouge. Leur
+code chaud est au même placement modulo 64 sous C et sous T (91 à 100 %). Quatre mesures ont cherché la cause :
+
+1. **Le tas, dans un sens** (2e témoin, `temoin2/PLAN.txt`). C alloue moins que T au démarrage, mesuré au cctor de
+   `_386` sur 22 lancements de chaque côté : 68 320 octets contre 73 072 sur 18 d'entre eux, 69 088 contre 73 840 sur
+   les 4 autres. Le Δ vaut 4 752 octets dans tous les cas, sans GC (`temoin2/mesure-p1-mesure-{c,t}.txt`). T2-Δ
+   (`p1-temoin2-d`) et T2-0 (`p1-temoin2-0`) ne diffèrent que par un `byte[]` vivant de 4 760 octets contre 8, leur code
+   recalé au même placement (`placement-d-contre-0.txt`). Banc T2-Δ contre T2-0, Machine808x et Machine286 (12 cas,
+   `banc-temoin2/`) : **vert**, de −0,09 à +0,12 %, aucun rouge confirmé.
+2. **Le tas, au décalage exact** (3e témoin). Le décalage de C est −4 752 octets, et non +4 752 : `p1-temoin3` est
+   T2-0 dont le `byte[8]` devient un `byte[60792]`, ≡ −4 752 modulo 64 Kio, au même code. Banc T3 contre T2-0
+   (`banc-temoin3/`) : **vert dès la passe 1** ; olivetti_m24 « tout » à +0,00 %, contre +0,36 % en C/T. **Décaler les
+   données ne reproduit pas les rouges.** Un `byte[]` ne rejoue pas pour autant l'allocation réelle de C : des
+   fermetures et des délégués en moins, à d'autres adresses.
+3. **Les compteurs du processeur** (`outils/compteurs.sh`, `compte.py`, `compteurs-lecture.txt`). perf stat sur les
+   cœurs P 4, 6, 8 et 10, 10 s par lancement, huit lancements par cas (T C C T T C C T), sur les quatre rouges et un
+   témoin vert (ibmpc « tout ») ; `perf_event_paranoid` mis à 1 par Julien le 07/11.
+   - Les branches par instruction sont égales à 0,2 % près : le flux d'instructions ne change pas de nature.
+   - Le front-end diffère fortement, avec un signe qui varie d'un cas à l'autre : `idq.mite_uops` de −37 % à +48 %,
+     `frontend_retired.dsb_miss` de −28 % à +59 %, `dsb2mite_switches.penalty_cycles` de −45 % à +38 %. C'est une
+     signature du placement.
+   - Les cycles par instruction ne suivent qu'en partie le banc :
+     - +0,69 % net sur pc1512 « aucun », +0,16 % (non net) sur pc1512 « tout » ;
+     - +1,28 % net sur ibmat « tout » ;
+     - −0,41 % (non net) sur olivetti_m24 « tout » ;
+     - −1,34 % net sur le témoin vert. Une fenêtre
+     de 10 s ne mesure pas exactement ce que mesure une itération du banc.
+4. **Les précodes du runtime** (4e témoin). Depuis .NET 7, chaque appel entre méthodes passe par le précode de
+   l'appelé (FixupPrecode, dans des blocs `ReportStubBlock<…>` de 0x400 octets), et C ajoute sept structures et leurs
+   instanciations génériques. Sur les huit cas de l'ibmat, de l'ibmpc, de l'olivetti_m24 et du pc1512, dans les deux
+   modes (l'ibmxt n'a pas été relevé ; `outils/precodes.py`), de 28 à 38 blocs sur 37 à 42 sont à la même taille et
+   au même offset modulo 4 Kio sous C et sous T ; les autres sont décalés.
+   Le 4e témoin (`p1-temoin4`, `outils/types.py`) portait T plus la mécanique générique de C, vers des tables de rebut.
+   Il ne reproduit pas l'empreinte de C, pour deux raisons :
+   - il en est un sur-ensemble, avec les fermetures de T et les génériques de C : ses blocs ne sont pas plus proches
+     de ceux de C (29 à 34 égaux) que ceux de T ;
+   - son code chaud n'est pas tout entier au placement de T (de 88 à 99 % au même placement modulo 64, selon le
+     cas) : le banc demanderait un recalage.
+
+   Aucun banc n'a donc été lancé dessus. Et cette piste ne sépare pas les rouges des verts : l'ibmpc, vert, a autant
+   de blocs décalés (34 et 36 égaux).
+
+**Ce que les mesures montrent** :
+- les branches par instruction ne changent pas ;
+- décaler les données ne reproduit pas les rouges ;
+- le front-end du processeur diffère.
+
+**Ce qu'elles ne disent pas** : quel placement exactement, ni pourquoi l'ibmat « tout », qui exécute le code changé,
+perd quand l'Exec286 de la même DLL gagne. La piste la plus probable est celle des précodes du runtime, qu'aucun
+témoin ne sait reproduire. Le résidu est un effet de placement : de +0,13 à
++0,36 % sur les quatre rouges retenus, jusqu'à +0,8 % sur l'ibmxt « aucun » (vert par la règle), sur des machines
+dont la plupart n'exécutent pas le code changé. Julien a admis les quatre rouges le 08/11 (« admets le résidu ») ;
+les deux cas verts plus lents des passes 2 et 3, relevés en écrivant cette section, lui sont dits avec le commit. Le
+résidu est écrit ici, et non corrigé.
+
+### Les portes
+
+- **La construction** (`construction-finale.log`) : iXtal26, le banc et Diff, en Release, 0 avertissement, 0 erreur.
+- **Le texte commité et le texte mesuré.** Après les séries et le banc, la contre-lecture a fait retoucher des
+  commentaires, dans `386_ops_arith.cs` (deux lignes de plus) et dans `InterditsCpu.cs`, et `interdits.py`
+  (l'égalité au registre de l'argument, les paires OR et SUB). L'IL d'iXtal26 reconstruit est égal à celui de la DLL
+  mesurée (`dll-mesuree/`, `5ff666ca…`), sans table : 5 724 entrées, 0 changée, 0 disparue, 0 apparue
+  (`il-mesuree-contre-finale.txt`) ; celui du banc aussi, 575 entrées, 0/0/0 (`il-banc-mesure-contre-final.txt`).
+  Les séries et le banc valent donc pour le commit.
+- **L'IL contre R.**
+  - Par la table de G14 (`--jusqua G14.4`, `il-R-contre-finale.txt`) : 102 entrées changées, 184 disparues, 170
+    apparues, toutes dans `_386`. Ce sont les délégués, les fermetures et les deux méthodes d'avant, les structures et
+    les méthodes génériques d'après. Ce sont aussi les classes de fermeture et les lambdas renumérotées (les noms
+    `<>c__DisplayClassN` et `<…>b__N_M`), que l'outil ne normalise pas (PLAN-G15 § Les risques, les noms générés),
+    et les méthodes qui les nomment.
+  - Le relevé de G15.0a (`releve/il-bilan.txt`, `tools/interdits/releve.py`), compté par méthode et par instruction,
+    est la preuve qui ne dépend pas de ces noms. Hors d'OP_ARITH, rien ne change, sauf deux `newobj` : les cctors
+    de `<>c__72`1` et `<>c__93`1`, l'instance unique des classes cache des lambdas génériques. Dans OP_ARITH,
+    `callvirt` passe de 40 à 0 (les Invoke des délégués), `ldftn` de 112 à 42, `newobj` de 116 à 44 ; rien
+    n'apparaît. SoftFloat est égal à la base.
+  - Au texte, les lambdas de `386_ops_arith.cs` passent de 46 à 11, et il y a huit sites « poly » neufs : l'interface
+    `IAluArith` et ses sept membres, liés à la compilation, la forme retenue du cas 3 de G15.0a. Aucun autre fichier
+    ne change.
+- **Les séries**, entières, dans les deux modes, la DLL figée `S-g15p/` (`iXtal26.dll` `5ff666ca…`, Diff
+  `b525b821…`, l'oracle `fe905731…`), le WORK neuf `g5w-g15p` (la recette, 34 caractères, conforme à `g5w.sha256`) :
+  - `g15p` contre `g14r` : 827 portes, **0 écart** (`compare-g15p.txt`) ;
+  - `g15p-tout` contre `g14r-tout` : 827 portes, 1 écart, `banc-atapibanc-materiel`, en rc=1 sur le délai de
+    `Banc.cs:166-169` (1 200 s d'horloge de l'hôte), comme en G14.0d, G14.1 et G14.4. Rejouée seule le 07/11 de
+    13 h 38 à 13 h 56, sur la même DLL, le même WORK et le même TMPDIR, après cinq minutes calmes
+    (`outils/complement-atapi-materiel-tout.sh`, `series/g15p-tout-c.tsv`) : rc=0, 1 095 s, « Vert :
+    atapibanc.attendus, les 89 attendus du mode materiel, deux séances identiques », la ligne de `g14r-tout`. Dit et
+    noté à côté du tsv (`series/g15p-tout.NOTE.txt`) : **0 écart** avec le rejeu.
+
+  Une erreur de lancement, à dire : le premier script des séries, `outils/series.sh`, est resté environ 37 heures au
+  guet du calme (du 05/11 à 21 h 33 au 07/11 à 10 h 26). Le guet cherche les processus lourds par leur nom, dont
+  « series.sh », et voyait donc le script lui-même. Renommé `series-g15p.sh` et relancé le 07/11 ; les journaux du guet
+  bloqué sont gardés (`*-guet-bloque.log`).
+- **Le banc des constructions interdites, cas 3** (`tools/perfbanc/interdits.sh --cas Interdit3`, le 08/11 de 7 h 39
+  à 7 h 40, `interdit3/`) :
+  - au premier verdict, **sans valeur** (`interdit3/rapport-avant-argument.txt`). Une ligne sur 165 différait entre
+    le vrai et sa copie, `mov ebx, esi` contre `mov ebx, edi` ; les deux listings font 559 octets. Reel était à
+    −5,18 % de la retenue, au-delà du seuil de +5,01 % ;
+  - avec l'égalité au registre de l'argument, rejugé sur la même mesure : les trois paires sont égales, chacune à une
+    ligne près (165, 159 et 166 lignes). Reel est à −5,18 % (placement : le code est égal). Le seuil s'élargit alors à
+    cet écart même, +5,18 % (la règle de G15.0a), et le cas est **valide** par construction : il dit que la copie
+    mesure le vrai, non que le vrai est plus rapide. Delegue, l'OP_ARITH d'avant, coûte +16,07 %, Interface +21,23 %,
+    Virtuel +11,28 %.
+  - Le cas 3 de G15.0a mesurait Delegue à +9,67 %. La copie n'a pas changé ; c'est son placement dans le banc qui a
+    bougé.
+- **Les contrôles négatifs** de l'égalité neuve (`interdit3-negatifs/`) :
+  - une autre instruction du vrai changée (le premier `ret` du gestionnaire de l'ADD en `nop`) : « 2 lignes
+    diffèrent », le cas **sans valeur** ;
+  - l'en-tête du vrai privé de `:this` : la règle ne s'applique plus, « 1 lignes diffèrent », **sans valeur** ;
+  - la sortie de G15.0a rejugée par le script neuf (`interdit3-negatifs/g15-0a/`) : les huit autres cas ont le même
+    verdict, ligne pour ligne ; le cas 3 n'y trouve plus ses listings, qui sont ceux de l'ancienne forme.
+- **Les règles.** Aucune ligne neuve au-delà de 120 caractères (compte en python3). Aucun champ statique neuf, les
+  structures n'en ont pas. `ref-R` est intact : son manifeste a été revérifié après chaque passe de P0.
+
+### Contre-lecture
+
+Deux relectures, en lecture seule.
+
+- **Le code.** Aucune erreur. L'équivalence est vérifiée famille par famille et taille par taille, ainsi que les
+  slots, GetTempc vrai pour ADC et SBB seuls, l'ordre de `tempc`, les 47 `// pcem:` et les renvois de lignes.
+  Reprises :
+  - quatre imprécisions : seules LRmw et LRm d'OP_ARITH_386 capturent `a32`, ce que le commentaire tait ; un
+    paragraphe d'ARITH_MULTI mal rempli ; les invocations aussi dans PoserGroupeArith386 ; le commentaire d'« égal
+    aux décalages près » d'`interdits.py` ;
+  - deux remarques : `OP_ARITH<TAlu>` dans un `<summary>` écrit `&lt;TAlu&gt;` ; les paires OR et SUB ajoutées.
+  - La relecture a aussi relevé que le cas 3 était sans valeur, ce qui a mené à l'égalité au registre de l'argument.
+- **La preuve.** Une erreur, reprise : le texte disait que « la même DLL » perdait contre R. Or la DLL commitée n'a
+  jamais été mesurée contre R, seule la variante de P0 l'a été ; c'est désormais dit dans « Ce que ce vert ne dit
+  pas ». Douze imprécisions reprises :
+  - ce que les compteurs montrent, dit sans « établi » (des branches par instruction, pas un flux identique ; un
+    `byte[]` ne rejoue pas l'allocation réelle) ;
+  - les fourchettes complétées (Rendu8bpp tvga8900d, trois cas hors des fourchettes de placement) ;
+  - les rouges de seg, l'ibmpc au-delà de 0 en passe 2 seulement ;
+  - les cas des précodes nommés (sans l'ibmxt) ;
+  - le code du 4e témoin, de 88 à 99 % au placement de T, et non « décalé » ;
+  - 37 heures et non deux jours ;
+  - le `byte[60792]` qui remplace le `byte[8]` ;
+  - la preuve du décalage du témoin de calage (`cale-contre-R.txt`) ;
+  - pc1512 « tout » dans les cycles par instruction, les quatre lancements à 69 088 / 73 840 octets.
+
+  Remarques reprises : le seuil du cas 3, valide par construction ; le ton de la conclusion sur le 286 ; les sept
+  passages avec un processus actif à côté.
+
+### Ce que ce vert ne dit pas
+
+- La règle du témoin calé n'aligne que le code jitté d'iXtal26, modulo 64. Elle ne tient ni les précodes et les stubs
+  du runtime, ni l'emplacement des types chargés. Les quatre rouges retenus en sont le résidu, de +0,13 à +0,36 % ;
+  les passes 2 et 3 en montrent jusqu'à +0,8 % sur un cas vert par la règle (l'ibmxt « aucun »).
+- Les étapes qui suivent ajoutent et retirent des types et des méthodes, les renommages de G15.2 à G15.8 compris :
+  elles redistribueront ce résidu. En P0, Jcc, qui ne touche pas au cœur 808x, déplaçait l'ibmxt « tout » de
+  +1,75 % et le pc1512 « tout » de −1,87 %.
+- Les gains sont mesurés à placement du code égal, contre T. **La DLL commitée n'a pas été mesurée contre R.** La
+  variante de P0 (`p0-arith`, une autre DLL, `84313aae…`) perdait contre R sur le 286 et le 486, par le placement.
+- Le banc a noté 7 passages sur 80 avec un processus actif à côté (`localsearch-3`, de 0,37 à 0,9 UC), sans refus.
+- Le cas 3 du banc des interdits a changé de sens : le vrai y est désormais la forme retenue. Delegue et sa fabrique,
+  copies de l'OP_ARITH d'avant, ne sont plus que des colonnes du banc.
+
+### Hors de la portée
+
+- La comparaison de listings d'`interdits.py` ne normalise que les décalages et, depuis P1, le registre de
+  l'argument d'une méthode d'instance. Une lambda qui capture, contre une copie statique, différerait davantage.
+- `ildump comparer` ne normalise pas la numérotation des fermetures et des lambdas. Une étape qui en ajoute ou en ôte
+  dans `_386` fait paraître changées des méthodes qui ne font que les nommer : la preuve passe alors par le relevé.
+- Les précodes et les stubs du runtime n'ont pas de témoin. Un banc qui les tiendrait demanderait de reproduire
+  l'empreinte de types du candidat, ce que le 4e témoin n'a pas su faire.
+
+Les journaux sont dans `/var/tmp/ixtal-g15/g15-p/` (P0) et `/var/tmp/ixtal-g15/g15-p1/` (P1), doublés dans
+`/var/tmp/ixtal-g13/g15-p/` et `/var/tmp/ixtal-g13/g15-p1/`.

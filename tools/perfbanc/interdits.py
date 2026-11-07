@@ -27,7 +27,10 @@
 #
 # LE CODE MACHINE (SORTIE/jit/<cas>.log, interdits.sh) : la méthode du vrai code et celle de sa copie, comparées
 # ligne à ligne, les commentaires du listing ôtés ; « égal », « égal aux décalages près » (seuls les décalages des
-# opérandes en mémoire, [reg+0xNN], diffèrent : les champs d'une classe de fermeture, que le vrai a plus nombreux), ou
+# opérandes en mémoire, [reg+0xNN], diffèrent : les champs d'une classe de fermeture, que le vrai a plus nombreux,
+# aux cas 4 et 6), « égal au registre de l'argument près » (le vrai est une méthode d'instance, la lambda d'une classe
+# cache qui ne capture rien, au cas 3 depuis G15.P, et sa copie une méthode statique : le premier argument arrive dans
+# rsi au lieu de rdi, et seules les lignes qui le lisent diffèrent, rsi ou esi d'un côté, rdi ou edi de l'autre), ou
 # le nombre de lignes qui diffèrent.
 #
 # LE VERDICT, colonne interdite par colonne interdite :
@@ -36,7 +39,8 @@
 # - « pas de coût mesurable sur ce chemin » sinon ; la règle de PLAN.md reste (décision n° 6 : le banc l'éclaire sans
 #   la défaire). Un écart sous zéro au-delà du seuil (la forme interdite plus rapide) est dit tel quel.
 # LA VALIDITÉ du cas : la colonne Reel doit tenir dans le seuil de la colonne qu'elle incarne (Retenue, sauf aux cas
-# 3, 4 et 6 : Delegue, Interdite, Interdite ; l'en-tête d'InterditsBanc.cs), ou avoir le même code machine qu'elle.
+# 4 et 6 : Interdite ; au cas 3, Delegue jusqu'à G15.P ; l'en-tête d'InterditsBanc.cs), ou avoir le même code
+# machine qu'elle.
 # Sinon, le cas est « sans valeur, à reprendre » : la copie ne mesure pas le vrai code. Les octets alloués par
 # opération (MemoryDiagnoser) sont dits à côté de chaque colonne ; ils ne changent pas le verdict, qui est celui du
 # temps.
@@ -66,7 +70,7 @@ COLONNES = {
 INTERDITES = {"Interdit1Instance": ["Interdite", "InterditeInlinee"],
               "Interdit3Interface": ["Delegue", "Interface", "Virtuel"],
               "Interdit8Chaine": ["Champ", "Interdite"]}
-INCARNE = {"Interdit3Interface": "Delegue", "Interdit4Fermeture": "Interdite", "Interdit6Allocation": "Interdite"}
+INCARNE = {"Interdit4Fermeture": "Interdite", "Interdit6Allocation": "Interdite"}
 # Les paires (le vrai, sa copie) dont le code machine se compare : chaque méthode par des fragments de l'en-tête de
 # son listing, qui doivent tous s'y trouver.
 PAIRES = {
@@ -74,7 +78,9 @@ PAIRES = {
                            ["Interdit1:ReadmembStatique[iXtal26.PerfBanc.CopieA]"])],
     "Interdit2Linq": [(["iXtal26.Sound.sound_speaker:speaker_get_buffer("],
                        ["Interdit2:GetBuffer[iXtal26.PerfBanc.CopieA]"])],
-    "Interdit3Interface": [(["iXtal26.Cpu._386+", ":<OP_ARITH>b__0("], ["Interdit3+", ":<Fabrique>b__0("])],
+    "Interdit3Interface": [(["iXtal26.Cpu._386+", f"[iXtal26.Cpu._386+alu_{f.upper()}]:<OP_ARITH>b__"],
+                            [f"Interdit3:opARITH_b_rmw_a16[iXtal26.PerfBanc.Alu{f},iXtal26.PerfBanc.CopieA]"])
+                           for f in ("Add", "Or", "Sub")],
     "Interdit4Fermeture": [(["iXtal26.Cpu._386+", ":<PoserSautsConditionnels>b__0("],
                             ["Interdit4+", ":<Fabrique>b__0("])],
     "Interdit5Delegue": [(["iXtal26.Video.vid_svga:svga_recalctimings("],
@@ -87,6 +93,8 @@ PAIRES = {
     "Interdit9Params": [(["iXtal26.Cpu._386:prefetch_run("], ["Interdit9:Corps[iXtal26.PerfBanc.CopieA]"])],
 }
 DECALAGE = re.compile(r"([+-])0x[0-9A-F]+\]")
+# Le premier argument entier : rsi dans une méthode d'instance (rdi y porte `this`), rdi dans une méthode statique.
+ARGUMENT = re.compile(r"\b([er])si\b")
 
 
 def listings(f):
@@ -116,20 +124,26 @@ def comparer_code(sortie, nom):
     l = listings(f)
     textes, egal = [], True
     for vrai, copie in PAIRES.get(nom, []):
-        trouves = []
+        cles = []
         for frag in (vrai, copie):
             c = [k for k in l if all(x in k for x in frag)]
-            trouves.append(l[c[0]] if len(c) == 1 else None)
-        if None in trouves:
+            cles.append(c[0] if len(c) == 1 else None)
+        if None in cles:
             textes.append(f"{vrai[-1]} : listing introuvable")
             egal = False
             continue
-        a, b = trouves
+        a, b = (l[k] for k in cles)
+        na, nb = ([DECALAGE.sub(r"\1OFF]", x) for x in c] for c in (a, b))
+        instance = ":this (" in cles[0] and ":this (" not in cles[1]
         if a == b:
             textes.append(f"{vrai[-1]} égal ({len(a)} lignes)")
-        elif [DECALAGE.sub(r"\1OFF]", x) for x in a] == [DECALAGE.sub(r"\1OFF]", x) for x in b]:
+        elif na == nb:
             n = sum(x != y for x, y in zip(a, b))
             textes.append(f"{vrai[-1]} égal aux décalages près ({len(a)} lignes, {n} décalages)")
+        elif instance and len(a) == len(b) and all(x == y or ARGUMENT.sub(r"\1di", x) == y for x, y in zip(na, nb)):
+            n = sum(x != y for x, y in zip(na, nb))
+            textes.append(f"{vrai[-1]} égal au registre de l'argument près ({len(a)} lignes, {n} où le vrai, "
+                          f"méthode d'instance, lit rsi et sa copie statique rdi)")
         else:
             n = sum(x != y for x, y in zip(a, b)) + abs(len(a) - len(b))
             textes.append(f"{vrai[-1]} : {n} lignes diffèrent ({len(a)} contre {len(b)})")
