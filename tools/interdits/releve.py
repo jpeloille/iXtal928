@@ -11,11 +11,14 @@
 #   releve.py texte  ARBRE [--noms TABLE]          le relevé du texte, en TSV, sur la sortie
 #   releve.py il     ARBRE VIDAGE [--noms TABLE] [--compte]
 #                                                  le relevé de l'IL d'un assemblage (ildump vider), en TSV
+#   releve.py comparer ARBRE BASE VIDAGE… [--noms TABLE… [--depuis E] [--jusqua E]]
+#                                                  le relevé d'ARBRE (texte, et IL compté) contre la base
 #
 # LA FRONTIÈRE est chauds.txt, à côté de ce script (sa forme y est dite) : les fichiers suivis par git de l'arbre qui
 # s'y accordent. Sous --noms TABLE (la table de G14, tools/noms/g14.txt), l'arbre est d'avant la table (le commit R) :
 # ses chemins et ses noms de types sont traduits vers les nouveaux, entrée par entrée, avant le relevé ; la frontière
 # est lue dans les nouveaux noms. Le relevé de R sous la table et celui d'un arbre d'après doivent alors être égaux.
+# Une entrée de la table des membres (A::membre, A+B) y est refusée : la table de G15 se lit par comparer.
 #
 # LE TEXTE. Chaque fichier de la frontière, ses commentaires ôtés (`//` jusqu'à la fin de la ligne, `/* … */`, hors
 # des chaînes) ; une ligne par occurrence d'un motif : chemin, motif, numéro de ligne, la ligne (ses blancs réduits).
@@ -36,16 +39,30 @@
 # DefaultInterpolatedStringHandler. Sous --compte, une ligne par méthode et par instruction : leur nombre (la forme
 # de la base écrite dans le dépôt, tools/interdits/base-R.il.tsv ; le détail se régénère de R).
 #
+# COMPARER (G15.0b5b). La base est un préfixe : BASE.texte.tsv (le relevé du texte) et BASE.il.tsv (les comptes de l'IL,
+# d'un vidage `ildump vider --generes` : les noms générés y portent leur méthode, pas un numéro qui change quand une
+# méthode s'ajoute). Le relevé d'ARBRE est fait aux noms d'ARBRE ; ses VIDAGE… (iXtal26, SoftFloat), faits avec
+# --generes, à concaténer comme la base. Sous --noms (la table des membres de G15, tools/noms/g15.txt, sa grammaire :
+# tools/noms/table_noms.py), la BASE est aux noms d'avant les étapes : chaque ligne en est traduite vers les nouveaux
+# par tools/noms/traduire.py (les identifiants du code par leur nom simple, la liste close ; la méthode d'un nom généré,
+# séparée de son préfixe ; un accesseur, par sa propriété), avant la comparaison ; une étape qui déplace des fichiers
+# est refusée (G15 les garde, Q42). Le texte se compare sans les numéros de ligne (le chemin, le motif, la ligne : un
+# multiensemble ; un retrait de lignes plus haut ne fait pas d'écart), l'IL compte par compte. Retour : 0 égaux ; 1 un
+# écart (chaque ligne de trop ou de moins dite) ; 2 usage, lecture, table refusée. La limite de la traduction par le nom
+# simple : un nom renommé dans une méthode et gardé dans une autre (un paramètre homonyme) est traduit dans les deux ;
+# l'écart le montre, la porte rougit (VERIFICATION.md § G15.0b5b).
+#
 # Ce que le relevé ne distingue pas, et qui ne change rien à la comparaison à la base (le même outil des deux côtés) :
 # un motif dans une chaîne (les chaînes sont gardées ; aucune dans la base) ; `callvirt` et `newobj` comptent aussi les
 # appels d'instance ordinaires et les structures ; la garde des noms courts ne voit ni une variable de `foreach` ni un
 # paramètre de lambda.
 #
-# Retour : 0 ; 2 usage, lecture ou table refusée.
+# Retour : 0 (comparer : 0 égaux, 1 un écart) ; 2 usage, lecture ou table refusée.
 
 import re
 import subprocess
 import sys
+from collections import Counter
 from fnmatch import fnmatchcase
 from pathlib import Path
 
@@ -89,12 +106,18 @@ def lire_table(table):
     """Les entrées de la table de G14 (sa grammaire, tools/noms/g14.txt) : types et chemins, ancien → nouveau."""
     types, chemins = {}, {}
     for ligne in Path(table).read_text().splitlines():
+        if ligne.startswith('//   "'):
+            erreur(f"un littéral de la liste close ({ligne[5:].split()[0]}) : liste, texte et il ne lisent que la "
+                   "table de G14 ; comparer lit celle de G15")
         if not ligne.startswith("//   iXtal26"):
             continue
         mots = ligne[5:].split()
         if len(mots) < 2:
             erreur(f"entrée illisible : {ligne}")
         ancien, nouveau = mots[0], mots[1]
+        if "::" in ancien or "+" in ancien or "(" in ancien:
+            erreur(f"une entrée de la table des membres ({ancien}) : liste, texte et il ne lisent que la table de "
+                   "G14 ; comparer lit celle de G15")
         cible = chemins if ancien.endswith(".cs") else types
         if ancien in cible:
             erreur(f"ancien en double : {ancien}")
@@ -269,8 +292,109 @@ def il(arbre, vidage, types, chemins, compte=False):
     return sorted(lignes)
 
 
+def comparer(arbre, base, vidages, noms, jusqua, depuis):
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "noms"))
+    import table_noms
+    import traduire
+    try:
+        tr = traduire.Traducteur(noms, jusqua, depuis)
+    except table_noms.TableRefusee as e:
+        erreur(f"table refusée : {e}")
+    except OSError as e:
+        erreur(f"la table : {e}")
+    # G15 garde les fichiers (Q42) : une entrée de fichier, que la base ne saurait pas suivre, est refusée.
+    for e in tr.etapes:
+        if e["fichiers"]:
+            erreur(f"l'étape {e['nom']} déplace des fichiers : comparer ne suit pas les chemins")
+
+    def nouveau(texte):
+        return tr.traduire(texte)[0]
+
+    # Un nom généré sous --generes porte sa méthode collée à son préfixe (<>c__DisplayClassOpBTx#0_0, b__Loop#0) :
+    # séparée le temps de la traduction, pour que la méthode y soit un identifiant.
+    genere = re.compile(r"(c__DisplayClass|b__|d__|<>9__|c__|g__)(?=[A-Za-z_][A-Za-z0-9_]*#\d)")
+
+    # Un accesseur (get_X, set_X, add_X, remove_X) suit sa propriété ou son événement, comme dans ildump : le préfixe
+    # est séparé, sauf si le nom entier est lui-même renommé (une méthode ordinaire, get_cycles).
+    accesseur = re.compile(r"(?<=::)(get_|set_|add_|remove_)([A-Za-z_][A-Za-z0-9_]*)(?=\()")
+
+    def separer(m):
+        return m.group(0) if tr.traduire(m.group(0))[1] else m.group(1) + "\x00" + m.group(2)
+
+    def nouvelle_cle(cle):
+        cle = accesseur.sub(separer, genere.sub(lambda m: m.group(1) + "\x00", cle))
+        return nouveau(cle).replace("\x00", "")
+
+    try:
+        bt = Path(f"{base}.texte.tsv").read_text().splitlines()
+        bi = Path(f"{base}.il.tsv").read_text().splitlines()
+    except OSError as e:
+        erreur(f"la base : {e}")
+    # Le texte : (chemin, motif, ligne), sans le numéro.
+    t_base = Counter()
+    for x in bt:
+        if not x:
+            continue
+        c, m, _, l = x.split("\t", 3)
+        t_base[(c, m, nouveau(l))] += 1
+    t_arbre, ou = Counter(), {}
+    for x in texte(arbre, {}, {}):
+        c, m, k, l = x.split("\t", 3)
+        t_arbre[(c, m, l)] += 1
+        ou.setdefault((c, m, l), []).append(k)
+    # L'IL : la clé (méthode, instruction) et son compte.
+    i_base, i_arbre = Counter(), Counter()
+    for x in bi:
+        if x:
+            cle, n = x.rsplit("\t", 1)
+            i_base[nouvelle_cle(cle)] += int(n)
+    for v in vidages:
+        for x in il(arbre, v, {}, {}, compte=True):
+            cle, n = x.rsplit("\t", 1)
+            i_arbre[cle] += int(n)
+    ecarts = []
+    for k in sorted(set(t_base) | set(t_arbre)):
+        d = t_arbre[k] - t_base[k]
+        if d:
+            lignes = ", ".join(ou.get(k, [])) or "-"
+            ecarts.append(f"texte {'+' if d > 0 else ''}{d}\t{k[0]}:{lignes}\t{k[1]}\t{k[2]}")
+    for k in sorted(set(i_base) | set(i_arbre)):
+        if i_base[k] != i_arbre[k]:
+            ecarts.append(f"il {i_base[k]} -> {i_arbre[k]}\t{k}")
+    print("\n".join(ecarts) if ecarts else "", end="\n" if ecarts else "")
+    print(f"  comparer : texte {sum(t_arbre.values())} lignes (base {sum(t_base.values())}), "
+          f"IL {sum(i_arbre.values())} instructions (base {sum(i_base.values())}), {len(tr.etapes)} étapes ; "
+          f"{len(ecarts)} écarts", file=sys.stderr)
+    return 1 if ecarts else 0
+
+
 def main():
     args = sys.argv[1:]
+    if args and args[0] == "comparer":
+        noms, jusqua, depuis, pos, i = [], None, None, [], 1
+        while i < len(args):
+            a = args[i]
+            if a in ("--noms", "--jusqua", "--depuis"):
+                if i + 1 >= len(args):
+                    erreur(f"{a} demande une valeur")
+                if a == "--noms":
+                    noms.append(args[i + 1])
+                elif a == "--jusqua":
+                    jusqua = args[i + 1]
+                else:
+                    depuis = args[i + 1]
+                i += 2
+            elif a.startswith("--"):
+                erreur(f"option inconnue : {a}")
+            else:
+                pos.append(a)
+                i += 1
+        if len(pos) < 3 or ((jusqua or depuis) and not noms):
+            erreur("usage : releve.py comparer ARBRE BASE VIDAGE… [--noms TABLE… [--depuis E] [--jusqua E]]")
+        try:
+            return comparer(pos[0], pos[1], pos[2:], noms, jusqua, depuis)
+        except (OSError, ValueError, UnicodeDecodeError) as e:
+            erreur(f"lecture : {e}")
     types, chemins = {}, {}
     compte = "--compte" in args
     if compte:

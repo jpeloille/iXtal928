@@ -38,6 +38,11 @@ def morceaux(t):
             j = t.find('\n', i); j = n if j < 0 else j; genre = 'commentaire'
         elif t.startswith('/*', i):
             j = t.find('*/', i + 2); j = n if j < 0 else j + 2; genre = 'commentaire'
+        elif t.startswith('"""', i) or t.startswith('$"""', i) or t.startswith('$$"""', i):
+            # Une chaîne brute (interpolée ou non) : jusqu'au prochain """ (ses trous ne sont pas lus).
+            j = t.find('"""', t.index('"""', i) + 3); j = n if j < 0 else j + 3
+            while j < n and t[j] == '"': j += 1
+            genre = 'chaine'
         elif t.startswith('$"', i) or t.startswith('$@"', i) or t.startswith('@$"', i):
             # Une chaîne interpolée : son texte reste, ses trous {…} sont du code (une chaîne dans un trou, ou un
             # format « :x » après un « : » de premier niveau, ne sont pas lus : la porte à l'octet les jugerait).
@@ -58,11 +63,6 @@ def morceaux(t):
                 if t[j] == '"': j += 1; break
                 j += 1
             res.append(('chaine-i', t[k:j])); i = debut = j; continue
-        elif t.startswith('"""', i) or t.startswith('$"""', i):
-            # Une chaîne brute : jusqu'au prochain """ (ses trous, s'il y en a, ne sont pas lus).
-            j = t.find('"""', t.index('"""', i) + 3); j = n if j < 0 else j + 3
-            while j < n and t[j] == '"': j += 1
-            genre = 'chaine'
         elif t.startswith('@"', i):
             j = i + 2
             while j < n:
@@ -125,6 +125,16 @@ class Traducteur:
                 rl[nv] = a
             noms.append(r); lits.append(rl)
         return noms, lits
+    def traduire_identifiants(self, texte, inverse=False):
+        # Chaque identifiant d'un texte qui n'est pas du C# (une ligne d'état en prose : une apostrophe n'y ouvre pas
+        # de caractère), par son nom simple ; ni découpage, ni littéraux.
+        noms, _ = self._sens(inverse)
+        def un(m):
+            x = m.group(0)
+            for d in noms:
+                x = d.get(x, x)
+            return x
+        return ID.sub(un, texte)
     def traduire(self, texte, inverse=False):
         noms, lits = self._sens(inverse)
         if not any(noms) and not any(lits):

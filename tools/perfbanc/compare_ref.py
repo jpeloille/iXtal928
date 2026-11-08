@@ -14,6 +14,12 @@
 #              construites et lancées (sha256 et empreinte normalisée, § « L'empreinte d'une DLL »).
 #   analyser   lit une sortie de compare-ref.sh (contexte.json, passeN/<groupe>/<ordre>-<côté>/) et rend le verdict :
 #              le rapport texte et le TSV, et un code de sortie (0 vert, 1 rouge, 3 refus, 4 rouges à confirmer).
+#              Sous --noms TABLE… [--depuis E] [--jusqua E] (G15.0b5b ; la table des noms, tools/noms/g14.txt puis
+#              g15.txt), l'état imprimé du côté R, aux noms de R, est traduit vers les nouveaux avant d'être comparé
+#              à celui de C : ce qui suit « : » dans « // Banc (…) : … », par tools/noms/traduire.py (chaque
+#              identifiant par son nom simple ; de la prose, pas du C# : ni découpage, ni littéraux) ; le banc et ses
+#              paramètres ne sont pas traduits. noms TABLE… : la table seule, lue et jugée (compare-ref.sh l'appelle
+#              avant toute mesure ; retour 2 si elle est refusée).
 #   empreinte  l'empreinte normalisée d'une DLL, seule (pour les contrôles).
 #   gel        (G14.0d) le gel des DLL lancées du côté R, lu dans une sortie de compare-ref.sh : une ligne
 #              « EMPREINTE  NOM » par DLL ; refusé (retour 1, la raison sur la sortie d'erreur) si les passages de R
@@ -438,7 +444,28 @@ def mediane(v):
     return (s[(len(s) - 1) // 2] + s[len(s) // 2]) / 2 if s else float("nan")
 
 
-def analyser_groupe(passages, cas_attendus, gel=None):
+def traducteur_d_etat(noms, jusqua, depuis):
+    """La traduction d'une ligne d'état de R vers les noms de la table (identité sans table)."""
+    if not noms:
+        return lambda ligne: ligne
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "noms"))
+    import table_noms
+    import traduire
+    try:
+        tr = traduire.Traducteur(noms, jusqua, depuis)
+    except (table_noms.TableRefusee, OSError) as e:
+        print(f"compare_ref : table refusée : {e}", file=sys.stderr)
+        sys.exit(2)
+
+    def un(ligne):
+        m = LIGNE_ETAT.match("// " + ligne)
+        if not m:
+            return ligne
+        return f"{m.group(1)} ({m.group(2)}) : {tr.traduire_identifiants(m.group(3))}"
+    return un
+
+
+def analyser_groupe(passages, cas_attendus, gel=None, traduire_r=lambda ligne: ligne):
     """Une passe ABBA d'un groupe : passages = [(ordre, côté, contexte, cas, hôtes)]. Rend les refus du groupe et,
     par cas, le verdict de la passe. gel : les empreintes des DLL lancées que le côté R doit avoir (G14.0d), ou None."""
     refus, verdicts = [], {}
@@ -566,7 +593,7 @@ def analyser_groupe(passages, cas_attendus, gel=None):
             v["raisons"].append(f"l'état imprimé change d'un passage à l'autre du côté {', '.join(instable)}")
             continue
         exacts = []
-        er, ec = etats["R"][0], etats["C"][0]
+        er, ec = tuple(traduire_r(e) for e in etats["R"][0]), etats["C"][0]
         if er != ec:
             for a, b in zip(list(er) + [""] * len(ec), list(ec) + [""] * len(er)):
                 if a != b:
@@ -659,6 +686,10 @@ def analyser(args):
             if not sha:
                 refus_globaux.append(f"côté {cote} : {nom} absent de l'arbre (non construit)")
     resultats, n_passages, notes = {}, 0, []
+    if (args.depuis or args.jusqua) and not args.noms:
+        print("compare_ref : --depuis et --jusqua demandent --noms", file=sys.stderr)
+        sys.exit(2)
+    traduire_r = traducteur_d_etat(args.noms, args.jusqua, args.depuis)
     for passe in (1, 2, 3):
         for groupe, passages in charger_passe(sortie, passe).items():
             for o, c, p, _, _ in passages:
@@ -669,7 +700,7 @@ def analyser(args):
                     for x in ((p or {}).get(moment) or {}).get("actifs", []):
                         notes.append(f"passe {passe}, {groupe}, {o}-{c} ({moment[6:]}) : {x['uc']} UC, "
                                      f"{x['cmd'].split(' ')[0][-40:]}")
-            refus, verdicts = analyser_groupe(passages, attendus.get(groupe), ctx.get("lancees_r"))
+            refus, verdicts = analyser_groupe(passages, attendus.get(groupe), ctx.get("lancees_r"), traduire_r)
             resultats.setdefault(groupe, {})[passe] = (refus, verdicts)
     # G14.0d : chaque groupe attendu (ceux que le filtre GROUPES a retenus, contexte.json) doit être dans la passe 1 ;
     # un groupe qui manque, c'est une sortie tronquée ou abandonnée, et rien ne dit qu'il serait vert.
@@ -845,6 +876,13 @@ def main():
     a = sp.add_parser("analyser")
     a.add_argument("sortie")
     a.add_argument("--silencieux", action="store_true")
+    a.add_argument("--noms", action="append", default=[], help="la table des noms (se répète)")
+    a.add_argument("--depuis")
+    a.add_argument("--jusqua")
+    nm = sp.add_parser("noms")
+    nm.add_argument("--noms", action="append", required=True)
+    nm.add_argument("--depuis")
+    nm.add_argument("--jusqua")
     e = sp.add_parser("empreinte")
     e.add_argument("dll", nargs="+")
     g = sp.add_parser("gel")
@@ -860,6 +898,9 @@ def main():
         sonde(args)
     elif args.commande == "consigner":
         consigner(args)
+    elif args.commande == "noms":
+        traducteur_d_etat(args.noms, args.jusqua, args.depuis)
+        print(f"  la table des noms : {', '.join(args.noms)}, lue")
     elif args.commande == "empreinte":
         cmd_empreinte(args)
     elif args.commande == "gel":

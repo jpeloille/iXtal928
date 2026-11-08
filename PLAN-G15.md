@@ -13,10 +13,10 @@ proposition est la décision. G15.0a est faite (le banc des constructions interd
 base à R ; VERIFICATION.md § G15.0a). Q48 est rouverte le 05/11 : G15.P, la performance avant les renommages, est
 faite (P0, quatre candidats mesurés ; P1, OP_ARITH par des structures, sous la règle du témoin calé, son résidu admis
 le 08/11 ; VERIFICATION.md § G15.P). G15.0b est en cours, feu vert du 08/11 : 0b1 (la table des membres), 0b2
-(`ildump`), 0b3 (`listings-jit.sh`), 0b4 (le renommage des membres) et 0b5a (les générateurs) sont faites
-(VERIFICATION.md § G15.0b). La
-référence reste celle de G14 : le commit R = `f15e11f`, `/var/tmp/ixtal-g14/ref-R`, les séries `g14r` et `g14r-tout`
-(VERIFICATION.md § G14.0d), jusqu'à la fin de G15.
+(`ildump`), 0b3 (`listings-jit.sh`), 0b4 (le renommage des membres), 0b5a (les générateurs) et 0b5b (les relevés)
+sont faites (VERIFICATION.md § G15.0b) ; reste 0b6, la répétition générale. La référence reste celle de G14 : le
+commit R = `f15e11f`, `/var/tmp/ixtal-g14/ref-R`, les séries `g14r` et `g14r-tout` (VERIFICATION.md § G14.0d),
+jusqu'à la fin de G15.
 
 ### Ce que les lectures ont trouvé
 
@@ -197,8 +197,9 @@ d'iXtal26 identique au sha256, ses essais et ses contrôles négatifs ; ni séri
 - **0b4, `tools/renommage`** ✅ : les membres et la vérification de liaison ;
 - **0b5a, les générateurs** ✅ : les générateurs de `Cpu/` régénérés à HEAD et sensibles à la table (venus de 0b4 :
   ils transcrivent par du texte, il leur faut une traduction des identifiants qu'ils écrivent) ;
-- **0b5b, les relevés et les petits outils** : les `using`, le code mort privé, les constructions interdites ;
-  `compare-ref.sh` ; `check-doc5150.sh` ;
+- **0b5b, les relevés et les petits outils** ✅ : les `using`, le code mort privé, les constructions interdites (la
+  base de G15.P, `tools/interdits/base-G15P.*`, remplace celle de R pour la suite de G15) ; `compare-ref.sh` ;
+  `check-doc5150.sh` ;
 - **0b6, la répétition générale** sur `Ics/Intel8259A.cs` et ses appelants, les contrôles négatifs d'ensemble, la
   clôture de l'étape.
 
@@ -269,7 +270,7 @@ Selon Q47.
 - **Portes et preuves** : `ildump comparer` contre le parent égal à l'écart attendu, et contre R par la table de G14 ;
   les listings contre R, l'écart attendu ; les séries entières dans les deux modes ; le banc contre R ; `check-oracle`,
   `check-doc5150` ; R2 recompté sur les fichiers transcrits touchés ; le relevé des constructions interdites égal à la
-  base de R. **Contrôles négatifs** : une méthode vivante ôtée
+  base de G15.P (`base-G15P`, 0b5b). **Contrôles négatifs** : une méthode vivante ôtée
   dans une copie fait échouer la construction ; `"ILLEGAL"` renommé dans une copie : les portes du mode « tout » qui
   décodent sur le 386 rougissent (la preuve que les séries couvrent la réflexion).
 
@@ -293,7 +294,7 @@ listings par la table et par les jetons : 0/0/0 ; les séries entières dans les
 `g14r-tout` ; le banc vert contre R ; `check-oracle` sans dérive, `check-doc5150` juste, la `.so` inchangée ; le nombre
 de lignes vives de chaque fichier transcrit inchangé (R2) ; les générateurs régénèrent les fichiers commités à l'octet
 (G15.8) ; `grep` des anciens noms hors commentaires et chaînes : 0, hors de la liste ; les lignes longues selon Q45 ;
-le relevé des constructions interdites égal à la base de R.
+le relevé des constructions interdites égal à la base de G15.P.
 G15.2, l'hôte, porte un sous-ensemble ciblé de la série au lieu de la série entière (l'hôte n'est pas sous l'oracle ;
 le banc reste dû).
 **Contrôles négatifs** : `ildump` et `compare` sans la table des membres sortent exactement les membres renommés ;
@@ -305,7 +306,7 @@ générateur relancé avec une table tronquée produit un écart.
 Les paramètres, les locales, les fonctions locales et les `const` locaux hors de la forme `camelCase`. L'IL des
 locales doit être identique **sans** table (leurs noms ne sont que dans le PDB), celui des paramètres identique par
 l'option d'`ildump` : si `ildump` et les listings rendent 0/0/0, un sous-ensemble ciblé de la série suffit, et le banc
-n'est pas rejoué (décision n° 5, Q50) ; le relevé des constructions interdites égal à la base de R. **Contrôle
+n'est pas rejoué (décision n° 5, Q50) ; le relevé des constructions interdites égal à la base de G15.P. **Contrôle
 négatif** : une locale renommée vers le nom d'un champ qu'elle masque, dans
 une copie : refusée par la liaison, écart d'IL.
 
@@ -317,7 +318,7 @@ seule passe (la même preuve pour toutes les familles).
   type sous-jacent dans les signatures, les conversions explicites relevées) ; les listings de même (que le JIT y nomme
   l'enum est à montrer d'abord dans une copie jetable) ; les séries entières dans les deux modes (une valeur qui
   s'écarterait du C rougirait les boot-diffs et les portes qui passent par `h_set_*`) ; le banc vert contre R ; le
-  relevé des constructions interdites égal à la base de R.
+  relevé des constructions interdites égal à la base de G15.P.
 - **Contrôles négatifs** : dans une copie, un membre d'enum de valeur changée : écart d'IL et série rouge ; un champ
   d'enum imprimé par interpolation dans une sonde : série rouge (le nom au lieu du nombre) ; la substitution d'un type
   absent de la table : refusée.

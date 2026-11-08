@@ -6,8 +6,8 @@
 #
 # LE BANC CONTRE LA RÉFÉRENCE FIGÉE (G14.0b ; PLAN-G14.md § G14.0b, décisions n° 6, 7 et 12 ; R0-contre.md § 3).
 #
-#   tools/perfbanc/compare-ref.sh [--construire] [--empreintes-r FICHIER] [--lancees-r FICHIER] R_ARBRE C_ARBRE \
-#       SORTIE [GROUPES]
+#   tools/perfbanc/compare-ref.sh [--construire] [--empreintes-r FICHIER] [--lancees-r FICHIER] [--noms TABLE…] \
+#       R_ARBRE C_ARBRE SORTIE [GROUPES]
 #
 # R est l'arbre de référence (le binaire figé), C le candidat ; deux worktrees, chacun construit en Release. GROUPES,
 # facultatif, est une expression régulière (grep -E) sur les noms de groupes de la liste ci-dessous.
@@ -33,6 +33,9 @@
 # passage, et l'en-tête du rapport le dit. L'option reste facultative : la garde est à la charge de l'appelant (la
 # consigne de G14.1-4 l'impose). L'empreinte normalisée dépend de la longueur du chemin de l'arbre (celle du chemin du
 # PDB déplace les sections) : le gel ne vaut que pour un R dont le chemin a la longueur de /var/tmp/ixtal-g14/ref-R.
+# --noms TABLE (G15.0b5b), qui se répète (tools/noms/g14.txt puis g15.txt) : passé au comparateur, qui traduit l'état
+# imprimé du côté R vers les noms de C avant de le comparer (compare_ref.py, analyser) ; la table est lue et jugée
+# avant toute mesure.
 #
 # L'affinité : COEURS (par défaut 4,6,8,10). L'i5-14600KF a six cœurs P (CPU 0-11, deux fils chacun : 0 et 1 sont le
 # même cœur, 2 et 3 aussi…) et huit cœurs E (12-19, moins rapides). 4, 6, 8 et 10 : quatre cœurs P distincts, un fil
@@ -113,11 +116,13 @@ usage() {
 CONSTRUIRE=0
 EMPREINTES_R=""
 LANCEES_R=""
+NOMS=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --construire) CONSTRUIRE=1; shift ;;
     --empreintes-r) [ $# -ge 2 ] || usage; EMPREINTES_R="$(realpath -e -- "$2")" || usage; shift 2 ;;
     --lancees-r) [ $# -ge 2 ] || usage; LANCEES_R="$(realpath -e -- "$2")" || usage; shift 2 ;;
+    --noms) [ $# -ge 2 ] || usage; NOMS+=(--noms "$(realpath -e -- "$2")") || usage; shift 2 ;;
     --) shift; break ;;
     -*) usage ;;
     *) break ;;
@@ -128,6 +133,10 @@ R_ARBRE="$(cd "$1" 2>/dev/null && pwd)" || { echo "compare-ref : $1 n'existe pas
 C_ARBRE="$(cd "$2" 2>/dev/null && pwd)" || { echo "compare-ref : $2 n'existe pas" >&2; exit 2; }
 SORTIE="$3"
 FILTRE="${4:-.}"
+# La table des noms, jugée avant toute mesure (une table refusée après la passe 1 la perdrait).
+if [ ${#NOMS[@]} -gt 0 ]; then
+  python3 -I "$COMPARATEUR" noms "${NOMS[@]}" || { echo "compare-ref : la table des noms est refusée" >&2; exit 2; }
+fi
 if [ -e "$SORTIE" ] && [ -n "$(ls -A "$SORTIE" 2>/dev/null)" ]; then
   echo "compare-ref : $SORTIE existe et n'est pas vide" >&2
   exit 2
@@ -351,21 +360,21 @@ jouer_passe() {
 ecrire_contexte -
 if [ ${#REFUS[@]} -gt 0 ]; then
   journal "refus avant la mesure : ${REFUS[*]}"
-  python3 -I "$COMPARATEUR" analyser "$SORTIE"
+  python3 -I "$COMPARATEUR" analyser "$SORTIE" "${NOMS[@]}"
   exit 3
 fi
 
 abandon() {
   runtimes > "$SORTIE/runtimes-fin.txt"
   ecrire_contexte "$(date +%s.%N)"
-  python3 -I "$COMPARATEUR" analyser "$SORTIE"
+  python3 -I "$COMPARATEUR" analyser "$SORTIE" "${NOMS[@]}"
   exit 3
 }
 
 journal "passe 1 (R C C R) : ${#CHOISIS[@]} groupes, cœurs $COEURS_NOYAU"
 jouer_passe 1 "R C C R" "${CHOISIS[@]}" || abandon
 ecrire_contexte -
-python3 -I "$COMPARATEUR" analyser "$SORTIE" --silencieux
+python3 -I "$COMPARATEUR" analyser "$SORTIE" "${NOMS[@]}" --silencieux
 code=$?
 if [ "$code" = 4 ]; then
   CONFIRMER=()
@@ -375,7 +384,7 @@ if [ "$code" = 4 ]; then
   journal "passe 2 (C R R C), la confirmation : ${CONFIRMER[*]%%|*}"
   jouer_passe 2 "C R R C" "${CONFIRMER[@]}" || abandon
   ecrire_contexte -
-  python3 -I "$COMPARATEUR" analyser "$SORTIE" --silencieux
+  python3 -I "$COMPARATEUR" analyser "$SORTIE" "${NOMS[@]}" --silencieux
   code=$?
 fi
 # Q37 (Julien, 24/10) : un rouge confirmé deux fois est rejoué une troisième fois, par son groupe seul, dans l'ordre
@@ -390,7 +399,7 @@ if [ "$code" = 5 ]; then
 fi
 runtimes > "$SORTIE/runtimes-fin.txt"
 ecrire_contexte "$(date +%s.%N)"
-python3 -I "$COMPARATEUR" analyser "$SORTIE"
+python3 -I "$COMPARATEUR" analyser "$SORTIE" "${NOMS[@]}"
 code=$?
 journal "verdict : code $code ($(head -1 "$SORTIE/rapport.txt"))"
 exit "$code"

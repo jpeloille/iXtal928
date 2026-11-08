@@ -16,7 +16,10 @@
 # Le code C# se cite `chemin.cs#symbole`, sans numéro de ligne : G13 fait bouger le code,
 # et un numéro périmé se lit comme s'il était juste. Un symbole qui disparaît, lui, fait
 # échouer ce contrôle. Les chemins se lisent sous iXtal26/, sauf ceux qui commencent par
-# iXtal26/, tools/ ou pcem-dev/.
+# iXtal26/, tools/ ou pcem-dev/. Le symbole se cherche dans le code, hors des commentaires
+# (G15.0b5b) : un nom renommé que seul un commentaire garde, celui de PCem, ne le porte plus.
+# Les commentaires sont ôtés par le découpage de tools/noms/traduire.py (chaînes et
+# caractères gardés).
 
 set -uo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
@@ -48,6 +51,21 @@ while IFS=$'\t' read -r id _; do
     sources[$id]=1
 done < "$MANIFEST"
 
+# Le code d'un fichier C#, ses commentaires ôtés, copié une fois sous $SANS.
+SANS=$(mktemp -d "${TMPDIR:-/tmp}/check-doc5150-XXXXXX") || exit 2
+trap 'rm -rf "$SANS"' EXIT
+sans_commentaires() { # <fichier> → le chemin de sa copie sans commentaires
+    local c="$SANS/$1"
+    if [ ! -f "$c" ]; then
+        mkdir -p "$(dirname "$c")"
+        python3 -I -B -c 'import sys; sys.path.insert(0, "tools/noms"); import traduire
+t = open(sys.argv[1], encoding="utf-8").read()
+print("".join(x for g, x in traduire.morceaux(t) if g != "commentaire"), end="")' "$1" > "$c" \
+            || { echo "  $1 : les commentaires n'ont pas pu être ôtés" >&2; : > "$c"; }
+    fi
+    printf '%s\n' "$c"
+}
+
 resolve() { # <chemin cité> → chemin depuis la racine
     case $1 in
     iXtal26/*|tools/*|pcem-dev/*) printf '%s\n' "$1" ;;
@@ -65,8 +83,8 @@ for d in "${docs[@]}"; do
         f=$(resolve "$path")
         if [ ! -f "$f" ]; then
             err "$d:$ln : $path introuvable"
-        elif [ -n "$sym" ] && ! grep -qw -- "$sym" "$f"; then
-            err "$d:$ln : $sym absent de $path"
+        elif [ -n "$sym" ] && ! grep -qw -- "$sym" "$(sans_commentaires "$f")"; then
+            err "$d:$ln : $sym absent du code de $path (hors des commentaires)"
         fi
     done < <(grep -on '`[A-Za-z0-9_./-]*\.cs\(#[A-Za-z0-9_]*\)\?`' "$d")
     while IFS=: read -r ln _; do

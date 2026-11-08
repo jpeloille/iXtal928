@@ -20927,3 +20927,137 @@ une règle plus grossière qui ramenait aussi les sigles de deux lettres à une 
 - Aucune sortie générée ne contient de chaîne en forme d'identifiant : la liste close n'y a rien à traduire.
 - Un identifiant homonyme d'un autre sens (une locale du nom d'un membre renommé) serait traduit à tort ; la porte le
   verrait. Aucun cas dans ces essais.
+
+### G15.0b5b — Les relevés, `compare-ref.sh` et `check-doc5150.sh`
+
+**Ce qui est livré.**
+- **`tools/releve-ide.sh`**, le relevé exact des `using` inutiles (IDE0005) et, en second relevé du code mort privé,
+  des membres privés inutilisés ou jamais lus (IDE0051, IDE0052). Il prend le premier moyen que le plan proposait qui
+  tienne : les analyseurs de style du SDK, sans paquet, dans une construction jetable.
+  - Les fichiers suivis de l'arbre, modifications comprises, sont copiés dans un répertoire temporaire.
+  - Une section `[*.cs]` est ajoutée à la fin de la copie de `.editorconfig`. Elle met les trois règles à `warning`
+    et l'emporte sur le pacte du code transcrit, qui les éteint.
+  - iXtal26, iXtal26.Diff et iXtal26.PerfBanc sont construits en Debug, avec `GenerateDocumentationFile` (IDE0005 ne
+    se rapporte pas sans lui : sans, la même construction rend les 206 IDE0051 et aucun IDE0005,
+    `b5b-build-doc-false.log`), `EnforceCodeStyleInBuild` et sans `TreatWarningsAsErrors`.
+  - Une configuration suffit : le dépôt n'a qu'un `#if`, `RELEASE_BUILD`, jamais défini, sans `using`.
+  - La sortie est un TSV trié.
+- **`tools/interdits/releve.py comparer`**, la porte des constructions interdites, contre une base.
+  - Le texte se compare en multiensemble sans les numéros de ligne : un retrait plus haut ne fait pas d'écart. L'IL se
+    compare compte par compte, d'un vidage `ildump vider --generes`, dont les noms générés portent leur méthode et
+    non un numéro.
+  - Sous `--noms` (g15.txt), la base est traduite vers les noms de l'arbre par `tools/noms/traduire.py`. La méthode
+    d'un nom généré (`<>c__DisplayClassOpBTx#0_0`), que `--generes` colle à son préfixe, en est séparée le temps de la
+    traduction.
+  - Refusés : une étape qui déplace des fichiers ; `texte`, `il` et `liste` sous une table des membres (ils restent
+    ceux de G14).
+- **`tools/interdits/base-G15P.texte.tsv` et `base-G15P.il.tsv`**, la base de la suite de G15. G15.P a changé
+  OP_ARITH après que G15.0a avait écrit la base de R : la porte de chaque étape se joue contre celle de G15.P, relevée
+  à HEAD (l'iXtal26 de `a88ba5e`). `base-R.*` reste, la preuve de G15.0a.
+  - L'écart entre les deux bases, recompté sur un vidage sans `--generes`, numéros générés ôtés, est celui que
+    § G15.P a dit. Dans l'IL, 15 283 instructions passent à 15 103 :
+    - `callvirt` −40 (40 → 0), `ldftn` −70 (112 → 42) et `newobj` −72 (116 → 44), dans OP_ARITH et ses deux
+      fabriques ;
+    - ailleurs, les deux `newobj` des `.cctor` des classes cache génériques.
+  - Dans le texte, 1 114 lignes passent à 1 087 : −35 lambdas et +8 `poly` dans `386_ops_arith.cs`, rien ailleurs.
+- **`compare_ref.py analyser --noms TABLE… [--depuis E] [--jusqua E]`**, et `compare-ref.sh --noms`, qui le passe à
+  ses cinq appels de l'analyse. L'état imprimé du côté R est traduit vers les noms de C avant la comparaison : ce qui
+  suit « : » dans « // Banc (…) : … », par `traduire.py`. Le banc et ses paramètres ne sont pas traduits : ce sont
+  des chaînes, pas des noms.
+- **`check-doc5150.sh`** cherche le symbole d'un renvoi `chemin.cs#symbole` dans le code, hors des commentaires.
+  Ceux-ci sont ôtés par le découpage de `traduire.py`, chaînes et caractères gardés. Un nom renommé que seul un
+  commentaire de PCem garde ne fait plus passer le renvoi.
+
+**Les essais** (`b5b-preuve.log`, `outils/b5b-preuve.sh`, chaque contrôle avec son journal dans `b5b/`).
+- **Le relevé IDE à HEAD** : 164 lignes en tout.
+  - IDE0005 : 59 `using` (42 dans iXtal26, 15 dans Diff, 2 dans le banc). Les 45 de la borne basse de
+    R2-nettoyage.md § 1.2 y sont toutes ; il y en a 14 de plus.
+  - IDE0051/52 : 105 membres. 59 sont dans le relevé de l'IL (`ildump references`), rapprochés par le dernier nom du
+    type et le nom du membre (une surcharge ou un homonyme d'un autre espace s'y confondrait). Les 46 autres sont 44
+    `const` privées, que l'IL ne nomme jamais (une constante s'inline), et 2 de Diff, que ce relevé ne juge pas. Aucun
+    n'est inexpliqué.
+- **Le relevé des constructions interdites à HEAD**, contre `base-G15P` : 0 écart, sans table et sous g15.txt.
+- **Un renommage qui touche le relevé**, par `tools/renommage` (`b5b/interdits.txt`) :
+  - `OpBTx`, deux lignes du texte et trois clés de l'IL, et `PoserSautsConditionnels`, trois clés de l'IL dont sa
+    classe de fermeture ; 7 sites, la liaison sans écart ;
+  - avec la table, 0 écart ; sans la table, 16 (4 lignes du texte, 12 clés de l'IL).
+- **La limite de la traduction par le nom simple**, et la porte qui l'attrape (`b5b/homonyme.txt`). Le paramètre
+  `operation` d'OpBTx est renommé seul. La traduction renomme aussi celui d'`OpSHxD`, qui le garde : 4 écarts dans le
+  texte, refusés. L'IL ne nomme pas les paramètres, il ne change pas.
+- **Une construction interdite glissée dans une copie** (`InterditEssai() => new int[3].Length`) :
+  - dans `Cpu/386_ops_jump.cs`, en tête de la classe : 2 écarts, la ligne `new` et le `newarr`. Sur un vidage sans
+    `--generes`, 26 des 79 noms générés de `_386` y changent de numéro (ceux des méthodes déclarées après) ; aucun ne
+    fait d'écart ;
+  - la même dans `Host/CommandLine/Failure.cs` : 0 écart.
+- **Un `using` inutile et un membre privé mort glissés dans la copie** : `releve-ide.sh` en relève exactement deux de
+  plus (IDE0005 `using System.Text;`, IDE0051 `_386.InutiliseEssai`) et aucun de moins.
+- **Les refus de `releve.py`** (rc 2) : une étape qui déplace un fichier, une table ambiguë, `texte --noms` d'une
+  table des membres, un usage sans vidage.
+- **`compare_ref.py`**, sur une copie de la sortie du banc de G15.P (`g15-p1/banc`, aucun banc relancé) :
+  - les 8 journaux de C sont réécrits comme après un renommage (`svga_render_8bpp_highres` →
+    `SvgaRender8bppHighres`), ceux de R gardent l'ancien nom ;
+  - sans table, les 4 cas de Rendu8bpp passent en rouge exact, « l'état imprimé diffère » ;
+  - avec la table (`b5b/rendu.txt`), le `rapport.tsv` est identique à celui de l'original ;
+  - une table ambiguë est refusée (rc 2).
+- **`check-doc5150.sh`** :
+  - sur le dossier du dépôt, vert : 82 renvois `chemin.cs#symbole` (72 distincts), tous dans le code ;
+  - un renvoi à un nom de PCem que seul un commentaire garde (`Cpu/808x.cs#fetch_ea_16_long`) est rouge (rc 1),
+    alors que l'outil de HEAD le passait (rc 0) ;
+  - un renvoi à un symbole du code (`#execx86`) passe sous les deux.
+
+- **Les reprises de la contre-lecture, éprouvées** :
+  - l'état en prose est traduit identifiant par identifiant, sans le découpage du C# (une apostrophe y ouvrait un
+    caractère, et les noms qui la suivaient n'étaient plus traduits) ;
+  - `$"""` se lit comme une chaîne brute : `Host/CommandLine/UsageText.cs` est recollé juste, aucun caractère lu ;
+  - un accesseur suit sa propriété, sauf si le nom entier est renommé : sur une base fabriquée, `get_GetTempc` devient
+    `get_Retenue` et `get_cycles` devient `GetCycles` ;
+  - les refus (rc 2) : un vidage ou une table absents (ils rendaient 1, comme un écart), un littéral sous
+    `texte --noms`, `analyser --depuis` sans `--noms` ;
+  - `compare_ref.py noms`, que `compare-ref.sh` appelle avant toute mesure : une table juste lue (rc 0), une table
+    ambiguë refusée (rc 2).
+- **La preuve de 0b5a, rejouée** après la reprise de `traduire.py` : les mêmes résultats (`b5a-preuve-rejeu-b5b.log`).
+
+**Les portes.**
+- La DLL d'iXtal26 est identique au sha256, construite au même chemin dans `g150b-ref` avancé au parent de l'étape
+  (`fd33ac2`), avant puis après les fichiers de l'étape : `526ccfff…` les deux fois.
+- Aucune ligne neuve au-delà de 120 caractères, hors les deux bases (des données TSV, comme `base-R.*`).
+- Ni série ni banc.
+
+**Contre-lecture**, en deux relectures, reprises :
+- **le code** : aucune erreur. Neuf imprécisions sont reprises :
+  - `comparer` rendait 1 sur une lecture ratée ;
+  - les accesseurs n'étaient pas traduits ;
+  - `--depuis` était accepté sans table ;
+  - un littéral était ignoré par `texte --noms` ;
+  - la table n'était lue qu'après la passe 1 du banc ;
+  - l'apostrophe de l'état en prose coupait la traduction ;
+  - `$"""` était mal lu ;
+  - l'en-tête de `releve-ide.sh` (les projets non construits, le compte par projet, ses retours) et son retour.
+- **la preuve** : aucune erreur de chiffre. Sept imprécisions sont reprises :
+  - « 82 symboles » devient 82 renvois ;
+  - l'ordre des paires d'OP_ARITH ;
+  - « tous les numéros bougent » devient 26 sur 79, mesuré ;
+  - le besoin de `GenerateDocumentationFile`, prouvé par un essai ;
+  - le rapprochement lâche de l'IL, dit ;
+  - les chaînes de `check-doc5150`, dites ;
+  - le plan, qui disait « la base de R » pour la suite.
+
+  Les limites qu'elle jugeait tues sont écrites ci-dessous.
+
+**Ce que ce vert ne dit pas.**
+- La base de G15.P est relevée à HEAD : « HEAD contre `base-G15P`, 0 écart » est vrai par construction. Ce qui la
+  rend juste, c'est son écart à la base de R, recompté ici (sur un vidage sans `--generes`, les numéros ôtés : pas
+  l'objet même de la porte) et égal à celui que § G15.P a dit, et les séries de G15.P (827 portes, 0 écart). Plus
+  aucune porte de G15 ne compare à R ; le relevé de R reste rejouable (`releve.py texte|il --noms g14.txt`), son
+  écart à HEAD est celui d'OP_ARITH. Le plan est repris en ce sens.
+- La frontière est `chauds.txt` : « 0 écart dans `Host/` » prouve qu'elle tient, pas que `Host/` est jugé.
+- L'IL est vidé de la construction Release, le relevé IDE fait en Debug : le dépôt n'a pas de code conditionnel qui
+  les distingue.
+- `check-doc5150.sh` garde les chaînes : un symbole qui ne serait plus que dans une chaîne passerait encore.
+- La traduction de la base et de l'état imprimé est celle de `traduire.py`, par le nom simple. Un nom gardé ailleurs
+  sous le même nom simple fait rougir la porte, jamais verdir à tort. G15.9 renomme les paramètres : un paramètre
+  homonyme d'une autre méthode y demandera son écart dit.
+- IDE0005 ne voit que les directives des projets construits : ni `tools/ildump`, ni `tools/renommage`, ni le banc de
+  SoftFloat.
+- IDE0051/52 ne juge que le privé. Le code mort `internal` (les 130 méthodes et 55 champs d'`ildump references`)
+  reste le relevé de l'IL.
