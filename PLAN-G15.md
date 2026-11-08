@@ -13,7 +13,8 @@ proposition est la décision. G15.0a est faite (le banc des constructions interd
 base à R ; VERIFICATION.md § G15.0a). Q48 est rouverte le 05/11 : G15.P, la performance avant les renommages, est
 faite (P0, quatre candidats mesurés ; P1, OP_ARITH par des structures, sous la règle du témoin calé, son résidu admis
 le 08/11 ; VERIFICATION.md § G15.P). G15.0b est en cours, feu vert du 08/11 : 0b1 (la table des membres), 0b2
-(`ildump`), 0b3 (`listings-jit.sh`) et 0b4 (le renommage des membres) sont faites (VERIFICATION.md § G15.0b). La
+(`ildump`), 0b3 (`listings-jit.sh`), 0b4 (le renommage des membres) et 0b5a (les générateurs) sont faites
+(VERIFICATION.md § G15.0b). La
 référence reste celle de G14 : le commit R = `f15e11f`, `/var/tmp/ixtal-g14/ref-R`, les séries `g14r` et `g14r-tout`
 (VERIFICATION.md § G14.0d), jusqu'à la fin de G15.
 
@@ -194,9 +195,10 @@ d'iXtal26 identique au sha256, ses essais et ses contrôles négatifs ; ni séri
   `references`, l'option des paramètres ;
 - **0b3, `listings-jit.sh compare`** ✅ : la table des membres, les noms générés, la liste close ;
 - **0b4, `tools/renommage`** ✅ : les membres et la vérification de liaison ;
-- **0b5, les générateurs et les petits outils** : les générateurs de `Cpu/` régénérés à HEAD et sensibles à la table
-  (venus de 0b4 : ils transcrivent par du texte, il leur faut une traduction des identifiants qu'ils écrivent) ; les
-  relevés (les `using`, le code mort privé, les constructions interdites) ; `compare-ref.sh` ; `check-doc5150.sh` ;
+- **0b5a, les générateurs** ✅ : les générateurs de `Cpu/` régénérés à HEAD et sensibles à la table (venus de 0b4 :
+  ils transcrivent par du texte, il leur faut une traduction des identifiants qu'ils écrivent) ;
+- **0b5b, les relevés et les petits outils** : les `using`, le code mort privé, les constructions interdites ;
+  `compare-ref.sh` ; `check-doc5150.sh` ;
 - **0b6, la répétition générale** sur `Ics/Intel8259A.cs` et ses appelants, les contrôles négatifs d'ensemble, la
   clôture de l'étape.
 
@@ -225,7 +227,8 @@ Ce qui suit est le contenu de l'étape entière.
   relevé d'IL d'`ildump` (les `newobj` de fermeture, les `box`, les `callvirt` d'interface, les appels à
   `System.Linq`), comparés à la base écrite à R (G15.0a).
 - **Les générateurs de `Cpu/`** : régénérés à HEAD, avant tout renommage, les huit fichiers comparés à l'octet aux
-  fichiers commités (jamais joué jusqu'ici).
+  fichiers commités (jamais joué jusqu'ici). *Fait en 0b5a ; ceux du x87 avaient été rejoués à la main en G13, mais
+  jamais en porte sur les huit (VERIFICATION.md § G15.0b5a).*
 - **`compare-ref.sh`** : l'état imprimé normalisé par la table ; **`check-doc5150.sh:68`** : le symbole cherché hors
   des commentaires (son `grep -qw` trouve aujourd'hui un nom resté dans un commentaire de PCem).
 - **Portes et preuves** : `iXtal26.dll` identique au sha256, construit avant le commit (la DLL porte son commit dans

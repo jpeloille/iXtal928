@@ -177,6 +177,23 @@ internal static class Program
             comptes[k] = comptes.GetValueOrDefault(k) + 1;
         }
 
+        // La déclaration d'un type de la table, ses constructeurs et son destructeur.
+        void Declaration(SyntaxTree t, SyntaxNode d, Cible c)
+        {
+            var id = d switch
+            {
+                BaseTypeDeclarationSyntax b => b.Identifier,
+                DelegateDeclarationSyntax dd => dd.Identifier,
+                _ => default,
+            };
+            if (id.Text != c.NouveauNom) Noter(t, id.Span, c.NouveauNom, "déclaration", c);
+            if (d is not TypeDeclarationSyntax td || id.Text == c.NouveauNom) return;
+            foreach (var k in td.Members.OfType<ConstructorDeclarationSyntax>())
+                Noter(t, k.Identifier.Span, c.NouveauNom, "constructeur", c);
+            foreach (var k in td.Members.OfType<DestructorDeclarationSyntax>())
+                Noter(t, k.Identifier.Span, c.NouveauNom, "destructeur", c);
+        }
+
         Cible? CibleDe(ISymbol? s)
         {
             if (s is IAliasSymbol a) s = a.Target;
@@ -199,6 +216,13 @@ internal static class Program
                                   .Where(n => n is BaseTypeDeclarationSyntax or DelegateDeclarationSyntax).ToList();
                 var types = decls.Select(d => (d, c: CibleDe(m.GetDeclaredSymbol(d)))).ToList();
                 if (!types.Any(x => x.c != null)) continue;
+                // Un type renommé sans changer d'espace de noms (G15, Q42 : les fichiers restent) : sa déclaration et
+                // ses constructeurs seulement ; ni entrée de fichier, ni entrée pour les autres types du fichier.
+                if (types.All(x => x.c == null || x.c.NouveauNs == x.c.AncienNs))
+                {
+                    foreach (var (d, c) in types.Where(x => x.c != null)) Declaration(t, d, c!);
+                    continue;
+                }
                 var nss = racine.DescendantNodes(n => n is CompilationUnitSyntax or BaseNamespaceDeclarationSyntax)
                                 .OfType<BaseNamespaceDeclarationSyntax>().ToList();
                 var rel = Path.GetRelativePath(arbre, t.FilePath);
@@ -213,24 +237,10 @@ internal static class Program
                 if (fs.Name.ToString() != nouveaux[0])
                     Noter(t, fs.Name.Span, nouveaux[0], "espace", types[0].c!);
                 deplaces[t] = nouveaux[0];
-                foreach (var (d, c) in types)
-                {
-                    var id = d switch
-                    {
-                        BaseTypeDeclarationSyntax b => b.Identifier,
-                        DelegateDeclarationSyntax dd => dd.Identifier,
-                        _ => default,
-                    };
-                    if (id.Text != c!.NouveauNom) Noter(t, id.Span, c.NouveauNom, "déclaration", c);
-                    if (d is not TypeDeclarationSyntax td || id.Text == c.NouveauNom) continue;
-                    foreach (var k in td.Members.OfType<ConstructorDeclarationSyntax>())
-                        Noter(t, k.Identifier.Span, c.NouveauNom, "constructeur", c);
-                    foreach (var k in td.Members.OfType<DestructorDeclarationSyntax>())
-                        Noter(t, k.Identifier.Span, c.NouveauNom, "destructeur", c);
-                }
+                foreach (var (d, c) in types) Declaration(t, d, c!);
             }
         }
-        foreach (var c in cibles.Values)
+        foreach (var c in cibles.Values.Where(c => c.NouveauNs != c.AncienNs))
         {
             var t = premier.GetTypeByMetadataName(c.Ancien)!;
             foreach (var r in t.DeclaringSyntaxReferences)

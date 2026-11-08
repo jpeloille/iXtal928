@@ -20824,3 +20824,106 @@ une règle plus grossière qui ramenait aussi les sigles de deux lettres à une 
   La répétition générale (0b6) renomme une famille entière ; ces cas y seront comptés.
 - La liaison n'est éprouvée que sur ces tables : les « 0 écart » valent pour elles.
 - Les noms au début d'un bloc remplacé (G14) ne sont vérifiés que par l'IL.
+
+### G15.0b5a — Les générateurs de `Cpu/`, régénérés à l'octet et sensibles à la table
+
+0b5 se coupe en deux : 5a, les générateurs (venus de 0b4) ; 5b, les relevés, `compare-ref.sh` et `check-doc5150.sh`.
+
+**Ce qui est livré.**
+- `tools/regenerer-cpu.sh`, la porte « régénéré = commité ». Les générateurs du x87 avaient déjà été rejoués à
+  l'octet, à la main, au fil de G13 (§ G13.1, « les quatre générateurs du x87, rejoués après la renumérotation,
+  rendent leurs cinq fichiers à l'octet près », et après) ; le plan disait à tort « jamais joué ». Ce qui est neuf : une
+  porte unique, scriptée, sur les huit fichiers à la fois, et qui suit les noms de G15. Les huit fichiers générés de
+  `Cpu/` sont `x87_ops_arith.cs`, `x87_ops_misc.cs`, `x87_ops_tables.cs`, `x87_ops_808x.cs`, `x87_ops_808x_tables.cs`,
+  `x87_noyau_386.Materiel.cs`, `x87_noyau_808x.Materiel.cs` et `386_ops_table386.cs`. `--ecrire` les copie dans
+  l'arbre. Comme deux générateurs lisent les sources de `Cpu/` par les noms de PCem (`gentab.py` ; `gen46.py`, qui
+  relit les sorties de gen43 et gen44), le script travaille sur une copie :
+  1. les sources de `Cpu/` y sont retraduites vers les noms d'avant les étapes de la table ;
+  2. les générateurs tournent dans leur ordre ;
+  3. les huit sorties sont traduites vers les noms courants ;
+  4. elles sont comparées.
+
+  Sans `--noms`, la table est `tools/noms/g15.txt` entière : les générateurs ont les noms d'après G14. Les noms des
+  huit fichiers sont fixes (Q42).
+- `tools/noms/traduire.py`, la traduction des identifiants d'un texte C# par la table, dans les deux sens.
+  - Un identifiant ASCII du code, borné, prend son nouveau nom par son nom simple, étape après étape : les types
+    (l'arité d'un générique ôtée), les types imbriqués, les membres, les paramètres.
+  - Une chaîne simple de la liste close, sans `\`, prend le sien.
+  - Ne sont pas touchés : les commentaires, les chaînes, les caractères, une chaîne brute (lue d'un bloc). Les trous
+    d'une chaîne interpolée sont traduits comme du code.
+  - Refusés : un nom simple vers deux nouveaux dans une étape ; dans le sens inverse, deux anciens ou deux littéraux
+    vers un même nouveau ; une option sans valeur.
+
+  C'est une traduction par le texte : sa porte est l'octet. Son en-tête dit ce qu'elle ne voit pas.
+- `tools/noms/table_noms.py` : la lecture de la table en python, sortie de `listings-jit.sh` (0b3) pour servir aussi à
+  `traduire.py`. `listings-jit.sh` l'importe ; sa preuve, rejouée, rend les mêmes résultats
+  (`b3-preuve-rejeu-b5.log`), hors l'empreinte de la capture de HEAD. Celle-ci a été refaite quand l'arbre de
+  référence a avancé, au parent de 0b4 (`bebec6f`, `db12b2ca…`), et `b3/dll-H/` en garde désormais une copie.
+- **Dans `tools/renommage`, un défaut trouvé par cette étape et repris** : un type renommé sans changer d'espace de
+  noms exigeait une entrée de fichier, comme en G14, et une entrée pour les autres types de son fichier. Or G15 renomme
+  des types sans déplacer leurs fichiers (Q42) : G15.2 y aurait buté. Un type qui garde son espace de noms ne demande
+  désormais que sa déclaration et ses constructeurs. La preuve de 0b4, rejouée, rend les mêmes résultats
+  (`b4-preuve-rejeu-b5.log`).
+
+**Les essais** (`b5a-preuve.log`, `outils/b5a-preuve.sh`, chaque contrôle avec son journal dans `b5/`) :
+- **Les générateurs rejoués en place, à HEAD**, dans un worktree jetable (`b5-gen`, `50105ff`) : les huit fichiers
+  réécrits, `git status` vide.
+- **Le pilote à HEAD, sans table** : les huit égaux à l'octet. Avec `g15.txt`, qui n'a encore aucune étape, la
+  traduction est l'identité : ce vert n'éprouve que la copie et les générateurs.
+- **Un renommage de `Cpu/` qui touche les fichiers générés**, par `tools/renommage` (`b5/gen.txt`, huit entrées) :
+  - les noms : `opFADDs_a16` dans ses quatre classes (`_386` et `_808x`, générés par gen43 et gen46 ; `_386_noyau` et
+    `_808x_noyau`, par genmat) ; `x87_push` (écrit à la main, employé par le code généré) ; `op0F00_a16`, que la table
+    générée de `386_ops_table386.cs` ne nomme qu'en commentaire (l'entrée éprouve que ni Roslyn ni la traduction ne
+    touchent un commentaire généré) ; `ops_286_0f`, 715 sites dont 706 dans le code de la table générée ; et le type
+    `x87_ts`, renommé sans changer de fichier ;
+  - 817 sites dans 13 fichiers, la liaison sans écart ;
+  - **avec la même table, le pilote rend les huit égaux à l'octet**. Il retraduit 817 noms dans les sources : chaque
+    site renommé par Roslyn, dans le code ou dans une sortie générée. Il en traduit 786 dans les sorties ; les 31 de
+    différence sont dans les fichiers écrits à la main ;
+  - `--jusqua gen` sur une table de deux étapes : les huit égaux, la seconde étape écartée ;
+  - avec la table tronquée de `x87_push` : 2 écarts (`x87_ops_misc.cs`, `x87_ops_808x.cs`) ; sans table : 8 écarts.
+    C'est le contrôle négatif du plan, « un générateur relancé avec une table tronquée produit un écart » ;
+  - `--ecrire` avec la table tronquée écrit les deux fichiers ; le pilote avec la table complète, sur l'arbre ainsi
+    écrit, les désigne : 2 écarts.
+- **La limite de la traduction par le nom simple**, et la porte qui l'attrape : la copie `_386` d'`opFADDs_a16`
+  renommée seule (`b5/gen-partielle.txt`, 4 sites). La traduction renomme aussi les copies du 8087 et des noyaux :
+  4 écarts, refusés.
+- **Les refus de `traduire.py`** : un nom simple vers deux nouveaux dans une étape (rc 2, dans les deux sens) ; deux
+  anciens vers un même nouveau (rc 2 dans le sens inverse, accepté dans le sens direct).
+
+**Les portes.**
+- La DLL d'iXtal26 est identique au sha256, construite au même chemin, dans `g150b-ref` avancé au parent de l'étape
+  (`50105ff`), avant puis après les fichiers de l'étape : `39b263f8…` les deux fois. Elle diffère de celle de la
+  sous-étape d'avant par le seul commit inscrit dans sa version ; l'étape ne touche que `tools/`.
+- Aucune ligne neuve au-delà de 120 caractères. Ni série ni banc.
+
+**Contre-lecture**, en deux relectures, reprises :
+- **Le code** : aucune erreur bloquante. Dix imprécisions de `traduire.py` reprises :
+  - les paramètres, désormais traduits ;
+  - l'en-tête sur les trous interpolés ;
+  - un identifiant borné (ni dans `0x1F`, ni au milieu d'un mot) ;
+  - les chaînes brutes ;
+  - une chaîne non terminée ;
+  - la chaîne à `\` dite ;
+  - la composition entre étapes dite ;
+  - les littéraux du sens inverse refusés ;
+  - l'arité d'un générique ;
+  - une option sans valeur.
+
+  Dans `regenerer-cpu.sh` : `-B` à la place d'une variable que `-I` ignore, la copie contrôlée, les `__pycache__`
+  écartés.
+- **La preuve** : aucune erreur de chiffre ; une affirmation fausse reprise, « jamais joué ». Imprécisions reprises :
+  - la capture de HEAD d'un cran en retard, dite ;
+  - 817 et 786 expliqués, et les 715 sites d'`ops_286_0f` ;
+  - ce qu'éprouve `op0F00_a16` ;
+  - le sha qui change d'un parent à l'autre.
+
+  Essais ajoutés : les refus de `traduire.py`, `--ecrire`, `--jusqua`, un type renommé dans une sortie générée.
+
+**Ce que ce vert ne dit pas.**
+- La traduction ne connaît que le nom simple. En G15.8, un nom que deux classes de `Cpu/` portent, et que la table ne
+  renomme pas de la même façon dans les deux, fera rougir la porte. Il faudra alors une exception qui les accorde, ou
+  une traduction par classe ; la porte ne laisse pas passer le cas.
+- Aucune sortie générée ne contient de chaîne en forme d'identifiant : la liste close n'y a rien à traduire.
+- Un identifiant homonyme d'un autre sens (une locale du nom d'un membre renommé) serait traduit à tort ; la porte le
+  verrait. Aucun cas dans ces essais.
